@@ -1,0 +1,61 @@
+{
+  "channeldata_version": 1,
+  "name": "universe",
+  "packages": {
+    "universe": {
+      "build": "h41f06ac_0",
+      "depends": [
+        "__glibc >=2.17,<3.0.a0",
+        "universe-airlock >=0.1.0,<0.2",
+        "universe-kit >=0.1.0,<0.2"
+      ],
+      "license": "MIT",
+      "name": "universe",
+      "subdirs": [
+        "linux-64"
+      ],
+      "version": "0.1.0"
+    },
+    "universe-airlock": {
+      "build": "h41f06ac_0",
+      "depends": [
+        "__glibc >=2.17,<3.0.a0"
+      ],
+      "license": "MIT",
+      "name": "universe-airlock",
+      "subdirs": [
+        "linux-64"
+      ],
+      "version": "0.1.0"
+    },
+    "universe-airlock-bootstrap": {
+      "build": "h41f06ac_0",
+      "depends": [
+        "__glibc >=2.17,<3.0.a0"
+      ],
+      "license": "MIT",
+      "name": "universe-airlock-bootstrap",
+      "subdirs": [
+        "linux-64"
+      ],
+      "version": "0.1.0"
+    },
+    "universe-kit": {
+      "build": "h41f06ac_0",
+      "depends": [
+        "__glibc >=2.17,<3.0.a0"
+      ],
+      "license": "MIT",
+      "name": "universe-kit",
+      "subdirs": [
+        "linux-64"
+      ],
+      "version": "0.1.0"
+    }
+  },
+  "run_exports": {},
+  "subdirs": [
+    "linux-64",
+    "noarch"
+  ]
+}

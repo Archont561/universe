@@ -1,0 +1,17 @@
+{
+  "build": "h41f06ac_0",
+  "build_number": 0,
+  "depends": [
+    "__glibc >=2.17,<3.0.a0"
+  ],
+  "digest": "007a5ed5c16f5028e04fed63a381b2a15ce5e79a26a3e9b0f40d20ac04bef146",
+  "license": "MIT",
+  "license_files": [
+    "info/licenses/LICENSE"
+  ],
+  "package": "universe-airlock",
+  "path": "output/universe-airlock/linux-64/universe-airlock-0.1.0-h41f06ac_0.conda",
+  "size_bytes": 568371,
+  "subdir": "linux-64",
+  "version": "0.1.0"
+}

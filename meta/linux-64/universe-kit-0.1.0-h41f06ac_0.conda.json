@@ -1,0 +1,17 @@
+{
+  "build": "h41f06ac_0",
+  "build_number": 0,
+  "depends": [
+    "__glibc >=2.17,<3.0.a0"
+  ],
+  "digest": "5788df4852acc0a730b96ed27317a7564095afecd2e0b338c4c5ca0a06db537c",
+  "license": "MIT",
+  "license_files": [
+    "info/licenses/LICENSE"
+  ],
+  "package": "universe-kit",
+  "path": "output/universe-kit/linux-64/universe-kit-0.1.0-h41f06ac_0.conda",
+  "size_bytes": 3561765,
+  "subdir": "linux-64",
+  "version": "0.1.0"
+}

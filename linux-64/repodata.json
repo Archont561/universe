@@ -1,0 +1,64 @@
+{
+  "info": {
+    "subdir": "linux-64"
+  },
+  "packages": {},
+  "packages.conda": {
+    "universe-0.1.0-h41f06ac_0.conda": {
+      "build": "h41f06ac_0",
+      "build_number": 0,
+      "depends": [
+        "__glibc >=2.17,<3.0.a0",
+        "universe-airlock >=0.1.0,<0.2",
+        "universe-kit >=0.1.0,<0.2"
+      ],
+      "license": "MIT",
+      "name": "universe",
+      "sha256": "553744a354b73465ae9e31ed3e0ec49d720fc44bcddcc8ccfd4d0484e4fe190e",
+      "size": 195337,
+      "subdir": "linux-64",
+      "version": "0.1.0"
+    },
+    "universe-airlock-0.1.0-h41f06ac_0.conda": {
+      "build": "h41f06ac_0",
+      "build_number": 0,
+      "depends": [
+        "__glibc >=2.17,<3.0.a0"
+      ],
+      "license": "MIT",
+      "name": "universe-airlock",
+      "sha256": "007a5ed5c16f5028e04fed63a381b2a15ce5e79a26a3e9b0f40d20ac04bef146",
+      "size": 568371,
+      "subdir": "linux-64",
+      "version": "0.1.0"
+    },
+    "universe-airlock-bootstrap-0.1.0-h41f06ac_0.conda": {
+      "build": "h41f06ac_0",
+      "build_number": 0,
+      "depends": [
+        "__glibc >=2.17,<3.0.a0"
+      ],
+      "license": "MIT",
+      "name": "universe-airlock-bootstrap",
+      "sha256": "2ffdd991f81959369b3060e85d7c04630e18531cec9648cb3ec17ec3a4737b41",
+      "size": 535107,
+      "subdir": "linux-64",
+      "version": "0.1.0"
+    },
+    "universe-kit-0.1.0-h41f06ac_0.conda": {
+      "build": "h41f06ac_0",
+      "build_number": 0,
+      "depends": [
+        "__glibc >=2.17,<3.0.a0"
+      ],
+      "license": "MIT",
+      "name": "universe-kit",
+      "sha256": "5788df4852acc0a730b96ed27317a7564095afecd2e0b338c4c5ca0a06db537c",
+      "size": 3561765,
+      "subdir": "linux-64",
+      "version": "0.1.0"
+    }
+  },
+  "removed": [],
+  "repodata_version": 1
+}

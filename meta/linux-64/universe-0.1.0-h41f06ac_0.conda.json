@@ -1,0 +1,19 @@
+{
+  "build": "h41f06ac_0",
+  "build_number": 0,
+  "depends": [
+    "__glibc >=2.17,<3.0.a0",
+    "universe-airlock >=0.1.0,<0.2",
+    "universe-kit >=0.1.0,<0.2"
+  ],
+  "digest": "553744a354b73465ae9e31ed3e0ec49d720fc44bcddcc8ccfd4d0484e4fe190e",
+  "license": "MIT",
+  "license_files": [
+    "info/licenses/LICENSE"
+  ],
+  "package": "universe",
+  "path": "output/universe/linux-64/universe-0.1.0-h41f06ac_0.conda",
+  "size_bytes": 195337,
+  "subdir": "linux-64",
+  "version": "0.1.0"
+}

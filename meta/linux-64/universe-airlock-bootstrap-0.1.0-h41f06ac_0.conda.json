@@ -1,0 +1,17 @@
+{
+  "build": "h41f06ac_0",
+  "build_number": 0,
+  "depends": [
+    "__glibc >=2.17,<3.0.a0"
+  ],
+  "digest": "2ffdd991f81959369b3060e85d7c04630e18531cec9648cb3ec17ec3a4737b41",
+  "license": "MIT",
+  "license_files": [
+    "info/licenses/LICENSE"
+  ],
+  "package": "universe-airlock-bootstrap",
+  "path": "output/universe-airlock-bootstrap/linux-64/universe-airlock-bootstrap-0.1.0-h41f06ac_0.conda",
+  "size_bytes": 535107,
+  "subdir": "linux-64",
+  "version": "0.1.0"
+}
