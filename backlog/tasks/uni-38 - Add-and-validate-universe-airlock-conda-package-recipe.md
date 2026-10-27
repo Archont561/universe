@@ -9,7 +9,7 @@ labels:
   - release
   - airlock
   - packaging
-milestone: m-8
+milestone: m-5
 dependencies:
   - UNI-31
 priority: high

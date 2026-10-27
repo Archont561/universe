@@ -90,4 +90,4 @@ For this change set, `universe-cli` is a new workspace member with no third-part
 
 ## Next implementation slices
 
-The sequenced work is tracked in UNI-40 through UNI-47 and the integrated v1 release task UNI-16. Milestones describe outcome areas; their tasks remain flat and dependencies name only real blockers. The full release gate must combine deterministic offline fixture tests with a separately identified connected release/publish check.
+The v1 implementation and release gate are tracked in UNI-40 through UNI-47 plus UNI-16; post-v1 native developer transport and sandbox retirement are UNI-48/UNI-27. The ordered task graph and undated sprint train are in roadmap doc-112. Milestones describe outcomes; tasks remain flat and dependencies name only real blockers. The release gate combines deterministic offline fixture tests with separately identified connected release/publish checks.

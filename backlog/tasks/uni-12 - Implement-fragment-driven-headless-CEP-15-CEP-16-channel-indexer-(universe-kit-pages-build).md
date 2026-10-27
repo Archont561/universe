@@ -11,6 +11,7 @@ labels:
 milestone: m-3
 dependencies:
   - UNI-10
+  - UNI-11
 documentation:
   - backlog/docs/architecture/doc-3 - Static-channel-and-SvelteKit-UnoCSS-portal-specification.md
   - backlog/docs/architecture/doc-111 - V1-package-layout-and-offline-readiness.md

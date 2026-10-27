@@ -12,6 +12,8 @@ labels:
 milestone: m-3
 dependencies:
   - UNI-10
+  - UNI-31
+  - UNI-41
 documentation:
   - backlog/docs/architecture/doc-2 - Universe Kit-CLI-and-manifest-specification.md
   - backlog/decisions/decision-1 - Two-tier-product-and-channel-boundary-(archont561-archont561-ships-universe-kit;-consumer-universes-target-arbitrary-channels).md

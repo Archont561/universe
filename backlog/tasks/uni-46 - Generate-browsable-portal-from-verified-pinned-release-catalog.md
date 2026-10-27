@@ -9,7 +9,7 @@ labels:
   - portal
   - catalog
   - testing
-milestone: m-6
+milestone: m-7
 dependencies:
   - UNI-5
   - UNI-6

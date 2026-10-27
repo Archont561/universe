@@ -9,7 +9,7 @@ labels:
   - python
   - registry
   - testing
-milestone: m-9
+milestone: m-6
 dependencies:
   - UNI-31
   - UNI-41

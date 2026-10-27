@@ -9,7 +9,7 @@ labels:
   - airlock
   - registry
   - offline
-milestone: m-8
+milestone: m-9
 dependencies:
   - UNI-12
   - UNI-32

@@ -9,7 +9,7 @@ labels:
   - airlock
   - offline
   - testing
-milestone: m-8
+milestone: m-5
 dependencies:
   - UNI-30
   - UNI-31

@@ -9,7 +9,7 @@ labels:
   - airlock
   - bootstrap
   - offline
-milestone: m-8
+milestone: m-5
 dependencies:
   - UNI-32
 priority: high

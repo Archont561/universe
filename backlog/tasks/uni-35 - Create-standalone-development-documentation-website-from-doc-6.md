@@ -8,7 +8,7 @@ updated_date: '2026-10-27'
 labels:
   - docs
   - infrastructure
-milestone: m-9
+milestone: m-11
 dependencies:
   - UNI-28
 priority: low
@@ -28,7 +28,7 @@ gate path.
 <!-- AC:BEGIN -->
 - [ ] #1 The website has its own lockfile/build and is excluded from product artifacts.
 - [ ] #2 Sitemap, canonical/base-path URLs, robots, OG metadata, and LLM mirrors are generated and asserted.
-- [ ] #3 Every command/configuration page labels Available, v0.1 target, and Roadmap material accurately.
+- [ ] #3 Every command/configuration page labels currently available, integrated-v1 target, and post-v1 roadmap material accurately.
 <!-- AC:END -->
 
 ## Definition of Done

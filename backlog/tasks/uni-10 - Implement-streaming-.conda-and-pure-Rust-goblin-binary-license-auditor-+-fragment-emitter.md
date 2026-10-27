@@ -12,6 +12,7 @@ labels:
 milestone: m-2
 dependencies:
   - UNI-30
+  - UNI-31
 documentation:
   - backlog/docs/architecture/doc-2 - Universe Kit-CLI-and-manifest-specification.md
   - backlog/docs/architecture/doc-3 - Static-channel-and-SvelteKit-UnoCSS-portal-specification.md

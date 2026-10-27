@@ -138,7 +138,7 @@ bun-install   = "bun install --frozen-lockfile"
 hooks-install = { cmd = "lefthook install", depends-on = ["bun-install"] }
 build         = { cmd = "cargo build --workspace --all-features --locked" }
 test          = { cmd = "cargo nextest run --workspace --all-features --locked && cargo test --workspace --locked --doc && pytest" }
-test-e2e      = { cmd = "future portal package task (M6; no root TypeScript workspace)" }
+test-e2e      = { cmd = "future portal package task (M7; no root TypeScript workspace)" }
 coverage      = { cmd = "cargo llvm-cov ... && pytest --cov=scripts ..." }
 lint          = { cmd = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && ruff check scripts tests/scripts" }
 typecheck     = { cmd = "cargo check --workspace --all-targets --all-features --locked && mypy scripts tests/scripts" }

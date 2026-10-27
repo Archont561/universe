@@ -22,19 +22,20 @@ Use each record for one level of planning:
 
 The roadmap at [`doc-4`](../roadmap/doc-4%20-%20Milestone-roadmap-and-skills-sh-rollout.md) is the cross-milestone summary. A milestone record remains the authoritative scope and exit gate for that milestone; a task's milestone field is the direct backlink.
 
-## Milestones, sprint trains, and task edges
+## Milestones, sprints, and task edges
 
-Universe plans by product/theme milestone. The milestones may list contributing task IDs, and tasks point back using `milestone: m-N`. A milestone is not a sprint and should not be replaced by a task with `type: sprint`.
+Universe plans by product/theme milestone. Each milestone lists its contributing task IDs and observable exit gate; tasks point back using `milestone: m-N`. Milestones are outcomes, not task parents or sprints.
 
-The QGIS SDK backlog demonstrates a useful optional extension: when a milestone needs time-boxed sequencing, record a **sprint train** in a planning document or a `## Sprint train` section in the milestone. Keep the mapping from each sprint to the tasks and the dependency rationale there; avoid adding a `sprint` field to every task. Universe has not assigned sprint dates or adopted sprint cycles, so this is a pattern available for future planning, not a current commitment.
+Universe now uses an **undated sprint train** as a scheduling overlay. The current ordered sequence is in [doc-112](../roadmap/doc-112%20-%20Ordered-milestone-DAG-and-sprint-train.md), which maps each proposed sprint to existing tasks and records the ordering rationale. No sprint dates, duration, capacity, or points are committed. Do not add a `sprint` field to every task; the sprint plan must not be mistaken for task hierarchy.
 
 Keep task graph edges semantically distinct:
 
 - `milestone` groups work under an outcome and exit gate.
-- `dependencies` means a real prerequisite/blocker only: the dependent task cannot complete before the referenced task. Never use it to mean “this task contains those tasks.”
+- `dependencies` means a real prerequisite/blocker only: the dependent task cannot complete before the referenced task. Never use it to mean “this task contains those tasks” or merely to copy sprint order.
+- Sprint order is a planning preference. It may group independent tracks, but it is not a hard blocker unless an actual task dependency says so.
 - Markdown links document non-queryable relationships such as decisions/specifications; task checklists remain acceptance criteria, not child tasks.
 
-Universe currently has no `parent_task_id` / subtask metadata or checker support. If decomposition into independently tracked child tasks becomes valuable, add and validate an explicit parent-child edge before adopting it. Do not simulate hierarchy with a sprint-type task or misuse dependencies. For larger milestones, a plan document can sequence existing work without claiming that those tasks are formally subtasks.
+Universe has no `parent_task_id` / subtask metadata or checker support. Do not introduce parent/child tasks or a sprint task type to simulate hierarchy. If decomposition becomes necessary, design and validate an explicit relationship separately. The sprint train only sequences existing flat tasks; task frontmatter remains the source of truth for blockers.
 
 ## Work types and status honesty
 

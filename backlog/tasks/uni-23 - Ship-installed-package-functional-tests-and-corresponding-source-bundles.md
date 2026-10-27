@@ -8,9 +8,10 @@ updated_date: '2026-10-27 09:20'
 labels:
   - testing
   - release
-milestone: m-2
+milestone: m-4
 dependencies:
   - UNI-9
+  - UNI-15
 documentation:
   - backlog/decisions/decision-10 - Adopt-ODM-conda-release-governance-and-supply-chain-hardening-patterns.md
   - backlog/docs/architecture/doc-2 - Universe Kit-CLI-and-manifest-specification.md

@@ -8,15 +8,11 @@ updated_date: '2026-10-27'
 labels:
   - architecture
   - packaging
-milestone: m-10
+milestone: m-8
 dependencies:
+  - UNI-15
   - UNI-34
   - UNI-38
-documentation:
-  - backlog/docs/architecture/doc-111 - V1-package-layout-and-offline-readiness.md
-  - backlog/decisions/decision-119 - Full-multi-ecosystem-v1-and-static-catalog-distribution.md
-priority: high
-type: feature
 ordinal: 40000
 ---
 
