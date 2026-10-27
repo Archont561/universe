@@ -1,0 +1,77 @@
+{
+  "skills": {
+    "audit": {
+      "computedHash": "d7c095f9dd7eb0b81118dcab428fb19f07ec2aaf174c707e51a3e7b7fa5a0e6f",
+      "skillPath": ".agents/skills/audit/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "backlog": {
+      "computedHash": "cace77c46a1c7dfe1ae567d4bcdc0b846964f9b070aa7da64c53dfc356bebcf1",
+      "skillPath": ".agents/skills/backlog/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "bdd": {
+      "computedHash": "3060ccde1851d067154be7f28ae97d54983581d1364a5692e532ebc2515555a6",
+      "skillPath": ".agents/skills/bdd/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "cep-channel": {
+      "computedHash": "5760589b7a40cbbda2e74b47a9c5c3df4a739bd452da6ec3c21c8937cc8772dc",
+      "skillPath": ".agents/skills/cep-channel/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "clean-code-principles": {
+      "computedHash": "40cc671c6b88342e4b193f74690b63ea137c813fd6dd70dfe7e5b55c98d48098",
+      "skillPath": ".agents/skills/clean-code-principles/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "grill-me": {
+      "computedHash": "fe33aaa8e8dcd606107b1bfe3109f257b4a7e0f4907afd6506b62ccfb73cd1d3",
+      "skillPath": ".agents/skills/grill-me/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "refactor": {
+      "computedHash": "79ebcbe6285fe277555805038d774a4b73e2eb760cc94db299fb81d1927f95b8",
+      "skillPath": ".agents/skills/refactor/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "session": {
+      "computedHash": "b47210d0c3cf894be2a93dc0ce251c1f510211b92c7f1602113cb8e1aa40bff6",
+      "skillPath": ".agents/skills/session/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "skill-creator": {
+      "computedHash": "a1b84905f559564356c42057be6bc11509e349c773c187ff6f9a108a4a4b3254",
+      "skillPath": ".agents/skills/skill-creator/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "svelte5-unocss-ssg": {
+      "computedHash": "48817fba2f81aa330f6c7f6f7feed2c91a649a980f41d19aafb27a99586d0a16",
+      "skillPath": ".agents/skills/svelte5-unocss-ssg/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "tdd": {
+      "computedHash": "640e03b03610a0cd793a9474f41715802e1a5ba439681c970b03ba7b190cd817",
+      "skillPath": ".agents/skills/tdd/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    },
+    "writing-for-agents": {
+      "computedHash": "8365ebe1d0c343d3d46970526f30fcf7c5e0c5e49fd39a3c882977024626ff3c",
+      "skillPath": ".agents/skills/writing-for-agents/SKILL.md",
+      "source": "Archont561/universe",
+      "sourceType": "local"
+    }
+  },
+  "version": 1
+}
