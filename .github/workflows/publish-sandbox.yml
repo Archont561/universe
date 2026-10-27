@@ -78,7 +78,7 @@ jobs:
           --branch sandbox/developer-linux-64
           --remote "$REMOTE"
           --config .pixi-sandbox.toml
-          --cargo-vendor false
+          --cargo-vendor true
           --transport-dir "${{ runner.temp }}/pixi-sandbox-transport"
           --log-dir "${{ runner.temp }}/pixi-sandbox-logs"
 

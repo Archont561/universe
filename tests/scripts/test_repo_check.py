@@ -11,6 +11,7 @@ from scripts.repo_check import (
     extract_workflow_refs,
     is_immutable_sha,
     main,
+    validate_offline_cargo_transport,
     validate_repo,
 )
 
@@ -44,6 +45,34 @@ package:
     assert extract_recipe_context_version(recipe) == "2.3.4"
     assert extract_recipe_package_name(recipe) == "universe-kit"
     assert extract_recipe_context_version("package:\n  name: x\n") is None
+
+
+def test_offline_cargo_gates_require_vendored_transport() -> None:
+    lockfile = '[[package]]\nname = "serde"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n'
+    sandbox_config = "cargo_vendor = true\n\n[[bundle]]\ncargo_vendor = true\n"
+    publisher = "args: pixi-sandbox pipeline\n  --cargo-vendor true\n"
+    lefthook = (
+        "pre-push:\n  commands:\n    gates:\n"
+        "      run: CARGO_NET_OFFLINE=true pixi run offline-gates\n"
+    )
+    pixi_config = (
+        '[tasks.offline-gates]\ndepends-on = ["check", "coverage", "lint-actions", "build"]\n'
+    )
+
+    assert (
+        validate_offline_cargo_transport(lockfile, sandbox_config, publisher, lefthook, pixi_config)
+        == []
+    )
+
+    errors = validate_offline_cargo_transport(
+        lockfile,
+        sandbox_config,
+        publisher.replace("--cargo-vendor true", "--cargo-vendor false"),
+        lefthook.replace("CARGO_NET_OFFLINE=true ", ""),
+        pixi_config,
+    )
+    assert any("publisher must include Cargo vendor data" in error for error in errors)
+    assert any("pre-push must run offline-gates" in error for error in errors)
 
 
 def test_the_standalone_repository_passes_repo_check() -> None:

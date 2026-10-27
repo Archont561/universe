@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from scripts.backlog_check import extract_markdown_links, main, parse_frontmatter, validate_backlog
+from scripts.backlog_check import (
+    extract_frontmatter_list,
+    extract_markdown_links,
+    main,
+    parse_frontmatter,
+    validate_backlog,
+)
 
 
 def test_parses_scalar_frontmatter_and_links() -> None:
@@ -24,6 +30,18 @@ def test_parses_scalar_frontmatter_and_links() -> None:
         "b.md",
         "x.png",
         "https://example.test",
+    ]
+    assert extract_frontmatter_list("dependencies: []", "dependencies") == []
+    assert extract_frontmatter_list("dependencies: [UNI-4, 'UNI-5']", "dependencies") == [
+        "UNI-4",
+        "UNI-5",
+    ]
+    assert extract_frontmatter_list(
+        "dependencies:\n  - UNI-1\n  - UNI-2\npriority: high", "dependencies"
+    ) == ["UNI-1", "UNI-2"]
+    assert extract_frontmatter_list("labels: [core, 'airlock']", "labels") == [
+        "core",
+        "airlock",
     ]
 
 
@@ -47,6 +65,37 @@ def test_validates_a_minimal_backlog(tmp_path: Path) -> None:
     )
 
     assert validate_backlog(tmp_path) == []
+
+
+def test_validates_milestone_and_task_dependency_references(tmp_path: Path) -> None:
+    milestones = tmp_path / "backlog" / "milestones"
+    tasks = tmp_path / "backlog" / "tasks"
+    milestones.mkdir(parents=True)
+    tasks.mkdir(parents=True)
+    (milestones / "m-1 - foundation.md").write_text(
+        "---\nid: m-1\ntitle: Foundation\n---\n",
+        encoding="utf-8",
+    )
+    (tasks / "uni-1 - parent.md").write_text(
+        "---\nid: UNI-1\ntitle: Parent\nstatus: To Do\nmilestone: m-1\n"
+        "dependencies:\n  - UNI-2\n---\n",
+        encoding="utf-8",
+    )
+    (tasks / "uni-2 - prerequisite.md").write_text(
+        "---\nid: UNI-2\ntitle: Prerequisite\nstatus: To Do\n---\n",
+        encoding="utf-8",
+    )
+
+    assert validate_backlog(tmp_path) == []
+
+    task = tasks / "uni-1 - parent.md"
+    task.write_text(
+        task.read_text(encoding="utf-8").replace("m-1", "m-404").replace("UNI-2", "UNI-404"),
+        encoding="utf-8",
+    )
+    errors = "\n".join(validate_backlog(tmp_path))
+    assert "unknown milestone reference m-404" in errors
+    assert "unknown task dependency UNI-404" in errors
 
 
 def test_reports_duplicate_ids_invalid_status_and_broken_links(tmp_path: Path) -> None:

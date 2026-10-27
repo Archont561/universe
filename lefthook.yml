@@ -15,11 +15,12 @@ pre-commit:
       glob: ".agents/skills/**"
       run: pixi run skills-check
 
+# Keep registry-backed Cargo stages inside the vendored sandbox transport.
 pre-push:
   parallel: false
   commands:
     gates:
-      run: pixi run gates
+      run: CARGO_NET_OFFLINE=true pixi run offline-gates
 
 commit-msg:
   commands:

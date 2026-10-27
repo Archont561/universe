@@ -106,6 +106,12 @@ check = { depends-on = [
   "repo-check",
   "skills-check",
 ], description = "Run format, lint, type, test, backlog, repository, and skill checks" }
+offline-gates = { depends-on = [
+  "check",
+  "coverage",
+  "lint-actions",
+  "build",
+], description = "Run offline-compatible Rust, Python, and repository gates; excludes Bun installs and advisory database updates" }
 gates = { depends-on = [
   "check",
   "web-check",
