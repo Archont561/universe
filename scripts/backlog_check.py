@@ -42,6 +42,30 @@ def extract_markdown_links(text: str) -> list[str]:
     return pattern.findall(text)
 
 
+def extract_frontmatter_list(text: str, key: str) -> list[str]:
+    """Extract a simple YAML scalar list from the frontmatter block."""
+    match = re.search(rf"(?m)^{re.escape(key)}:[ \t]*(.*)$", text)
+    if match is None:
+        return []
+
+    value = match.group(1).strip()
+    if value.startswith("[") and value.endswith("]"):
+        return [item.strip().strip("\"'") for item in value[1:-1].split(",") if item.strip()]
+    if value:
+        return [value.strip("\"'")]
+
+    items: list[str] = []
+    for line in text[match.end() :].splitlines():
+        if not line.strip():
+            continue
+        if not line[:1].isspace():
+            break
+        item = re.match(r"^\s+-\s*(.+?)\s*$", line)
+        if item is not None:
+            items.append(item.group(1).strip("\"'"))
+    return items
+
+
 def _category_for(relative_path: Path) -> str:
     parts = set(relative_path.parts)
     for category in ("decisions", "tasks", "docs", "milestones"):
@@ -114,6 +138,30 @@ def validate_backlog(repo_root: Path | None = None) -> list[str]:
                 continue
             if not path_exists(resolved):
                 errors.append(f"{relative_posix}: broken Backlog link {target}")
+
+    categories_by_id: dict[str, str] = {}
+    for file in files:
+        frontmatter = parse_frontmatter(file.read_text(encoding="utf-8"))
+        if frontmatter is not None and frontmatter.get("id"):
+            categories_by_id[frontmatter["id"].lower()] = _category_for(
+                file.relative_to(backlog_root)
+            )
+
+    for file in files:
+        relative_posix = file.relative_to(backlog_root).as_posix()
+        if _category_for(file.relative_to(backlog_root)) != "tasks":
+            continue
+        text = file.read_text(encoding="utf-8")
+        frontmatter = parse_frontmatter(text)
+        if frontmatter is None:
+            continue
+
+        milestone = frontmatter.get("milestone")
+        if milestone and categories_by_id.get(milestone.lower()) != "milestones":
+            errors.append(f"{relative_posix}: unknown milestone reference {milestone}")
+        for dependency in extract_frontmatter_list(text, "dependencies"):
+            if categories_by_id.get(dependency.lower()) != "tasks":
+                errors.append(f"{relative_posix}: unknown task dependency {dependency}")
 
     return errors
 

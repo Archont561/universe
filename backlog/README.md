@@ -11,7 +11,8 @@ status.
 3. [`decisions/decision-15`](decisions/decision-15%20-%20Standalone-toolchain-and-quality-gates.md) — Pixi/Rust/Python toolchain and the gate contract.
 4. [`decisions/decision-17`](decisions/decision-17%20-%20CLI-stdout-contract-and-interactive-UX-boundaries.md) — CLI output and interaction boundaries.
 5. [`decisions/decision-118`](decisions/decision-118%20-%20Enable-pixi-sandbox-lock-repair-for-Cargo-Pixi-and-Bun.md) — Cargo/Pixi/Bun lock repair.
-5. [`docs/development/doc-202`](docs/development/doc-202%20-%20Development-guide.md) — development workflow.
+6. [`docs/development/doc-202`](docs/development/doc-202%20-%20Development-guide.md) — development workflow.
+7. [`docs/development/doc-203`](docs/development/doc-203%20-%20Backlog-structure-and-planning.md) — backlog layout and milestone/task conventions.
 
 ## Layout
 
@@ -19,9 +20,10 @@ status.
 | --- | --- |
 | `decisions/` | Accepted/proposed/superseded architecture and product decisions |
 | `docs/` | Durable specifications and design records |
-| `milestones/` | Version/theme exit conditions |
-| `tasks/` | `UNI-*` implementation work and status |
-| `drafts/` | Unaccepted task drafts when present |
+| `milestones/` | Product/theme outcomes and observable exit conditions |
+| `tasks/` | `UNI-*` implementation work, each linked to a milestone when applicable |
+| `drafts/` | Unapproved task, milestone, or decision drafts |
+| `archive/` | Preserved closed or superseded drafts, milestones, or tasks; create category directories when needed and never recycle IDs |
 
 ## ID rules
 

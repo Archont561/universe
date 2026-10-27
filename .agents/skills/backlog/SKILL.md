@@ -21,8 +21,17 @@ their frontmatter, and `pixi run backlog-check` are the contract.
   `accepted`, `proposed`, `superseded`, or `deprecated`.
 - Docs: `backlog/docs/.../doc-<n> - <Title>.md`.
 - Milestones: `backlog/milestones/m-<n> - <Title>.md`.
+- Archived records go under `backlog/archive/{drafts,milestones,tasks}/` when those
+  categories have content; do not create empty placeholders.
 - Airlock-lane decisions/docs use the 100-series; engineering foundation docs
   use the 200-series.
+- Milestones are outcome/exit-gate groupings, not sprints. Tasks link back with
+  `milestone: m-<n>`; `dependencies` means a real blocking prerequisite, never
+  composition. A milestone can use a roadmap plan / `## Sprint train` when
+  sequencing is needed, but Universe has no sprint task type or parent/subtask
+  field. Do not treat acceptance checkboxes as child tasks.
+- See [`doc-203`](../../../backlog/docs/development/doc-203%20-%20Backlog-structure-and-planning.md)
+  for the planning model adopted in this repository.
 
 A filename must start with the same ID as its frontmatter, followed by
 space-hyphen-space. Preserve existing IDs; choose the next unused number in
@@ -74,8 +83,9 @@ sections. Keep the existing `<!-- SECTION:... -->`, `<!-- AC:BEGIN -->`, and
 
 - Keep Markdown links inside `backlog/` relative and resolvable;
   `backlog-check` validates them.
-- Dependencies use uppercase task IDs (`UNI-30`) and must point at tasks that
-  exist.
+- Dependencies use uppercase task IDs (`UNI-30`) and must point at existing
+  task records. Milestone references must resolve to a milestone record;
+  `backlog-check` validates both relationships.
 - Do not add `.gitkeep` placeholders; create directories only with content.
 - A design statement is not implementation evidence. Status stays open until
   tests/gates prove it here.
