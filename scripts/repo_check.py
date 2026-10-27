@@ -86,6 +86,59 @@ def extract_toml_version(text: str) -> str | None:
     return None if match is None else match.group(1)
 
 
+def validate_offline_cargo_transport(
+    cargo_lock: str,
+    sandbox_config: str,
+    publisher_workflow: str,
+    lefthook_config: str,
+    pixi_config: str,
+) -> list[str]:
+    """Ensure registry dependencies are vendored and the push gate is offline."""
+    registry_source = re.search(r'(?m)^source\s*=\s*"registry\+', cargo_lock)
+    if registry_source is None:
+        return []
+
+    errors: list[str] = []
+    try:
+        config = tomllib.loads(sandbox_config)
+    except tomllib.TOMLDecodeError as exc:
+        return [f"cannot parse sandbox config for Cargo vendoring: {exc}"]
+
+    bundles = config.get("bundle", [])
+    vendor_enabled = (
+        all(
+            bundle.get("cargo_vendor", config.get("cargo_vendor", False)) is True
+            for bundle in bundles
+        )
+        if bundles
+        else config.get("cargo_vendor") is True
+    )
+    if not vendor_enabled:
+        errors.append("Cargo registry dependencies require cargo_vendor=true in the sandbox config")
+
+    vendor_arg = (
+        r'(?m)^\s*--cargo-vendor\s+(?:true|"' + re.escape("${{ matrix.cargo_vendor }}") + r'")\s*$'
+    )
+    if not re.search(vendor_arg, publisher_workflow):
+        errors.append("sandbox publisher must include Cargo vendor data")
+    if not re.search(
+        r"(?m)^\s*run:\s*CARGO_NET_OFFLINE=true\s+pixi run offline-gates\s*$",
+        lefthook_config,
+    ):
+        errors.append("pre-push must run offline-gates with CARGO_NET_OFFLINE=true")
+
+    try:
+        pixi_tasks = tomllib.loads(pixi_config).get("tasks", {})
+    except tomllib.TOMLDecodeError as exc:
+        return [*errors, f"cannot parse Pixi tasks for offline gate: {exc}"]
+    offline_gate = pixi_tasks.get("offline-gates", {})
+    required_dependencies = {"check", "coverage", "lint-actions", "build"}
+    dependencies = set(offline_gate.get("depends-on", []))
+    if not required_dependencies.issubset(dependencies):
+        errors.append("Pixi offline-gates must include check, coverage, lint-actions, and build")
+    return errors
+
+
 def extract_recipe_context_version(text: str) -> str | None:
     """Extract a Rattler recipe's ``context.version`` literal."""
     match = re.search(r"(?ms)^context:\s*\n\s+version:\s*['\"]?([^'\"\s]+)", text)
@@ -226,6 +279,27 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
             for ref in extract_workflow_refs(text):
                 if not is_immutable_sha(ref):
                     errors.append(f"{workflow}: action ref is not a full SHA: {ref}")
+
+    offline_transport_paths = (
+        root / "Cargo.lock",
+        root / ".pixi-sandbox.toml",
+        root / ".github" / "workflows" / "publish-sandbox.yml",
+        root / "lefthook.yml",
+        root / "pixi.toml",
+    )
+    if all(path_exists(path) for path in offline_transport_paths):
+        cargo_lock, sandbox_config, publisher_workflow, lefthook_config, pixi_config = (
+            offline_transport_paths
+        )
+        errors.extend(
+            validate_offline_cargo_transport(
+                cargo_lock.read_text(encoding="utf-8"),
+                sandbox_config.read_text(encoding="utf-8"),
+                publisher_workflow.read_text(encoding="utf-8"),
+                lefthook_config.read_text(encoding="utf-8"),
+                pixi_config.read_text(encoding="utf-8"),
+            )
+        )
 
     return errors
 

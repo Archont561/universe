@@ -10,7 +10,7 @@ pixi run setup
 pixi run gates
 ```
 
-The optional VS Code Dev Container uses the pinned Pixi image and runs the same setup on first creation. If the lock-repair bot has refreshed the lockfiles on your pull request, `pixi install --locked` materializes the complete environment, including Bun.
+The optional VS Code Dev Container uses the pinned Pixi image and runs the same setup on first creation. If the lock-repair bot has refreshed the lockfiles on your pull request, `pixi install --locked` materializes the complete environment, including Bun. The pre-push hook runs `CARGO_NET_OFFLINE=true pixi run offline-gates`, which uses the sandbox's vendored Cargo sources. It deliberately excludes the Bun workspace install and advisory-database refresh; CI's `pixi run gates` remains the complete online suite.
 
 ## Daily workflow
 
