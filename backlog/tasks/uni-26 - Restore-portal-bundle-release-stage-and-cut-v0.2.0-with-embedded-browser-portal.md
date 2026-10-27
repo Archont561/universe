@@ -9,7 +9,7 @@ labels:
   - portal
   - ci
   - release
-milestone: m-6
+milestone: m-7
 dependencies:
   - UNI-25
   - UNI-41

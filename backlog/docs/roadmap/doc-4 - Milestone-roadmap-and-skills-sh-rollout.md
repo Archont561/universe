@@ -1,69 +1,87 @@
 ---
 id: doc-4
-title: Milestone roadmap and skills.sh rollout
+title: Ordered milestone roadmap and skills.sh rollout
 type: roadmap
 created_date: '2026-10-26 20:15'
 updated_date: '2026-10-27'
 tags:
   - roadmap
   - milestones
+  - sprints
   - skills
   - release
   - approved
 ---
 
-# Milestone roadmap and skills.sh rollout
+# Ordered milestone roadmap and skills.sh rollout
 
 ## Status
 
-The accepted first stable release is an integrated Universe v1, not a sequence of a Conda-only `v0.1.0` followed by a portal `v0.2.0`. Decision-119 sets the v1 scope: Conda and standard static Conda publishing, Rust crates, Python wheels, npm packages, Airlock consumption, and a browsable portal generated from verified/pinned GitHub Release data. The portal is a catalog/discovery surface, not the registry. Kit invokes configured external build/test commands and handles collection, validation, indexing, and publication; it does not implement package builders.
+Decision-119 defines the integrated v1: Conda and a usable static Conda channel, Cargo crates,
+Python wheels, npm packages, Airlock consumption, a browsable portal, and verified/pinned
+GitHub Release/catalog data. The former headless `v0.1.0` / portal `v0.2.0` split is superseded.
+Kit invokes configured external build/test commands; it does not implement package builders.
 
-This is the target plan, not a claim that those components are already implemented. Existing task IDs/statuses remain authoritative. Milestones describe product/theme outcomes; dependencies are only real blockers, with no sprint-task parent/child hierarchy.
+This roadmap now reconciles milestone outcomes, task assignments, true blocker edges, and a
+proposed undated sprint train. The detailed graph and sprint mapping are in
+[doc-112](doc-112%20-%20Ordered-milestone-DAG-and-sprint-train.md). Milestones are not task
+parents; only task `dependencies` create blockers. The sprint train is a scheduling overlay,
+not a new Backlog record type or date commitment.
 
-## Milestone overview
+## Ordered milestones
 
-| Milestone | Outcome | Key tasks | Exit gate |
-| :--- | :--- | :--- | :--- |
-| **M0** | Reproducible Pixi/Rust/Python monorepo foundation | `UNI-28`, `UNI-36` | Locked environment and current offline developer-transport boundary are verified from a clean checkout; owner CI/actionlint pass. |
-| **M1** | Neutral schemas and ecosystem adapter contracts | `UNI-30`, `UNI-31`, `UNI-41` | Core remains free of ecosystem/UI/network behavior; independently testable adapter conformance fixtures establish the contract. |
-| **M2** | Kit command foundations, artifact orchestration, testing and audit | `UNI-7`–`UNI-10`, `UNI-21`–`UNI-23` | Kit validates and plans; configured external commands produce fixture artifacts; Kit collects/verifies/audits them without embedding a builder. Security, archive, and installed-prefix checks pass. |
-| **M3** | Artifact publication, native Conda static channel and consumer initialization | `UNI-11`–`UNI-13` | Standard Conda channel/subdirectory paths and package files resolve through a local static HTTP fixture; publication targets and consumer init/add flows are tested. |
-| **M4** | Upstream release intake and trusted producer/release lanes | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-34` | Pinned release inputs, fail-closed guards, isolated publishing, platform recipes, and release provenance work. This milestone is not itself the integrated stable v1 release. |
-| **M5** | Post-v1 public Agent Skill and multi-tool dogfooding | `UNI-17`, `UNI-18` | The public skill is published only after the integrated v1 release gate; real multi-package usage is documented and tested. |
-| **M6** | Browsable portal built from the pinned catalog and embedded assets | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-46` | Static portal has catalog/package pages, embedded docs, hydration as specified, subpath/browser tests, and deterministic snapshot inputs. It joins the v1 release; it is not a separate `v0.2.0` product release. |
-| **M8** | Airlock consumer and separate bootstrap | `UNI-32`, `UNI-33`, `UNI-38`, `UNI-45` | Sealed snapshot/verify/restore and scoped native-client execution work; bootstrap remains a distinct artifact; no universal HTTP interception or network fallback. |
-| **M9** | First-class native package adapters beyond Conda | `UNI-42`–`UNI-44` | Cargo sparse index/crates, Python wheel index, and npm registry fixtures pass protocol and integrity tests; all remain behind neutral core contracts. |
-| **M10** | Integrated Universe v1 release | `UNI-16`, `UNI-40`–`UNI-47` | Conda, Cargo, Python wheels, npm, Airlock consumption, the browsable portal, and the standard static Conda channel pass the end-to-end evidence gate and are published as one v1 product. |
+| Order | Milestone outcome | Tasks | Exit gate |
+|---:|---|---|---|
+| **M0** | Reproducible developer foundation | `UNI-28`, `UNI-36`, `UNI-39` | Baseline/backlog foundations proven; offline gates and restore are verified, with remaining transport acceptance tracked in `UNI-36`. |
+| **M1** | Neutral schemas and adapter contracts | `UNI-30`, `UNI-31`, `UNI-41` | Neutral schemas, adapter contract, project and pinned release manifests tested. |
+| **M2** | Kit commands, artifact orchestration, and audit | `UNI-7`–`UNI-10`, `UNI-21`, `UNI-22` | External command orchestration and deterministic artifact checks pass; no embedded builder. |
+| **M3** | Conda static channel and consumer initialization | `UNI-11`–`UNI-13` | Real native client resolves/downloads package bytes from standard static channel paths. |
+| **M4** | Trusted producer and release lanes | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34` | Pinned release intake, independent package lanes, installed-prefix evidence, isolated publishing. |
+| **M5** | Airlock snapshot/bootstrap foundation | `UNI-32`, `UNI-33`, `UNI-38` | Verified transactional restore and separate bootstrap/component packages. |
+| **M6** | Native Cargo, Python-wheel, and npm adapters | `UNI-42`–`UNI-44` | Protocol fixtures and native clients pass without external egress. |
+| **M7** | Portal from pinned catalog snapshots | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-46` | Deterministic portal from the verified snapshot; browser tests pass; portal remains distinct from registries. |
+| **M8** | Unified command facade and umbrella install | `UNI-40` | Thin `universe` dispatches to independently installable Kit and Airlock packages. |
+| **M9** | Airlock native views and integrated v1 evidence | `UNI-45`, `UNI-47` | Four protocols work through scoped Airlock views; independent evidence review passes. |
+| **M10** | Integrated Universe v1 release | `UNI-16` | All required packages, native indexes, portal, and static Conda channel publish together. |
+| **M11** | Post-v1 adoption, extensions, and native developer transport | `UNI-17`, `UNI-18`, `UNI-27`, `UNI-35`, `UNI-37`, `UNI-48` | Post-v1 adoption/optional work is separated; sandbox removal waits for proven native transport. |
 
-## Real dependency flow
+M5 and M6 depend on M1 and may progress in parallel with the M2–M4 producer path. The table
+is a topological presentation, not an artificial serial dependency chain. M7 joins those tracks;
+M8–M10 are integration/release gates. M11 is post-v1.
 
-```text
-UNI-28 ──► UNI-30 ──► UNI-31 ──► UNI-7 / UNI-8 / UNI-10
-                                  └──► UNI-9 (external-command orchestration; no bundled builder)
-UNI-10 ──► UNI-11 ──► UNI-12 ──► UNI-13
-UNI-13 ──► UNI-14 / UNI-15
-UNI-11 + UNI-15 ──► UNI-20
-UNI-34 + UNI-38 ──► UNI-40 (thin `universe` CLI/umbrella package)
-UNI-30 + UNI-31 ──► UNI-41 (manifest/release schema)
-UNI-31 + UNI-41 ──► UNI-42 (Cargo) / UNI-43 (Python wheels) / UNI-44 (npm)
-UNI-12 + UNI-32 + UNI-33 + UNI-41..44 ──► UNI-45 (Airlock native views and scoped execution)
-UNI-5 + UNI-6 + UNI-12 + UNI-25 + UNI-41..44 ──► UNI-46 (release-driven portal)
-UNI-12 + UNI-32..33 + UNI-38 + UNI-40..46 ──► UNI-47 (offline matrix and independent evidence review)
-UNI-47 ──► UNI-16 (integrated v1 release)
-```
+## Proposed sprints
 
-The diagram indicates prerequisite relationships only. It does not create parent/child containment or require work to be completed in a single sprint. Full task-level dependencies remain on the individual backlog items.
+The sprint train is undated because no cadence, capacity, or calendar dates were supplied. It is
+an execution proposal, not a task hierarchy:
+
+| Sprint | Focus | Tasks |
+|---:|---|---|
+| S0 | Close foundation/transport | `UNI-36` |
+| S1 | Contracts | `UNI-30`, `UNI-31`, `UNI-41` |
+| S2 | Kit core and artifact safety | `UNI-7`, `UNI-8`, `UNI-9`, `UNI-10`, `UNI-21`, `UNI-22` |
+| S3 | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38` |
+| S4 | Trusted releases and native registries | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34`, `UNI-42`, `UNI-43`, `UNI-44` |
+| S5 | Portal and command facade | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-40`, `UNI-46` |
+| S6 | Airlock integration and evidence review | `UNI-45`, `UNI-47` |
+| S7 | Integrated v1 release | `UNI-16` |
+| S8 | Post-v1 adoption and native developer transport | `UNI-17`, `UNI-18`, `UNI-35`, `UNI-37`, `UNI-48` |
+| S9 | Retire interim sandbox | `UNI-27` |
+
+Dependencies inside and across sprints remain the task frontmatter source of truth. Work may
+run in parallel within a sprint after its actual blockers are complete. Already-completed
+`UNI-28` and `UNI-39` are prerequisites, not scheduled sprint work.
 
 ## Post-v1 public Agent Skill rollout (`decision-9`)
 
-The public consumer skill (`skills/universe-kit/SKILL.md` and optional root `skills.sh.json`) MUST NOT be exposed for `skills.sh` indexing until `UNI-16` has published the integrated Universe v1 and its supported producer/consumer/discovery surfaces. The former headless-`v0.1.0` prerequisite is superseded.
+The public `skills/universe-kit/SKILL.md` package must not be indexed before UNI-16 publishes
+the integrated v1 and its supported command/install instructions are stable. Contributor
+skills remain separate under `.agents/skills/`. UNI-17 validates `skills-ref`, version policy,
+actual install commands, and public `skills.sh` installation after the v1 gate.
 
-After v1:
-1. Land the skill, references, and `skills.sh.json` (`UNI-17`).
-2. Enforce `skills-ref validate` and metadata/version synchronization through named Pixi tasks and repository checks.
-3. Embed `skills/universe-kit/` in `crates/universe-assets` so `universe-kit init --with-skill` works offline.
-4. Verify indexing and installation across supported coding agents; then dogfood multi-package Conda workflows (`UNI-18`).
+## Scope and sequencing history
 
-## Superseded sequencing
-
-Decision-11's headless `v0.1.0` / portal `v0.2.0` release split is superseded by decision-119. Portal implementation remains in M6 and the static Conda indexer remains in M3, but both are required by M10. Generic assets, Agent Skills, and STAC remain deferred from v1. Decision-13's neutral core and adapter separation remains valid; its earlier adapter budget and sequencing do not.
+Decision-119 supersedes decision-11's headless `v0.1.0` / portal `v0.2.0` split and replaces
+decision-13's earlier adapter budget/sequencing while retaining its neutral-core/separate-adapter
+architecture. The former M5 skills/dogfood work moves to M11; M5/M6/M8/M9 are re-scoped in the
+ordered chain above. Generic assets, Agent Skills, STAC, and marketplace adapters are not v1
+registry requirements.

@@ -9,7 +9,7 @@ labels:
   - channel
   - portal
   - testing
-milestone: m-5
+milestone: m-11
 dependencies:
   - UNI-16
 documentation:

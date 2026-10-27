@@ -10,8 +10,10 @@ labels:
   - ci
 milestone: m-4
 dependencies:
-  - UNI-28
-  - UNI-13
+  - UNI-9
+  - UNI-10
+  - UNI-34
+  - UNI-41
 documentation:
   - backlog/docs/architecture/doc-1 - Monorepo-and-toolchain-architecture.md
   - backlog/docs/architecture/doc-111 - V1-package-layout-and-offline-readiness.md

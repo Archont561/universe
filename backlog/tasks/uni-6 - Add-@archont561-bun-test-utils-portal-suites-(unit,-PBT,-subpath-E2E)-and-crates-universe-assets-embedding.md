@@ -8,7 +8,7 @@ updated_date: '2026-10-27 19:00'
 labels:
   - portal
   - testing
-milestone: m-6
+milestone: m-7
 dependencies:
   - UNI-5
 documentation:

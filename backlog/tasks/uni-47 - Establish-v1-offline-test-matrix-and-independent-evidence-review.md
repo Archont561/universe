@@ -10,13 +10,21 @@ labels:
   - testing
   - audit
   - release
-milestone: m-10
+milestone: m-9
 dependencies:
   - UNI-12
+  - UNI-13
+  - UNI-14
+  - UNI-15
   - UNI-20
+  - UNI-21
+  - UNI-22
+  - UNI-23
   - UNI-25
+  - UNI-26
   - UNI-32
   - UNI-33
+  - UNI-34
   - UNI-38
   - UNI-40
   - UNI-41

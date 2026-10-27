@@ -12,6 +12,8 @@ milestone: m-4
 dependencies:
   - UNI-11
   - UNI-15
+  - UNI-34
+  - UNI-41
 documentation:
   - backlog/docs/architecture/doc-111 - V1-package-layout-and-offline-readiness.md
   - backlog/decisions/decision-8 - Owner-lane-vs-consumer-lane-GitHub-Actions-workflows-and-zero-checkout-OIDC-publishing.md

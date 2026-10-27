@@ -9,10 +9,11 @@ labels:
   - portal
   - channel
   - testing
-milestone: m-6
+milestone: m-7
 dependencies:
   - UNI-6
   - UNI-12
+  - UNI-41
 documentation:
   - backlog/docs/architecture/doc-3 - Static-channel-and-SvelteKit-UnoCSS-portal-specification.md
   - backlog/decisions/decision-5 - Static-Conda-channel-on-GitHub-Pages-+-GitHub-Releases-via-CEP-15-base_url,-CEP-16-shards,-and-immutable-JSON-fragments.md
