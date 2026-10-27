@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Universe Portal — concept mockup</title>
+<style>
+  :root{
+    --accent:#34d399; --accent-dim:#064e3b; --bg:#070b12; --panel:#0d1420; --panel2:#111a29;
+    --border:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --faint:#64748b; --danger:#f87171;
+    --conda:#34d399; --python:#facc15; --stac:#38bdf8; --skills:#c084fc; --generic:#fb923c;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:system-ui,-apple-system,"Segoe UI",Inter,sans-serif;
+  }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.45}
+  a{color:var(--accent);text-decoration:none} button,input,select{font:inherit} :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(7,11,18,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+  .topbar-in{max-width:1320px;margin:auto;display:flex;align-items:center;gap:18px;padding:10px 20px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
+  .logo .orb{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#a7f3d0,var(--accent) 45%,#065f46);display:inline-block}
+  nav.main{display:flex;gap:4px;flex:1;flex-wrap:wrap}
+  nav.main button{background:none;border:0;color:var(--muted);padding:6px 10px;border-radius:8px;cursor:pointer}
+  nav.main button.active{background:var(--panel2);color:var(--text)}
+  .cap-badge{font-family:var(--mono);font-size:11px;border:1px solid var(--border);border-radius:999px;padding:4px 9px;color:var(--muted);white-space:nowrap}
+  .cap-badge b{color:var(--accent);font-weight:600}
+  .wrap{max-width:1320px;margin:auto;padding:22px 20px 60px}
+  .hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.9fr);gap:18px;align-items:stretch}
+  .card{background:linear-gradient(180deg,var(--panel),#0b1220);border:1px solid var(--border);border-radius:16px;padding:18px}
+  .hero h1{margin:0 0 6px;font-size:30px;letter-spacing:-.03em}
+  .hero p{margin:0;color:var(--muted)}
+  .stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:16px}
+  .stat b{display:block;font-size:22px;letter-spacing:-.02em}.stat span{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .tabs button{background:var(--panel2);border:1px solid var(--border);color:var(--muted);border-radius:999px;padding:5px 11px;cursor:pointer;font-size:13px}
+  .tabs button.active{background:var(--accent-dim);color:#d1fae5;border-color:#065f46}
+  .code{background:#05080e;border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-family:var(--mono);font-size:12.5px;overflow:auto;position:relative;white-space:pre}
+  .copy{position:absolute;right:8px;top:8px;background:var(--panel2);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:12px}
+  .note{font-size:12px;color:var(--faint);margin-top:8px}
+  .browse{display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;margin-top:18px;align-items:start}
+  .filters{position:sticky;top:64px}
+  .filters h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin:16px 0 8px}
+  .filters h3:first-child{margin-top:0}
+  .chiprow{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:999px;padding:4px 10px;cursor:pointer;font-size:12.5px}
+  .chip.active{color:#052e22;background:var(--accent);border-color:var(--accent);font-weight:600}
+  .filters label{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13.5px;padding:3px 0;cursor:pointer}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:9px 12px}
+  .search input{flex:1;background:none;border:0;color:var(--text);outline:none}
+  .kbd{font-family:var(--mono);font-size:11px;color:var(--faint);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:9px}
+  .count{color:var(--faint);font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(295px,1fr));gap:14px}
+  .pkg{background:linear-gradient(180deg,var(--panel),#0b1220);border:1px solid var(--border);border-radius:16px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:10px;text-align:left;color:var(--text);width:100%}
+  .pkg:hover{border-color:#334155;transform:translateY(-1px)}
+  .pkg .head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .pkg h3{margin:0;font-size:16px;letter-spacing:-.01em}
+  .pkg .ver{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .pkg p{margin:0;color:var(--muted);font-size:13.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .eco{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;border-radius:999px;padding:3px 8px;border:1px solid var(--border);white-space:nowrap}
+  .eco-conda{color:var(--conda)} .eco-python{color:var(--python)} .eco-stac{color:var(--stac)} .eco-skills{color:var(--skills)} .eco-generic{color:var(--generic)}
+  .meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
+  .tag{font-size:11.5px;color:var(--muted);background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:2px 8px}
+  .tag.ok{color:#6ee7b7}.tag.warn{color:#fca5a5}.tag.cov{color:#7dd3fc}
+  .thumb{height:78px;border-radius:12px;border:1px solid var(--border);background:linear-gradient(135deg,#0c4a6e,#164e63 45%,#14532d);position:relative;overflow:hidden}
+  .thumb svg{position:absolute;inset:0;width:100%;height:100%}
+  .snapshot{margin-top:18px;border-color:#14532d;background:linear-gradient(180deg,#0a1711,#0b1220)}
+  .snapshot h3{margin:0 0 6px}.snapshot p{color:var(--muted);font-size:13.5px;margin:0}
+  .hidden{display:none!important}
+  .crumbs{color:var(--faint);font-size:13px;margin-bottom:12px}.crumbs button{background:none;border:0;color:var(--accent);cursor:pointer;padding:0}
+  .detail-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+  .detail-grid h1{margin:4px 0 8px;font-size:30px;letter-spacing:-.03em}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border-bottom:1px solid var(--border);padding:8px 6px;text-align:left;vertical-align:top}
+  th{color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+  .mono{font-family:var(--mono);font-size:12px;word-break:break-all}
+  .section{margin-top:18px}.section h2{font-size:17px;margin:0 0 10px}
+  .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .pillar{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px}
+  .pillar b{display:block;font-size:18px}.pillar span{color:var(--faint);font-size:12px}
+  footer{border-top:1px solid var(--border);color:var(--faint);font-size:12.5px}
+  footer .wrap{padding-top:16px;padding-bottom:20px;display:flex;gap:14px;flex-wrap:wrap;justify-content:space-between}
+  @media (max-width:920px){.hero,.detail-grid{grid-template-columns:1fr}.browse{grid-template-columns:1fr}.filters{position:static}.hero h1{font-size:24px}}
+</style>
+</head>
+<body>
+<header class="topbar"><div class="topbar-in">
+  <div class="logo"><span class="orb" aria-hidden="true"></span> archont561&nbsp;<span style="color:var(--accent)">universe</span></div>
+  <nav class="main" aria-label="Main">
+    <button class="active">Browse</button><button>Map (STAC)</button><button>Skills</button><button>Builds</button><button>Snapshots</button><button>Docs</button>
+  </nav>
+  <span class="cap-badge" title="From /.universe/capabilities.json"><b>● static</b> snapshot · generated 2026-10-27 12:04 UTC</span>
+  <a href="#" aria-label="GitHub repository">GitHub ↗</a>
+</div></header>
+
+<div class="wrap" id="home-view">
+  <section class="hero">
+    <div class="card">
+      <h1>Geospatial &amp; scientific tools — and the data they run on</h1>
+      <p>A self-hosted multi-ecosystem universe: Conda packages, Python wheels, STAC collections and Agent Skills, published from one registry, verified from immutable fragments.</p>
+      <div class="stats">
+        <div class="stat"><b>128</b><span>entries</span></div>
+        <div class="stat"><b>412</b><span>artifacts</span></div>
+        <div class="stat"><b>4</b><span>ecosystems</span></div>
+        <div class="stat"><b>5</b><span>platforms</span></div>
+        <div class="stat"><b>2 h</b><span>last build</span></div>
+      </div>
+    </div>
+    <div class="card" aria-label="Use this universe">
+      <div class="tabs" id="endpoint-tabs" role="tablist">
+        <button class="active" data-ep="conda">Conda / Pixi</button>
+        <button data-ep="python">Python / uv</button>
+        <button data-ep="stac">STAC</button>
+        <button data-ep="skills">Skills</button>
+      </div>
+      <div class="code" id="endpoint-code">pixi global install \
+  -c https://archont561.github.io/universe/conda \
+  -c conda-forge cloudcompare<button class="copy" data-copy="endpoint-code">copy</button></div>
+      <div class="note" id="endpoint-note">Requires pixi ≥ 0.40 / conda ≥ 24.5 / mamba ≥ 2.0 (CEP-15 repodata v2). Binaries are served from GitHub Releases; this page is the index.</div>
+    </div>
+  </section>
+
+  <section class="browse">
+    <aside class="card filters" aria-label="Filters">
+      <h3>Ecosystem</h3>
+      <div class="chiprow" id="eco-chips">
+        <button class="chip active" data-eco="all">All</button>
+        <button class="chip" data-eco="conda">Conda · 86</button>
+        <button class="chip" data-eco="python">Python · 24</button>
+        <button class="chip" data-eco="stac">STAC · 9</button>
+        <button class="chip" data-eco="skills">Skills · 7</button>
+        <button class="chip" data-eco="generic">Generic · 2</button>
+      </div>
+      <h3>Platform</h3>
+      <label><input type="checkbox"> linux-64</label>
+      <label><input type="checkbox"> win-64</label>
+      <label><input type="checkbox"> osx-arm64</label>
+      <label><input type="checkbox"> noarch / any</label>
+      <h3>Category</h3>
+      <label><input type="checkbox"> Point clouds</label>
+      <label><input type="checkbox"> Photogrammetry</label>
+      <label><input type="checkbox"> Rasters &amp; COG</label>
+      <label><input type="checkbox"> Developer tools</label>
+      <h3>Trust</h3>
+      <label><input type="checkbox" checked> Audit passed only</label>
+      <label><input type="checkbox"> Has attestation</label>
+      <label><input type="checkbox"> Featured only</label>
+      <div class="card snapshot">
+        <h3>▣ Sealed snapshot</h3>
+        <p>Take this universe offline with Universe Airlock.<br>
+        <span class="mono">snapshot 2078f99 · 128 entries · 412 artifacts · 6.4 GiB</span></p>
+        <p style="margin-top:10px"><a href="#">Download snapshot manifest →</a></p>
+      </div>
+    </aside>
+
+    <main>
+      <div class="toolbar">
+        <div class="search">⌕ <input id="search" type="search" placeholder="Search packages, collections, skills…" aria-label="Search catalog"><span class="kbd">⌘K</span></div>
+        <select aria-label="Sort"><option>Sort: recently updated</option><option>Sort: name</option><option>Sort: relevance</option></select>
+        <span class="count" id="count"></span>
+      </div>
+      <div class="grid" id="grid"></div>
+      <p class="note">Static mode: search runs in your browser over <span class="mono">catalog.json</span> shards. In serve mode this box queries the server index instead — same URL, shareable filters.</p>
+    </main>
+  </section>
+</div>
+
+<div class="wrap hidden" id="detail-view">
+  <div class="crumbs"><button id="back">← Browse</button> / <span id="d-eco"></span> / <span id="d-crumb"></span></div>
+  <div class="detail-grid">
+    <main class="card">
+      <span class="eco" id="d-badge"></span>
+      <h1 id="d-name"></h1>
+      <p style="color:var(--muted)" id="d-summary"></p>
+      <div class="meta" id="d-meta"></div>
+
+      <section class="section"><h2>Verification evidence</h2>
+        <div class="pillars">
+          <div class="pillar"><b style="color:var(--accent)">PASS</b><span>binary / license audit</span></div>
+          <div class="pillar"><b id="d-cov-big">—</b><span>line coverage</span></div>
+          <div class="pillar"><b>SHA-256</b><span>every artifact pinned</span></div>
+          <div class="pillar"><b id="d-platforms-big">—</b><span>platforms built</span></div>
+        </div>
+      </section>
+
+      <section class="section"><h2>Versions &amp; artifacts</h2>
+        <table><thead><tr><th>Version</th><th>Platform</th><th>Size</th><th>SHA-256</th><th></th></tr></thead>
+        <tbody id="d-artifacts"></tbody></table>
+      </section>
+
+      <section class="section"><h2>Dependencies</h2><div class="meta" id="d-deps"></div></section>
+
+      <section class="section"><h2>Audit detail</h2>
+        <table><thead><tr><th>Binary</th><th>Format</th><th>Arch</th><th>RPATH</th><th>Needs</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">bin/CloudCompare</td><td>ELF64</td><td>x86-64</td><td style="color:#6ee7b7">$ORIGIN-relative ✓</td><td class="mono">libQt6Core.so.6, libstdc++.so.6</td></tr>
+          <tr><td class="mono">lib/libCC_CORE_LIB.so</td><td>ELF64</td><td>x86-64</td><td style="color:#6ee7b7">$ORIGIN-relative ✓</td><td class="mono">libgomp.so.1</td></tr>
+        </tbody></table>
+      </section>
+
+      <section class="section"><h2>Provenance</h2>
+        <table><tbody>
+          <tr><th>Source</th><td class="mono" id="d-source"></td></tr>
+          <tr><th>Build</th><td>GitHub Actions run #412 · <a href="#">logs ↗</a> · <a href="#">attestation ↗</a> · <a href="#">SBOM ↓</a></td></tr>
+          <tr><th>Recipe</th><td class="mono">recipes/&lt;pkg&gt;/recipe.yaml @2078f99</td></tr>
+        </tbody></table>
+      </section>
+    </main>
+
+    <aside class="card">
+      <h2 style="margin-top:0;font-size:17px">Install</h2>
+      <div class="tabs"><button class="active">pixi</button><button>global</button><button>conda</button><button>pixi.toml</button></div>
+      <div class="code" id="d-install"><button class="copy" data-copy="d-install">copy</button></div>
+      <div class="note">Channel: <span class="mono">archont561.github.io/universe/conda</span></div>
+      <section class="section"><h2>About</h2>
+        <table><tbody>
+          <tr><th>License</th><td class="mono" id="d-license"></td></tr>
+          <tr><th>Home</th><td><a href="#">upstream homepage ↗</a></td></tr>
+          <tr><th>Repo</th><td><a href="#">source repository ↗</a></td></tr>
+          <tr><th>Updated</th><td id="d-updated"></td></tr>
+        </tbody></table>
+      </section>
+      <section class="section"><h2>Use offline</h2>
+        <p style="color:var(--muted);font-size:13.5px">Included in sealed snapshot <span class="mono">2078f99</span>.</p>
+        <div class="code">universe-airlock exec -- pixi add <span id="d-air"></span></div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<footer><div class="wrap">
+  <span>Generated by <b>universe-kit</b> from immutable fragments · schema 2 · no trackers, no external requests</span>
+  <span class="mono">/conda /simple /stac /skills /.universe/capabilities.json</span>
+</div></footer>
+
+<script>
+const ENTRIES = [
+ {name:"cloudcompare",eco:"conda",version:"2.13.2",summary:"3D point cloud and mesh processing software with a Qt GUI.",license:"GPL-2.0-or-later",platforms:["linux-64","win-64","osx-arm64"],audit:true,coverage:"82%",updated:"2 h ago",featured:true,deps:["qt6-main >=6.7","libgcc >=13","pcl"],source:"github.com/CloudCompare/CloudCompare @a1b2c3d"},
+ {name:"OpenDroneMap",eco:"conda",version:"3.5.6",summary:"Command-line toolkit for processing aerial drone imagery into maps and 3D models.",license:"AGPL-3.0-only",platforms:["linux-64"],audit:true,coverage:"67%",updated:"1 d ago",featured:true,deps:["gdal","OpenSfM","entwine"],source:"github.com/OpenDroneMap/ODM @f00ba12"},
+ {name:"universe-kit",eco:"conda",version:"0.1.0",summary:"Multi-ecosystem universe builder, auditor, indexer and portal generator — the tool that built this site.",license:"not specified",platforms:["linux-64","win-64","osx-64","osx-arm64"],audit:true,coverage:"74%",updated:"3 h ago",featured:true,deps:["rattler-build"],source:"github.com/Archont561/universe @2078f99"},
+ {name:"rio-cogeo",eco:"python",version:"6.0.1",summary:"Create and validate Cloud-Optimized GeoTIFFs from the command line or Python.",license:"BSD-3-Clause",platforms:["any"],audit:true,coverage:"91%",updated:"5 h ago",deps:["rasterio","click"],source:"github.com/cogeotiff/rio-cogeo @9be5510"},
+ {name:"warsaw-drone-2026",eco:"stac",version:"collection",summary:"Orthophotos (COG), DSM and COPC point clouds from the 2026 Warsaw river corridor survey. 214 items.",license:"CC-BY-4.0",platforms:["COG","COPC"],audit:true,coverage:null,updated:"2 d ago",featured:true,stac:true,deps:["assets: ortho · dsm · pointcloud"],source:"ODM pipeline, snapshot 2078f99"},
+ {name:"cep-channel",eco:"skills",version:"0.1.0",summary:"Agent skill: CEP-15/CEP-16 static Conda channel invariants for safe channel engineering.",license:"MIT OR Apache-2.0",platforms:["any agent"],audit:true,coverage:null,updated:"4 d ago",scripts:false,deps:["no scripts — instructions + references only"],source:"Archont561/skills @806320a"},
+ {name:"svelte5-unocss-ssg",eco:"skills",version:"0.1.0",summary:"Agent skill: portable SvelteKit 3 + Svelte 5 + UnoCSS static portals with relative asset paths.",license:"MIT OR Apache-2.0",platforms:["any agent"],audit:true,coverage:null,updated:"4 d ago",scripts:true,deps:["contains scripts/ — review before install"],source:"Archont561/skills @806320a"},
+ {name:"copernicus-dem-30m",eco:"generic",version:"2024.1",summary:"Generic asset bundle: Copernicus DEM 30 m tiles clipped to Mazovia, checksummed for offline terrain work.",license:"Copernicus free use",platforms:["GeoTIFF"],audit:true,coverage:null,updated:"3 w ago",deps:["no solver — declared asset"],source:"download.esa.int mirror, sha256 pinned"},
+ {name:"stac-geoparquet-tools",eco:"python",version:"1.2.0",summary:"Convert STAC catalogs to STAC GeoParquet and query them serverlessly with DuckDB.",license:"Apache-2.0",platforms:["any"],audit:false,coverage:"58%",updated:"6 d ago",deps:["duckdb","pyarrow"],source:"github.com/stac-utils @77aa10c"}
+];
+const grid=document.getElementById('grid'),count=document.getElementById('count');
+let ecoFilter='all',query='';
+function tags(e){
+  let t=e.platforms.map(p=>`<span class="tag">${p}</span>`).join('');
+  t+= e.audit?`<span class="tag ok">🛡 audit pass</span>`:`<span class="tag warn">🛡 audit pending</span>`;
+  if(e.coverage)t+=`<span class="tag cov">cov ${e.coverage}</span>`;
+  if(e.scripts)t+=`<span class="tag warn">⚠ ships scripts/</span>`;
+  t+=`<span class="tag">${e.license}</span><span class="tag">↺ ${e.updated}</span>`;
+  return t;
+}
+function render(){
+  const list=ENTRIES.filter(e=>(ecoFilter==='all'||e.eco===ecoFilter)&&(e.name+e.summary+e.eco).toLowerCase().includes(query));
+  count.textContent=`${list.length} of ${ENTRIES.length} entries`;
+  grid.innerHTML=list.map((e,i)=>`<button class="pkg" data-name="${e.name}">
+    ${e.stac?`<div class="thumb"><svg viewBox="0 0 300 80" preserveAspectRatio="none"><polygon points="40,12 150,4 255,22 230,68 60,74" fill="none" stroke="#7dd3fc" stroke-width="2"/><circle cx="150" cy="38" r="5" fill="#7dd3fc"/></svg></div>`:''}
+    <div class="head"><div><h3>${e.name}</h3><span class="ver">${e.version}</span></div><span class="eco eco-${e.eco}">${e.eco}</span></div>
+    <p>${e.summary}</p><div class="meta">${tags(e)}</div></button>`).join('')||`<div class="card">No entries match — clear the search or filters.</div>`;
+  grid.querySelectorAll('.pkg').forEach(c=>c.addEventListener('click',()=>showDetail(c.dataset.name)));
+}
+document.getElementById('search').addEventListener('input',e=>{query=e.target.value.toLowerCase();render()});
+document.getElementById('eco-chips').addEventListener('click',e=>{
+  const b=e.target.closest('[data-eco]');if(!b)return;ecoFilter=b.dataset.eco;
+  document.querySelectorAll('#eco-chips .chip').forEach(c=>c.classList.toggle('active',c===b));render();
+});
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();document.getElementById('search').focus()}});
+
+const SNIPPETS={
+ conda:{code:"pixi global install \\\n  -c https://archont561.github.io/universe/conda \\\n  -c conda-forge cloudcompare",note:"Requires pixi ≥ 0.40 / conda ≥ 24.5 / mamba ≥ 2.0 (CEP-15 repodata v2). Binaries are served from GitHub Releases; this page is the index."},
+ python:{code:"uv pip install rio-cogeo \\\n  --extra-index-url https://archont561.github.io/universe/simple/",note:"Static PEP 503 index; wheels are served from GitHub Releases with sha256 fragments."},
+ stac:{code:"pystac_client.Client.open(\n  \"https://archont561.github.io/universe/stac/catalog.json\")",note:"Static STAC catalog + STAC GeoParquet per collection for serverless DuckDB search. Serve mode adds /search."},
+ skills:{code:"npx skills add Archont561/universe --skill cep-channel\n# or: universe-kit skills install cep-channel --agent codex",note:"Published as a generated skills repo; installs into .agents/skills or .claude/skills with a hash-pinned lock entry."}
+};
+document.getElementById('endpoint-tabs').addEventListener('click',e=>{
+  const b=e.target.closest('[data-ep]');if(!b)return;
+  document.querySelectorAll('#endpoint-tabs button').forEach(x=>x.classList.toggle('active',x===b));
+  const s=SNIPPETS[b.dataset.ep];
+  document.getElementById('endpoint-code').firstChild.textContent=s.code;
+  document.getElementById('endpoint-note').textContent=s.note;
+});
+document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',ev=>{
+  ev.stopPropagation();const el=document.getElementById(b.dataset.copy);
+  navigator.clipboard&&navigator.clipboard.writeText(el.textContent.replace('copy','').trim());b.textContent='copied ✓';setTimeout(()=>b.textContent='copy',1200);
+}));
+
+function showDetail(name){
+  const e=ENTRIES.find(x=>x.name===name);if(!e)return;
+  document.getElementById('home-view').classList.add('hidden');
+  document.getElementById('detail-view').classList.remove('hidden');
+  document.getElementById('d-name').textContent=e.name+" "+e.version;
+  document.getElementById('d-crumb').textContent=e.name;
+  document.getElementById('d-eco').textContent=e.eco;
+  const badge=document.getElementById('d-badge');badge.textContent=e.eco;badge.className="eco eco-"+e.eco;
+  document.getElementById('d-summary').textContent=e.summary;
+  document.getElementById('d-meta').innerHTML=tags(e);
+  document.getElementById('d-cov-big').textContent=e.coverage||"n/a";
+  document.getElementById('d-platforms-big').textContent=e.platforms.length;
+  document.getElementById('d-artifacts').innerHTML=e.platforms.map(p=>`<tr><td class="mono">${e.version}</td><td>${p}</td><td>48.3 MiB</td><td class="mono">8f3a…c91e</td><td><a href="#">↓ artifact</a></td></tr>`).join('');
+  document.getElementById('d-deps').innerHTML=e.deps.map(d=>`<span class="tag">${d}</span>`).join('');
+  document.getElementById('d-source').textContent=e.source;
+  document.getElementById('d-license').textContent=e.license;
+  document.getElementById('d-updated').textContent=e.updated;
+  document.getElementById('d-air').textContent=e.name;
+  document.getElementById('d-install').firstChild.textContent=`pixi add --channel https://archont561.github.io/universe/conda \\\n  ${e.name}=${e.version}`;
+  window.scrollTo({top:0});
+}
+document.getElementById('back').addEventListener('click',()=>{
+  document.getElementById('detail-view').classList.add('hidden');
+  document.getElementById('home-view').classList.remove('hidden');window.scrollTo({top:0});
+});
+render();
+</script>
+</body>
+</html>

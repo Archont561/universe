@@ -1,0 +1,29 @@
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.coverage.run]
+branch = true
+omit = ["tests/*"]
+source = ["scripts"]
+
+[tool.mypy]
+mypy_path = "."
+python_version = "3.13"
+strict = true
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["."]
+testpaths = ["tests/scripts"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.format]
+line-ending = "lf"
+quote-style = "double"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "SIM", "UP"]

@@ -1,0 +1,19 @@
+include = [
+  "Cargo.toml",
+  "crates/*/Cargo.toml",
+  "deny.toml",
+  "pixi.toml",
+  "pyproject.toml",
+  "rustfmt.toml",
+  "taplo.toml",
+]
+
+[formatting]
+align_entries = false
+array_trailing_comma = true
+array_auto_expand = true
+array_auto_collapse = true
+column_width = 100
+indent_string = "  "
+reorder_keys = false
+trailing_newline = true
