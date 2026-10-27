@@ -1,0 +1,17 @@
+[package]
+name = "universe-assets"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Embedded static portal bundle for Universe"
+
+[dependencies]
+include_dir = { workspace = true }
+
+[lints]
+workspace = true

@@ -20,9 +20,9 @@ Current pixi-sandbox carries original conda archives/wheels and installs them na
 
 ## Initialization and repository policy
 
-The native initializer owns reviewed config plus generated restore/workflow files. Preserve native generated workflow renders as **inactive source templates under config/pixi-sandbox/**, and a root **restore.sh** entrypoint. Active repository CI uses a separately maintained, manual, named-Pixi-task publisher. This avoids enabling the upstream relock/upgrade bot or introducing direct-shell run steps into the active workflows.
+The native initializer owns reviewed config plus generated restore/workflow files. Preserve native generated workflow renders as **inactive source templates under config/pixi-sandbox/**, and a root **restore.sh** entrypoint. Active repository publication remains a separately maintained manual workflow. The original decision not to enable relocking was superseded by decision-118: the active root relock workflow now extends the native Pixi-sandbox Cargo/Pixi repair with a Bun lock refresh.
 
-The root restore entrypoint is generated consumer glue, not a replacement for Python automation under scripts/. It restores a previously published/transported developer branch; initialization alone does not create or publish that branch. Existing ci.yml/release.yml, prefix environment/OIDC policy, hooks, identities, and VERSION-only application scope remain unchanged.
+The root restore entrypoint is generated consumer glue, not a replacement for Python automation under scripts/. It restores a previously published/transported developer branch; initialization alone does not create or publish that branch. This developer-transport path is separate from product CI or release publication. No application release workflow, prefix environment, or OIDC publisher is currently configured; the VERSION-only application scope remains unchanged.
 
 Python-dispatched tasks expose the native CLI, initialization, drift/plan checks, standalone bootstrap and explicitly gated publication. Native init/check use the same non-default template paths; running raw `pixi-sandbox init` without those paths would generate different active workflows and is not the project regeneration entrypoint.
 
@@ -67,7 +67,7 @@ pixi run --locked -e utils sandbox-bootstrap     # pinned verified standalone to
 
 - [Reviewed bundle configuration](../../pixi-sandbox.toml).
 - [Generated Linux restore entrypoint](../../restore.sh).
-- [Native publisher reference](../../config/pixi-sandbox/publish-sandbox.yml) and [native relock reference](../../config/pixi-sandbox/relock.yml): inactive, exact native renders; do not enable without a separate policy review.
+- [Native publisher reference](../../config/pixi-sandbox/publish-sandbox.yml) and [native relock reference](../../config/pixi-sandbox/relock.yml): inactive, exact native renders. The active, project-extended relock workflow is [`.github/workflows/relock.yml`](../../.github/workflows/relock.yml), enabled by [decision-118](../decisions/decision-118%20-%20Enable-pixi-sandbox-lock-repair-for-Cargo-Pixi-and-Bun.md).
 - [Manual active publisher](../../.github/workflows/publish-sandbox.yml): dispatch with publish=false checks the plan only. Actual publication requires publish=true on the trusted repository's main branch, matching workflow/source commit and a clean checkout. Only that job gets contents:write; no prefix.dev/OIDC rights are added.
 - [Python orchestration](../../scripts/sandbox.py), available as named Pixi tasks or `pixi run scripts <name>`.
 

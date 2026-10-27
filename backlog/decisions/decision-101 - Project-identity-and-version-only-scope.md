@@ -11,7 +11,7 @@ The conversation contained historical naming/layout suggestions and a much broad
 
 ## Decision
 
-Use **Universe Airlock** throughout: executable/application crate `universe-airlock`, GitHub repository **`Archont561/aripack`** exactly, prefix.dev channel **`archont561/archont561`**, and recipe **`crates/universe-airlock/recipe.yml`**.
+Use **Universe Airlock** throughout: executable/application crate `universe-airlock` in repository **`Archont561/universe`**. A prefix.dev channel is not configured. The current Conda recipe scaffold is `crates/universe-airlock/recipe/recipe.yaml`; it has not yet been built or validated.
 
 The application scaffold exposes VERSION **`0.1.0`** and tests that value. Keep Rust `src/` and `tests/` separate. Do not implement init/restore/cache/TUI/update features merely because they appear in the design discussion.
 

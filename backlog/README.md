@@ -10,6 +10,7 @@ status.
 2. [`decisions/decision-14`](decisions/decision-14%20-%20Canonical-Universe-product-and-artifact-names.md) — product and artifact names.
 3. [`decisions/decision-15`](decisions/decision-15%20-%20Standalone-toolchain-and-quality-gates.md) — Pixi/Rust/Python toolchain and the gate contract.
 4. [`decisions/decision-17`](decisions/decision-17%20-%20CLI-stdout-contract-and-interactive-UX-boundaries.md) — CLI output and interaction boundaries.
+5. [`decisions/decision-118`](decisions/decision-118%20-%20Enable-pixi-sandbox-lock-repair-for-Cargo-Pixi-and-Bun.md) — Cargo/Pixi/Bun lock repair.
 5. [`docs/development/doc-202`](docs/development/doc-202%20-%20Development-guide.md) — development workflow.
 
 ## Layout

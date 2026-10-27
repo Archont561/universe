@@ -12,6 +12,7 @@ requires-pixi = ">=0.83.0"
 
 [workspace.dependencies]
 actionlint = ">=1.7.12,<2"
+bun = ">=1.4.2,<2"
 c-compiler = "*"
 cargo-audit = ">=0.22.1,<0.23"
 cargo-deny = ">=0.20.2,<0.21"
@@ -28,10 +29,12 @@ pytest-cov = ">=6.0,<8"
 python = ">=3.13,<3.14"
 ruff = ">=0.11,<1"
 rust = ">=1.99.0,<2"
+rattler-build = ">=0.77.0,<0.78"
 taplo = ">=0.10.0,<0.11"
 
 [feature.dev.dependencies]
 actionlint = { workspace = true }
+bun = { workspace = true }
 c-compiler = { workspace = true }
 cargo-audit = { workspace = true }
 cargo-deny = { workspace = true }
@@ -54,10 +57,21 @@ taplo = { workspace = true }
 LLVM_COV = "$CONDA_PREFIX/bin/llvm-cov"
 LLVM_PROFDATA = "$CONDA_PREFIX/bin/llvm-profdata"
 
+[feature.packaging.dependencies]
+rattler-build = { workspace = true }
+
 [environments]
 default = { features = ["dev"], solve-group = "default" }
+packaging = { features = ["dev", "packaging"], solve-group = "default" }
 
 [tasks]
+web-install = { cmd = "bun install --frozen-lockfile", description = "Install the locked Bun workspace" }
+web-check = { cmd = "bun run all:check", depends-on = [
+  "web-install",
+], description = "Run Bun workspace formatting, lint, type, and unit checks" }
+web-build = { cmd = "bun run all:build", depends-on = [
+  "web-install",
+], description = "Build Bun workspace packages" }
 hooks-install = { cmd = "lefthook install", description = "Install Git hooks" }
 setup = { depends-on = [
   "hooks-install",
@@ -69,11 +83,13 @@ lint = { cmd = "cargo clippy --workspace --all-targets --all-features --locked -
 typecheck = { cmd = "cargo check --workspace --all-targets --all-features --locked && mypy scripts tests/scripts", description = "Type-check Rust and Python" }
 test = { cmd = "cargo nextest run --workspace --all-features --locked && cargo test --workspace --locked --doc && pytest", description = "Run Rust unit/integration/doc tests and Python script tests" }
 build = { cmd = "cargo build --workspace --all-features --locked", description = "Build every Universe crate and binary" }
+package-kit = { cmd = "rattler-build build --recipe crates/universe-kit/recipe/recipe.yaml --variant-config crates/universe-kit/recipe/variants.yaml --output-dir output/universe-kit -c conda-forge", description = "Build the universe-kit Conda package (use the packaging environment)" }
+package-airlock = { cmd = "rattler-build build --recipe crates/universe-airlock/recipe/recipe.yaml --variant-config crates/universe-airlock/recipe/variants.yaml --output-dir output/universe-airlock -c conda-forge", description = "Build the universe-airlock Conda package (use the packaging environment)" }
 coverage = { cmd = "mkdir -p target/coverage/python && cargo llvm-cov --workspace --all-features --locked --fail-under-lines 90 --lcov --output-path target/coverage/lcov.info && pytest --cov=scripts --cov-fail-under=80 --cov-report=lcov:target/coverage/python/lcov.info --cov-report=term-missing", description = "Generate Rust and Python LCOV coverage and enforce line thresholds" }
 
 backlog-check = { cmd = "python -m scripts.backlog_check", description = "Validate Backlog IDs, frontmatter, statuses, filenames, and links" }
 repo-check = { cmd = "python -m scripts.repo_check", description = "Validate required files, versions, clean layout, and immutable action refs" }
-sandbox-publish-logs = { cmd = "bash scripts/print_sandbox_logs.sh \"$RUNNER_TEMP/pixi-sandbox-logs\"", description = "Print bounded pixi-sandbox publishing diagnostics in CI annotations" }
+sandbox-publish-logs = { cmd = "python -m scripts.print_sandbox_logs \"$RUNNER_TEMP/pixi-sandbox-logs\"", description = "Print bounded pixi-sandbox publishing diagnostics in CI annotations" }
 skills-check = { cmd = "python -m scripts.skills_check", description = "Validate agent-skill frontmatter and content hashes" }
 skills-check-write = { cmd = "python -m scripts.skills_check --write", description = "Refresh agent-skill content hashes after a deliberate skill edit" }
 lint-actions = { cmd = "actionlint .github/workflows/*.yml", description = "Lint GitHub Actions workflows" }
@@ -92,6 +108,7 @@ check = { depends-on = [
 ], description = "Run format, lint, type, test, backlog, repository, and skill checks" }
 gates = { depends-on = [
   "check",
+  "web-check",
   "coverage",
   "lint-actions",
   "audit",

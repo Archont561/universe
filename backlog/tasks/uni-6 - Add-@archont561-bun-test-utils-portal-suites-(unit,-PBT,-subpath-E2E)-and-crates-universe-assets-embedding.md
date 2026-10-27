@@ -4,7 +4,7 @@ title: Add @archont561/bun-test-utils portal suites (unit, PBT, subpath E2E) and
 status: To Do
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-27 13:40'
+updated_date: '2026-10-27 19:00'
 labels:
   - portal
   - testing
@@ -26,12 +26,12 @@ ordinal: 6000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-> Deferred from M1 to M6 by decision-11. Until this task lands, `crates/universe-assets`
-> embeds the committed headless placeholder at `crates/universe-assets/placeholder/`
-> (decision-11); the real generated SSG tree takes precedence through the `build.rs` fallback
-> order once built and is packaged into `v0.2.0` by `UNI-26`.
+> Deferred from M1 to M6 by decision-11. `crates/universe-assets` now exists and embeds the
+> committed headless placeholder; its SSG preference/fallback is scaffolded. The generated-portal
+> tests, deterministic extraction API, coverage, and release integration below remain incomplete
+> and are still tracked by this task.
 
-Complete the portal testing and asset-embedding loop (`decision-4`, `decision-6`, `decision-7`, `decision-11`):
+Complete the portal testing and asset-embedding loop (`decision-4`, `decision-6`, `decision-7`, `decision-11`). The package layout is scaffolded; this task still owns the functional test and integration work:
 - Write `bun test` suites in `packages/portal/tests/` using `@archont561/bun-test-utils` (`./bdd`, `./pbt`, `./snap`, and `happy-dom` preload):
   - Property-based tests (`test.prop` + `fc`) on `install-snippet.svelte.ts`, `catalog-filter.svelte.ts`, and relative subpath joining.
   - Snapshot tests (`snapshot`) on rendered `pixi`/`conda`/`mamba` snippets across multi-channel configurations.

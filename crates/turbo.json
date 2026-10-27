@@ -1,0 +1,32 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "cache": false
+    },
+    "coverage": {
+      "cache": false
+    },
+    "fmt": {
+      "cache": false
+    },
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "../Cargo.toml", "../Cargo.lock", "../.cargo/**"],
+      "outputs": []
+    },
+    "typecheck": {
+      "inputs": ["$TURBO_DEFAULT$", "../Cargo.toml", "../Cargo.lock", "../.cargo/**"],
+      "outputs": []
+    },
+    "lint": {
+      "dependsOn": ["^build", "typecheck"],
+      "inputs": ["$TURBO_DEFAULT$", "../Cargo.toml", "../Cargo.lock", "../.cargo/**"],
+      "outputs": []
+    },
+    "fmt-check": {
+      "inputs": ["**/*.rs", "*/Cargo.toml", "../Cargo.toml"],
+      "outputs": []
+    }
+  }
+}

@@ -102,26 +102,15 @@ impl VersionOptions {
 }
 
 /// An argument error from the intentionally small scaffold CLI surface.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum CliError {
     /// The version token appeared more than once.
+    #[error("version may be requested only once")]
     DuplicateVersion,
     /// An unsupported argument was supplied.
+    #[error("unknown argument: {0}")]
     UnknownArgument(String),
 }
-
-impl fmt::Display for CliError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::DuplicateVersion => formatter.write_str("version may be requested only once"),
-            Self::UnknownArgument(argument) => {
-                write!(formatter, "unknown argument: {argument}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CliError {}
 
 /// Parse no arguments, `version`, `--version`, or `-V`, optionally with `--json`.
 ///
@@ -157,13 +146,35 @@ where
 #[must_use]
 pub fn render_version(product: Product, options: VersionOptions) -> String {
     if options.json() {
-        format!(
-            "{{\"schema_version\":{STDOUT_SCHEMA_VERSION},\"command\":\"version\",\"ok\":true,\
-\"result\":{{\"product\":\"{}\",\"binary\":\"{}\",\"version\":\"{VERSION}\"}},\
-\"diagnostics\":[],\"artifacts\":[]}}",
-            product.display_name(),
-            product.binary_name(),
-        )
+        #[derive(serde::Serialize)]
+        struct ResultValue {
+            product: &'static str,
+            binary: &'static str,
+            version: &'static str,
+        }
+        #[derive(serde::Serialize)]
+        struct Envelope {
+            schema_version: u32,
+            command: &'static str,
+            ok: bool,
+            result: ResultValue,
+            diagnostics: Vec<&'static str>,
+            artifacts: Vec<&'static str>,
+        }
+
+        let envelope = Envelope {
+            schema_version: STDOUT_SCHEMA_VERSION,
+            command: "version",
+            ok: true,
+            result: ResultValue {
+                product: product.display_name(),
+                binary: product.binary_name(),
+                version: VERSION,
+            },
+            diagnostics: Vec::new(),
+            artifacts: Vec::new(),
+        };
+        serde_json::to_string(&envelope).expect("serializing the version envelope cannot fail")
     } else {
         format!("{} {VERSION}", product.binary_name())
     }

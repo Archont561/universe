@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": ["$app/tsconfig", "@workspace/config/tsconfig/app.json"],
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "types": ["$app/types", "bun"]
+  },
+  "include": [
+    "$app/types",
+    "src/**/*.ts",
+    "src/**/*.svelte",
+    "tests/**/*.ts",
+    "e2e/**/*.ts",
+    "vite.config.ts",
+    "uno.config.ts"
+  ]
+}

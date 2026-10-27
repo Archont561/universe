@@ -1,16 +1,25 @@
 """Validate standalone-repository invariants."""
 
 import argparse
+import json
 import os
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 from scripts.lib.files import list_files, path_exists
 
 REQUIRED_FILES = (
     ".github/workflows/ci.yml",
+    ".devcontainer/devcontainer.json",
     "AGENTS.md",
+    "LICENSE",
+    "docs/DEVELOPMENT.md",
+    "crates/universe-kit/recipe/recipe.yaml",
+    "crates/universe-kit/recipe/variants.yaml",
+    "crates/universe-airlock/recipe/recipe.yaml",
+    "crates/universe-airlock/recipe/variants.yaml",
     "Cargo.toml",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
@@ -22,15 +31,10 @@ REQUIRED_FILES = (
 )
 
 FORBIDDEN_PATHS = (
-    "LICENSE",
     "NOTICE.md",
     ".agents/NOTICE.md",
     ".agents/licenses",
     "backlog/MERGE-MAP.md",
-    "biome.json",
-    "bun.lock",
-    "package.json",
-    "tsconfig.json",
     "website",
 )
 
@@ -82,6 +86,18 @@ def extract_toml_version(text: str) -> str | None:
     return None if match is None else match.group(1)
 
 
+def extract_recipe_context_version(text: str) -> str | None:
+    """Extract a Rattler recipe's ``context.version`` literal."""
+    match = re.search(r"(?ms)^context:\s*\n\s+version:\s*['\"]?([^'\"\s]+)", text)
+    return None if match is None else match.group(1)
+
+
+def extract_recipe_package_name(text: str) -> str | None:
+    """Extract a Rattler recipe package name."""
+    match = re.search(r"(?ms)^package:\s*\n\s+name:\s*([^\s#]+)", text)
+    return None if match is None else match.group(1)
+
+
 def _iter_repo_files(repo_root: Path) -> list[Path]:
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(repo_root):
@@ -114,7 +130,11 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
         relative_posix = relative_path.as_posix()
         basename = file.name.lower()
 
-        if basename in FORBIDDEN_BASENAMES or "licenses" in relative_path.parts:
+        if basename in FORBIDDEN_BASENAMES and relative_posix not in {
+            "LICENSE",
+            "third_party/licenses/imported-mit.txt",
+            "third_party/licenses/imported-apache-2.0.txt",
+        }:
             errors.append(f"forbidden license/notice/placeholder file: {relative_posix}")
         if file.suffix == ".ts" and (
             relative_posix.startswith("scripts/") or relative_posix.startswith("tests/scripts/")
@@ -140,6 +160,63 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
             errors.append("Cargo and Pixi must both declare a version")
         elif cargo_version != pixi_version:
             errors.append(f"version drift: Cargo={cargo_version}, Pixi={pixi_version}")
+
+    versioned_packages = (
+        "packages/config",
+        "packages/portal",
+        "packages/schema",
+        "crates/universe-assets",
+    )
+    for package in versioned_packages:
+        directory = root / package
+        versions_file = directory / "VERSIONS"
+        manifest = directory / ("package.json" if package.startswith("packages/") else "Cargo.toml")
+        if not path_exists(versions_file) or not path_exists(manifest):
+            errors.append(f"versioned package is missing VERSIONS or manifest: {package}")
+            continue
+        try:
+            declared = versions_file.read_text(encoding="utf-8").strip()
+            if manifest.suffix == ".json":
+                manifest_version = json.loads(manifest.read_text(encoding="utf-8")).get("version")
+            else:
+                cargo_manifest = tomllib.loads(manifest.read_text(encoding="utf-8"))
+                manifest_version = cargo_manifest["package"].get("version")
+                if isinstance(manifest_version, dict) and manifest_version.get("workspace") is True:
+                    workspace = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+                    manifest_version = workspace["workspace"]["package"]["version"]
+            if not declared or declared != manifest_version:
+                errors.append(
+                    f"version drift in {package}: VERSIONS={declared or '<empty>'}, "
+                    f"manifest={manifest_version or '<missing>'}"
+                )
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            errors.append(f"cannot validate package version in {package}: {exc}")
+
+    workspace_manifest_path = root / "Cargo.toml"
+    if path_exists(workspace_manifest_path):
+        try:
+            workspace_package = tomllib.loads(workspace_manifest_path.read_text(encoding="utf-8"))
+            canonical_version = workspace_package["workspace"]["package"]["version"]
+        except (OSError, KeyError, tomllib.TOMLDecodeError) as exc:
+            errors.append(f"cannot read workspace package version for recipes: {exc}")
+        else:
+            for crate_name in ("universe-kit", "universe-airlock"):
+                recipe = root / "crates" / crate_name / "recipe" / "recipe.yaml"
+                if not path_exists(recipe):
+                    continue
+                text = recipe.read_text(encoding="utf-8")
+                recipe_name = extract_recipe_package_name(text)
+                recipe_version = extract_recipe_context_version(text)
+                if recipe_name != crate_name:
+                    errors.append(
+                        f"recipe package name drift in {recipe.relative_to(root)}: "
+                        f"found {recipe_name or '<missing>'}, expected {crate_name}"
+                    )
+                if recipe_version != canonical_version:
+                    errors.append(
+                        f"recipe version drift in {recipe.relative_to(root)}: "
+                        f"found {recipe_version or '<missing>'}, expected {canonical_version}"
+                    )
 
     workflow_root = root / ".github" / "workflows"
     if path_exists(workflow_root):

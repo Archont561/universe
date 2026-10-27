@@ -1,0 +1,43 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalPassThroughEnv": [
+    "BUN_*",
+    "CARGO_*",
+    "CI",
+    "LLVM_*",
+    "PIXI_*",
+    "PLAYWRIGHT_*",
+    "RUST*",
+    "TMPDIR",
+    "XDG_*"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["build/**", "dist/**"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "coverage": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "fmt": {
+      "cache": false
+    },
+    "fmt-check": {
+      "outputs": []
+    }
+  }
+}

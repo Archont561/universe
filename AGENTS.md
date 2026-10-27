@@ -29,14 +29,15 @@ product scope and status.
 
 This is a basic scaffold. The three binaries report version only and share a
 tested plain/JSON stdout contract. Repository automation is Python under
-`scripts/`, tested by pytest under `tests/scripts/`. There is no root
-TypeScript configuration or TypeScript repository scripting.
+`scripts/`, tested by pytest under `tests/scripts/`. The repository uses Python for repository automation and a Bun/Turbo workspace for the
+`packages/*` portal, schema, and shared configuration packages. Root TypeScript tooling must
+not replace the Python repository scripts.
 
 ## House rules
 
 1. **Pixi is the only entrypoint.** Use `pixi run <verb>` for repository work.
-   Do not invoke bare Cargo, Python, Ruff, mypy, pytest, Actionlint, or
-   formatters except from Pixi task definitions or repository scripts running
+   Do not invoke bare Cargo, Bun/Turbo, Python, Ruff, mypy, pytest, Actionlint,
+   or formatters except from Pixi task definitions or repository scripts running
    under Pixi.
 2. **Backlog before scope.** Every product change belongs to a Backlog task.
    Preserve task IDs. If scope or status changes, update the task in the same
@@ -49,23 +50,27 @@ TypeScript configuration or TypeScript repository scripting.
    Python, STAC, portal, Clap, Inquire, Ratatui, HTTP-server, or publication
    dependencies. Official adapters are feature-gated Rust crates compiled into
    the relevant binaries until an external protocol is justified.
-5. **Stdout is data.** Logs, prompts, progress, and diagnostics go to stderr.
+5. **Package boundaries.** Bun packages live under `packages/` (plus the Cargo Turbo facade);
+   use their own `VERSIONS` files and package manifests. Keep shared domain contracts in
+   `universe-core` ecosystem-neutral, and keep Conda/Rattler dependencies in adapters or
+   product crates.
+6. **Stdout is data.** Logs, prompts, progress, and diagnostics go to stderr.
    JSON mode emits one versioned envelope; JSONL emits structured events and a
    final result. Non-TTY/CI/`--json` execution never prompts or opens a TUI.
-6. **Two artifacts, one codebase.** `universe-airlock` must remain free of
+7. **Two artifacts, one codebase.** `universe-airlock` must remain free of
    build, publishing, watcher, and network-producer capabilities at link time.
    `universe-airlock-bootstrap` stays smaller still: version, verification,
    restore, and doctor responsibilities only.
-7. **Static canonical output.** A universe is portable files and hashes first;
+8. **Static canonical output.** A universe is portable files and hashes first;
    `serve`, portals, and dashboards are views over immutable generations, not
    alternate sources of truth.
-8. **Standalone history.** Do not add references to other Universe-adjacent
-   repositories, import maps, notices, or placeholder `.gitkeep` files to this
-   repository. Keep this tree self-describing.
-9. **Workflow discipline.** A GitHub Actions step is a full-SHA pinned
+9. **Standalone history.** Do not add references to other Universe-adjacent
+   repositories, import maps, upstream notices, or placeholder `.gitkeep` files.
+   Retain required third-party license texts only under `third_party/licenses/`.
+10. **Workflow discipline.** A GitHub Actions step is a full-SHA pinned
    `uses:`, one `pixi run <task>`, or a one-line host bootstrap Pixi cannot
    provide. Anything longer belongs in `pixi.toml` or `scripts/`.
-10. **Complete the task file.** Check every acceptance box, set `Done`, bump
+11. **Complete the task file.** Check every acceptance box, set `Done`, bump
     `updated_date`, and append notes/summary using the task's existing section
     markers. Unimplemented ideas belong in a Backlog draft/task, not in code
     comments or status documents.
@@ -87,6 +92,8 @@ pixi run skills-check
 pixi run lint-actions
 pixi run audit
 pixi run build
+pixi run web-check
+pixi run web-build
 pixi run gates
 ```
 

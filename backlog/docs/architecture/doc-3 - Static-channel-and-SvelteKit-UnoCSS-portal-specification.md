@@ -88,9 +88,9 @@ _site/
 4. **Fragment contract (`meta/<subdir>/<filename>.conda.json`)**:
    - Emitted by `universe-kit audit --emit-fragment`, containing `schema: 1`, `filename`, `subdir`, `size`, `sha256`, `md5`, `index_json`, `about_json`, `run_exports_json`, `audit_summary` (architecture verified, RPATH clean, license files list, inspected binaries count, shared library dependencies), and optional `test_summary`.
 
-## Rust <-> TypeScript bridge (`@universe/schema`, `decision-4`)
+## Intended Rust <-> TypeScript bridge (`@universe/schema`, `decision-4`)
 
-`crates/universe-core/src/schema/portal.rs` defines and exports via `ts-rs` (`12.0`) to `packages/schema/src/generated/`:
+This section describes the target architecture only. The current Rust core has no `schema/portal.rs` source and the schema workspace currently contains hand-maintained portal payload contracts. Once the Rust models and generator exist, they are intended to export via `ts-rs` to generated bindings:
 - `CatalogJson`:
   - `schema: u32`
   - `universe: UniverseHeader` (`name`, `title`, `tagline`, `description`, `repository`, `accent_color`, `generated_at`)

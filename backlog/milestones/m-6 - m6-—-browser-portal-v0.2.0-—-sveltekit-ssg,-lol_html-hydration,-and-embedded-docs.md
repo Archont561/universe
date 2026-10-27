@@ -5,6 +5,8 @@ title: "M6 — Browser portal v0.2.0: SvelteKit SSG, lol_html hydration, embedde
 
 ## Description
 
+The `packages/config`, `packages/schema`, and `packages/portal` workspace layout plus the placeholder-aware `crates/universe-assets` crate have been scaffolded, with each package version tracked in `VERSIONS`. These are foundations only; the behavioral exit conditions below remain outstanding.
+
 Deliver the human-facing half of the universe-kit positioning as the `v0.2.0` minor
 release, after the headless `v0.1.0` has shipped (decision-11). Build the portable
 SvelteKit 3 + Svelte 5 + UnoCSS static portal (`@universe/portal`, `UNI-5`), complete

@@ -1,0 +1,42 @@
+{
+  "name": "universe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Unified Conda recipe builder, binary auditor, CEP-15/16 channel indexer, and docs portal generator",
+  "packageManager": "bun@1.4.2",
+  "workspaces": [
+    "crates",
+    "packages/*"
+  ],
+  "scripts": {
+    "all:build": "bun x --bun turbo run build",
+    "all:check": "bun x --bun turbo run fmt-check lint typecheck test && bun x --bun biome format package.json biome.json turbo.json tsconfig.json && bun x --bun biome check package.json biome.json turbo.json tsconfig.json",
+    "all:test": "bun x --bun turbo run test",
+    "all:coverage": "bun x --bun turbo run coverage",
+    "all:typecheck": "bun x --bun turbo run typecheck",
+    "all:lint": "bun x --bun turbo run lint && bun x --bun biome check package.json biome.json turbo.json tsconfig.json",
+    "all:fmt": "bun x --bun turbo run fmt && bun x --bun biome check --write package.json biome.json turbo.json tsconfig.json",
+    "all:fmt-check": "bun x --bun turbo run fmt-check && bun x --bun biome format package.json biome.json turbo.json tsconfig.json"
+  },
+  "devDependencies": {
+    "@aboviq/bun-test-cucumber": "^0.2.0",
+    "@archont561/bun-test-utils": "^0.1.0",
+    "@biomejs/biome": "^2.5.15",
+    "@sveltejs/adapter-static": "^4.0.0",
+    "@sveltejs/kit": "^3.1.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/bun": "^1.4.2",
+    "@workspace/config": "workspace:*",
+    "fast-check": "^4.10.2",
+    "happy-dom": "^21.0.4",
+    "playwright": "^1.64.1",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.7",
+    "turbo": "^2.11.8",
+    "typescript": "^6.0.0",
+    "unocss": "^66.12.0",
+    "vite": "^8.3.5"
+  },
+  "license": "MIT"
+}

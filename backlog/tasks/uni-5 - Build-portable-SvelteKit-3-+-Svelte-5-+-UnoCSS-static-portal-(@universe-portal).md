@@ -4,7 +4,7 @@ title: Build portable SvelteKit 3 + Svelte 5 + UnoCSS static portal (@universe/p
 status: To Do
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-27 13:40'
+updated_date: '2026-10-27 19:00'
 labels:
   - portal
   - channel
@@ -27,6 +27,8 @@ ordinal: 5000
 > offline placeholder at `crates/universe-assets/placeholder/index.html` via a `build.rs`
 > fallback; the real SSG output built here takes precedence automatically once present, and
 > the release re-wiring plus placeholder removal are tracked by `UNI-26`.
+
+The initial package layout, Bun manifests/lock, shared config and schema package scaffolds, and package `VERSIONS` files are present. They are not a completed portal implementation. Continue with the functional scope below.
 
 Implement the static documentation + Conda channel explorer app in `packages/portal` (`doc-3`, `decision-6`):
 - Configure SvelteKit `^3.1.0` + Svelte `^5.57.0` with `@sveltejs/adapter-static`, `appDir: "assets"`, `paths: { relative: true }`, `prerender: { entries: ["/", "/packages/__pkg__/"] }`, and `trailingSlash = "always"`.

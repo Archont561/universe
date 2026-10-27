@@ -1,0 +1,19 @@
+{
+  "name": "@universe/rust",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Turbo facade for the universe Cargo workspace",
+  "scripts": {
+    "build": "cargo build --manifest-path ../Cargo.toml --workspace --all-targets --locked",
+    "test": "cargo nextest run --manifest-path ../Cargo.toml --workspace --all-targets --locked && cargo test --manifest-path ../Cargo.toml --workspace --doc --locked",
+    "coverage": "mkdir -p ../target/coverage && cargo llvm-cov nextest --manifest-path ../Cargo.toml --workspace --all-targets --locked --lcov --output-path ../target/coverage/rust.lcov",
+    "typecheck": "cargo check --manifest-path ../Cargo.toml --workspace --all-targets --locked",
+    "lint": "cargo clippy --manifest-path ../Cargo.toml --workspace --all-targets --locked -- -D warnings",
+    "fmt": "cargo fmt --manifest-path ../Cargo.toml --all",
+    "fmt-check": "cargo fmt --manifest-path ../Cargo.toml --all -- --check"
+  },
+  "devDependencies": {
+    "@universe/portal": "workspace:*"
+  }
+}
