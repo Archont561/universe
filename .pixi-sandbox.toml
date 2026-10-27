@@ -1,0 +1,32 @@
+# Publish a locally restorable Linux developer environment with the pinned
+# pixi-sandbox CLI. The transport includes the default Pixi environment and the
+# complete Cargo vendor tree; restore it with `bash scripts/restore.sh`.
+schema = 1
+branch_prefix = "sandbox"
+cargo_vendor = true
+
+[[bundle]]
+name = "developer"
+environments = ["default"]
+platforms = ["linux-64"]
+cargo_vendor = true
+
+# Republish whenever any input that changes the locked Pixi environment or the
+# Cargo dependency graph changes. Include every crate manifest, not only the
+# workspace root Cargo.toml.
+[workflow]
+push_paths = [
+  ".pixi-sandbox.toml",
+  "Cargo.toml",
+  "Cargo.lock",
+  "crates/**/Cargo.toml",
+  "pixi.toml",
+  "pixi.lock",
+]
+permissions = true
+pixi_version = "v0.83.0"
+setup_pixi_cache = true
+
+[workflow.concurrency]
+group = "publish-sandbox-${{ github.repository }}"
+cancel_in_progress = false

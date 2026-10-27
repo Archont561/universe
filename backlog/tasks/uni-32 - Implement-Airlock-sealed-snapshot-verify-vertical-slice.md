@@ -21,9 +21,12 @@ ordinal: 32000
 ## Description
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Implement the smallest `universe-airlock` consumer slice: read a sealed
-manifest, verify a SHA-256 CAS, expose a local native view, and activate state
-transactionally. The binary contains no producer, build, watcher, or publishing
-capability.
+manifest, verify every object in a SHA-256 content-addressed store, expose a
+local native view, and activate state transactionally. Treat archive input as
+untrusted: validate digest syntax before deriving paths, stream large objects
+with bounded resource use, stage writes before activation, and fail closed on
+mismatch or corruption. The binary contains no producer, build, watcher, or
+publishing capability. Do not reuse placeholder or non-cryptographic CAS code.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

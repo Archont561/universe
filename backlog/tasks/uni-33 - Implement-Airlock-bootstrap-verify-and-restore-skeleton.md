@@ -21,8 +21,11 @@ ordinal: 33000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Give `universe-airlock-bootstrap` its minimal real verbs—`version`, `verify`,
 `restore`, and `doctor`—while keeping adapters, prompts, TUI, HTTP serving, and
-publishing out of the artifact. Generated POSIX/PowerShell entrypoints merely
-locate and launch the pinned native bootstrapper.
+publishing out of the artifact. Restore must verify a complete local payload
+before activation and preserve the previous active state on any error.
+Generated POSIX/PowerShell entrypoints only locate and launch the pinned native
+bootstrapper; they must not become an independent package manager. Keep this
+consumer restore flow distinct from UNI-36's developer-toolchain transport.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

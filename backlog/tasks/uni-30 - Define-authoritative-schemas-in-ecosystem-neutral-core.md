@@ -21,9 +21,13 @@ ordinal: 30000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Define the first small ecosystem-neutral schema slice for manifests,
 catalogues, entries, artifacts, diagnostics, snapshots, and result
-envelopes. Keep Conda-specific platform, target, and fragment semantics
-behind the future Conda adapter boundary. Start from tests and fixture
-records in this repository.
+envelopes. Use strict deserialization (unknown fields fail closed), explicit
+schema versions, useful field-level diagnostics, and minimal valid/invalid
+fixtures to make compatibility behaviour reviewable. Keep Conda-specific
+platform, target, and fragment semantics behind the future Conda adapter
+boundary. Start from tests and fixture records in this repository; any future
+non-Rust consumer must use an explicit generated/versioned contract rather
+than duplicate the authoritative types.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

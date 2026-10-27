@@ -32,14 +32,25 @@ Pixi is the only entrypoint.
 
 ```bash
 git status --short --branch
+if ! command -v pixi >/dev/null 2>&1; then
+  # The checked-in restore launcher bootstraps the published linux-64 bundle.
+  # Skip profile edits; expose the restored Pixi only in this shell.
+  PIXI_SANDBOX_USER_TOOLS=skip bash scripts/restore.sh
+  export PATH="$PWD/.pixi/tools/linux-64:$PATH"
+fi
 pixi --version
 pixi install --locked
 pixi run setup
 pixi run test
 ```
 
-Record the baseline test result. If Pixi or network access is absent, say
-exactly which proof cannot be produced in this session.
+If Pixi is missing, try the repository's checked-in `scripts/restore.sh` before
+reporting an environment blocker. The first sandbox publication must already
+exist at `sandbox/developer-linux-64`; this initial bootstrap currently targets
+Linux x86_64 only. If the branch is not available locally or from `origin`,
+report that precisely rather than silently falling back to an unpinned install.
+Record the baseline test result. If restoration or network access is unavailable,
+say exactly which proof cannot be produced in this session.
 
 Use `pixi run <task>` for format, lint, typecheck, tests, coverage, audits,
 and checks. Focused Cargo or pytest work also goes through Pixi, for example

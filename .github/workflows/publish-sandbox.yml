@@ -1,0 +1,91 @@
+# Publish the reviewed Linux developer bundle to sandbox/developer-linux-64.
+# The release binary and checksum are pinned to one pixi-sandbox version.
+name: publish sandbox
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".pixi-sandbox.toml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "pixi.toml"
+      - "pixi.lock"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-sandbox-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  PIXI_SANDBOX_VERSION: "0.9.0"
+
+jobs:
+  publish:
+    name: Pack, verify, and publish linux-64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install locked Pixi environment
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.83.0
+          environments: default
+          cache: true
+          locked: true
+
+      - name: Fetch and verify pinned pixi-sandbox release
+        shell: bash
+        env:
+          PIXI_SANDBOX_BIN: ${{ runner.temp }}/pixi-sandbox-bin/pixi-sandbox
+        run: |
+          set -euo pipefail
+          asset=pixi-sandbox-x86_64-unknown-linux-musl
+          base="https://github.com/Archont561/pixi-sandbox/releases/download/v${PIXI_SANDBOX_VERSION}"
+          stage="$(mktemp -d)"
+          trap 'rm -rf "$stage"' EXIT
+          curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --silent --show-error --location --retry 3 --output "$stage/$asset" "$base/$asset"
+          curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --silent --show-error --location --retry 3 --output "$stage/SHA256SUMS" "$base/SHA256SUMS"
+          digest="$(awk -v name="$asset" '{ sub(/\r$/, ""); if ($2 == name || $2 == "*" name) { if (NF == 2) print $1; else print "invalid" } }' "$stage/SHA256SUMS")"
+          [[ "$digest" =~ ^[[:xdigit:]]{64}$ ]] || { echo "invalid or ambiguous SHA256SUMS entry for $asset" >&2; exit 1; }
+          printf '%s  %s\n' "$digest" "$asset" > "$stage/selected.sha256"
+          (cd "$stage" && sha256sum --check selected.sha256)
+          chmod +x "$stage/$asset"
+          mkdir -p "$(dirname "$PIXI_SANDBOX_BIN")"
+          mv "$stage/$asset" "$PIXI_SANDBOX_BIN"
+
+      - name: Pack, verify, and publish
+        shell: bash
+        env:
+          PIXI_SANDBOX_BIN: ${{ runner.temp }}/pixi-sandbox-bin/pixi-sandbox
+          PIXI_SANDBOX_PUSH_TOKEN: ${{ github.token }}
+          REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+        run: >-
+          "$PIXI_SANDBOX_BIN" pipeline
+          --envs default
+          --platform linux-64
+          --branch sandbox/developer-linux-64
+          --remote "$REMOTE"
+          --config .pixi-sandbox.toml
+          --cargo-vendor true
+          --transport-dir "${{ runner.temp }}/pixi-sandbox-transport"
+          --log-dir "${{ runner.temp }}/pixi-sandbox-logs"
+
+      - name: Upload publish diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sandbox-publish-diagnostics
+          path: ${{ runner.temp }}/pixi-sandbox-logs
+          if-no-files-found: ignore
+          retention-days: 7
