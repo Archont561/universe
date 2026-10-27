@@ -73,6 +73,7 @@ coverage = { cmd = "mkdir -p target/coverage/python && cargo llvm-cov --workspac
 
 backlog-check = { cmd = "python -m scripts.backlog_check", description = "Validate Backlog IDs, frontmatter, statuses, filenames, and links" }
 repo-check = { cmd = "python -m scripts.repo_check", description = "Validate required files, versions, clean layout, and immutable action refs" }
+sandbox-publish-logs = { cmd = "bash scripts/print_sandbox_logs.sh \"$RUNNER_TEMP/pixi-sandbox-logs\"", description = "Print bounded pixi-sandbox publishing diagnostics in CI annotations" }
 skills-check = { cmd = "python -m scripts.skills_check", description = "Validate agent-skill frontmatter and content hashes" }
 skills-check-write = { cmd = "python -m scripts.skills_check --write", description = "Refresh agent-skill content hashes after a deliberate skill edit" }
 lint-actions = { cmd = "actionlint .github/workflows/*.yml", description = "Lint GitHub Actions workflows" }

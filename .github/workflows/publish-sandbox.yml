@@ -84,8 +84,7 @@ jobs:
 
       - name: Print publish diagnostics on failure
         if: failure()
-        shell: bash
-        run: cat "$RUNNER_TEMP"/pixi-sandbox-logs/* 2>/dev/null || true
+        run: pixi run --locked sandbox-publish-logs
 
       - name: Upload publish diagnostics
         if: always()
