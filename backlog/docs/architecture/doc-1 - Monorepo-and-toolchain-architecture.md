@@ -17,13 +17,15 @@ tags:
 
 Approved target architecture for repository layout, Pixi orchestration, offline reproducibility, owner-lane CI/release workflows, and testing infrastructure (`decision-1`, `decision-3`, `decision-4`, `decision-7`, `decision-8`, `decision-9`, `decision-10`, `decision-15`). This document contains planned-state examples and is not an inventory of current files: in particular, `ci.yml`, `autorelease.yml`, and `release.yml` are not implemented. The current toolchain uses Pixi tasks, Rust crates, Python repository checks, and the authorized Bun product-package workspace. Python remains the language for repository automation.
 
+**V1 scope and package layout update (decision-119):** the former headless `v0.1.0` / portal `v0.2.0` sequence is superseded. The integrated v1 includes Conda/static Conda publishing, Cargo crates, Python wheels, npm, Airlock consumption, and a browsable portal generated from verified pinned releases. Use [doc-111](doc-111%20-%20V1-package-layout-and-offline-readiness.md) as the canonical target package map, artifact flow, and offline readiness assessment. Kit invokes external build/test commands; it does not implement package builders.
+
 ## Repository layout
 
 ```text
 universe-kit/
 ├── .agents/                          # Contributor agent skills (decision-9, UNI-28)
 │   └── skills/
-│       ├── archont561/               # Planned external managed copies (post-v0.1.0 vendoring)
+│       ├── archont561/               # Planned external managed copies (post-v1 vendoring)
 │       ├── backlog/
 │       ├── session/
 │       ├── tdd/
@@ -45,13 +47,17 @@ universe-kit/
 ├── backlog/                          # Backlog.md project management workspace
 ├── crates/
 │   ├── package.json                  # @universe/rust — Turbo facade over Cargo
-│   ├── universe-core/                # ecosystem-neutral core and version output
-│   ├── universe-assets/              # include_dir! portal wrapper with placeholder fallback
+│   ├── universe-core/                # ecosystem-neutral catalog/identity/integrity contracts
+│   ├── universe-assets/              # embedded generated portal/docs assets
 │   │   └── VERSIONS                  # checked against Cargo.toml
-│   ├── universe-kit/                # producer CLI and Conda recipe
+│   ├── universe-cli/                 # thin `universe` dispatcher; Conda package named `universe`
+│   │   └── recipe/                  # umbrella package depends on Kit + Airlock
+│   ├── universe-kit/                 # producer orchestration; co-located Conda recipe
 │   │   └── recipe/                  # recipe.yaml + platform variants
-│   └── universe-airlock/            # offline consumer CLI and Conda recipe
-│       └── recipe/                  # recipe.yaml + platform variants
+│   ├── universe-airlock/             # consumer/runtime; co-located Conda recipe
+│   │   └── recipe/                  # recipe.yaml + platform variants
+│   ├── universe-airlock-bootstrap/   # separate bootstrap artifact
+│   └── universe-adapters/            # planned Conda, Cargo, Python-wheel, npm adapters
 ├── packages/
 │   ├── config/                       # @workspace/config — shared TypeScript/UnoCSS settings
 │   ├── schema/                       # @universe/conda-schema — shared schema contracts
@@ -66,7 +72,7 @@ universe-kit/
 │   ├── skills_check.py               # Offline skill content-hash gate (--write refreshes hashes)
 │   └── lib/
 │       └── files.py
-├── skills/                           # Post-v0.1.0 public skills.sh package (M5, decision-9)
+├── skills/                           # Post-v1 public skills.sh package (M5, decision-9)
 │   └── universe-kit/
 │       └── SKILL.md
 ├── tests/
@@ -203,14 +209,14 @@ Note (`decision-15`): repository automation remains Python (`python -m scripts.<
 1. **`ci.yml`**:
    - Triggered on `pull_request` and `push: branches: [main]` (ignoring `backlog/**`, `docs/**`, `README.md`; watching `CHANGELOG.md`).
    - Job `gates`: restores Pixi/sandbox environment, runs `pixi run ci` (`fmt-check`, `repo-check`, `schema-check`, `lint`, `typecheck`, `coverage`, `audit`) and `pixi run --environment browser test-e2e`, uploads `target/coverage/lcov.info`.
-   - Job `package`: still builds `@universe/portal` today and runs `rattler-build build --recipe crates/universe-kit/recipe/recipe.yaml`, smoke-testing the packaged `universe-kit --version` and `universe-kit --help`. The headless v0.1.0 flow (decision-11, `UNI-15`) removes the portal build and points the recipe at `crates/universe-assets/placeholder/`; the real build returns in M6 (`UNI-26`).
+   - Job `package`: builds the portal and independent component/facade Conda recipes with external build tooling, then smoke-tests each installed executable. The integrated v1 release requires portal output from the exact pinned catalog snapshot and native registry/static-channel artifacts; local placeholder fallback is never accepted as release output (decision-119, UNI-15/26/46).
 2. **`autorelease.yml`**:
    - On `main` push: **observe** mode (`convco version --bump`) written to `$GITHUB_STEP_SUMMARY`; zero commits/tags.
-   - On `milestone-v*` / `m-v*` tag push or `workflow_dispatch`: runs full quality + packaging gates, computes/validates SemVer bump with `convco`, rewrites version literals across `Cargo.toml`, `package.json`, `crates/package.json`, `packages/*/package.json`, `crates/universe-kit/recipe/recipe.yaml`, `skills/universe-kit/SKILL.md` (when present), and `CHANGELOG.md`, validates with `pixi run repo-check`, commits `chore(release): vX.Y.Z`, creates annotated tag `vX.Y.Z`, and dispatches `release.yml`.
+   - On `milestone-v*` / `m-v*` tag push or `workflow_dispatch`: runs full quality + packaging gates, computes/validates SemVer bump with `convco`, rewrites version literals across `Cargo.toml`, `package.json`, `crates/package.json`, `packages/*/package.json`, `crates/universe-kit/recipe/recipe.yaml`, `crates/universe-airlock/recipe/recipe.yaml`, `crates/universe-cli/recipe/recipe.yaml`, `skills/universe-kit/SKILL.md` (when present), and `CHANGELOG.md`, validates with `pixi run repo-check`, commits `chore(release): vX.Y.Z`, creates annotated tag `vX.Y.Z`, and dispatches `release.yml`.
 3. **`release.yml`**:
    - Triggered on `v*` tag push or `workflow_dispatch` (with `tag` and optional `existing_run_id` inputs):
      - `verify`: `pixi run repo-check`.
-     - `portal-bundle`: for the headless `v0.1.0` flow (decision-11, `UNI-15`) this stage is bypassed and `crates/universe-assets/build.rs` falls back to the committed placeholder in `crates/universe-assets/placeholder/`, so the SvelteKit toolchain never runs; the real `bun`-built `packages/portal/build/` upload via `UNIVERSE_KIT_PORTAL_DIST` (so non-Linux runners never require Bun) is restored by `UNI-26` for the `v0.2.0` portal release.
+     - `portal-bundle`: required for integrated v1. Build `packages/portal/build/` once from the verified local catalog snapshot, record/check its digest, upload it as a workflow artifact, and provide identical bytes to package and static-site jobs through `UNIVERSE_KIT_PORTAL_DIST`. Release jobs fail closed if the build is missing or mismatched; a local placeholder is not release output.
      - `build`: 4-platform matrix (`linux-64` on `ubuntu-latest`, `win-64` on `windows-latest`, `osx-64` on `macos-15-intel`, `osx-arm64` on `macos-latest`) building `.conda` packages via `rattler-build` + standalone `.tar.gz`/`.zip` archives.
      - `publish-prefix`: runs in `environment: prefix` (`id-token: write`, `contents: read`), publishing all 4 `.conda` packages via `rattler-build upload prefix -c archont561 "$pkg" --generate-attestation`.
      - `publish-github`: attaches `.conda` files, standalone archives, and `SHA256SUMS` to the GitHub Release (`contents: write`).

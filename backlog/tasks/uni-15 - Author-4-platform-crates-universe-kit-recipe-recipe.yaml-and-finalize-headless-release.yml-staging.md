@@ -1,10 +1,10 @@
 ---
 id: UNI-15
-title: Author 4-platform crates/universe-kit/recipe/recipe.yaml and finalize headless release.yml staging
+title: Finalize component Conda recipes and four-platform release packaging
 status: To Do
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-27 20:30'
+updated_date: '2026-10-27'
 labels:
   - release
   - ci
@@ -14,10 +14,10 @@ dependencies:
   - UNI-13
 documentation:
   - backlog/docs/architecture/doc-1 - Monorepo-and-toolchain-architecture.md
+  - backlog/docs/architecture/doc-111 - V1-package-layout-and-offline-readiness.md
   - backlog/decisions/decision-1 - Two-tier-product-and-channel-boundary-(archont561-archont561-ships-universe-kit;-consumer-universes-target-arbitrary-channels).md
-  - backlog/decisions/decision-3 - Hybrid-Rattler-library-+-subprocess-architecture-and-pure-Rust-rustls-dependency-policy.md
   - backlog/decisions/decision-8 - Owner-lane-vs-consumer-lane-GitHub-Actions-workflows-and-zero-checkout-OIDC-publishing.md
-  - backlog/decisions/decision-11 - Headless-v0.1.0-first,-browser-portal-deferred-to-v0.2.0.md
+  - backlog/decisions/decision-119 - Full-multi-ecosystem-v1-and-static-catalog-distribution.md
 priority: high
 type: feature
 ordinal: 15000
@@ -26,22 +26,27 @@ ordinal: 15000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-An initial MIT-licensed `universe-kit` recipe and platform variants have been added. This task remains open for the complete 4-platform packaging/release pipeline, self-audit, and CLI behavior below; the initial recipe does not yet include `rattler-build` as a runtime or perform the audit.
+Finalize independently installable Conda component recipes and their four-platform
+packaging/release workflow. Build jobs invoke `rattler-build` as a CI/build tool; it must not
+be a runtime dependency of `universe-kit` merely because Kit orchestrates artifacts. Keep the
+`universe-kit`, `universe-airlock`, and thin `universe` facade recipes separate. The facade
+package depends on the component packages; Airlock bootstrap remains separate.
 
-Finalize the self-packaging Conda recipe and 4-platform release pipeline for `universe-kit` (`doc-1`, `decision-1`, `decision-3`, `decision-8`):
-- Author `crates/universe-kit/recipe/recipe.yaml` building `universe-kit` with `cargo auditable` / `cargo install --locked --path crates/universe-kit`, declaring `rattler-build >=0.58,<0.65` in `requirements.run`, and running `universe-kit --version` + `universe-kit init --help` + `universe-kit pages --help` in `tests:`.
-- Stage `v0.1.0` headless per decision-11: no release job runs the SvelteKit toolchain, so `packages/portal/build/` is absent and `crates/universe-assets/build.rs` falls back to the committed offline placeholder in `crates/universe-assets/placeholder/`. Point the recipe's portal source entry at that placeholder directory (or remove the entry for v0.1.0 and restore it in `UNI-26`) so all four `rattler-build` jobs embed identical placeholder bytes without Bun on the macOS/Windows runners. The real SSG build and `UNIVERSE_KIT_PORTAL_DIST` staging are restored in `UNI-26` for `v0.2.0`.
-- Audit `universe-kit`'s own `.conda` package using `universe-kit audit` inside `ci.yml` (`package` job) and `release.yml` (`build` job) — self-hosting binary/SPDX/license verification!
+Release packaging validates binary/license/manifest evidence and records checksums. The
+integrated v1 workflow requires the real generated portal bundle and protocol artifacts from
+the pinned snapshot; a local placeholder is not acceptable release output. This task does not
+cut either a Conda-only `v0.1.0` or a portal-only `v0.2.0` release.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `rattler-build build --recipe crates/universe-kit/recipe/recipe.yaml` succeeds in CI, declares `rattler-build` in `requirements.run`, and passes `universe-kit audit` on its own `.conda` artifact.
-- [ ] #2 `release.yml` supports `existing_run_id` artifact reuse so transient registry errors can be retried without rebuilding 4-platform binaries.
-- [ ] #3 `pixi run repo-check` enforces exact version parity between `Cargo.toml`, `pixi.toml`, and `crates/universe-kit/recipe/recipe.yaml` once the recipe exists.
+- [ ] #1 Conda recipes build the component binaries on supported platforms and do not install `rattler-build` as a runtime dependency unless a separately justified user-facing command requires it.
+- [ ] #2 Recipes pass package self-audit and clean install/functional smoke tests; the umbrella package installs the facade and resolves component runtime dependencies.
+- [ ] #3 Release packaging includes the verified manifest, checksums, and portal/catalog snapshot identity; missing or placeholder release assets fail closed.
+- [ ] #4 `pixi run repo-check` enforces recipe/workspace version synchronization and release workflow action pinning.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 `ci.yml` `package` job builds, tests, and self-audits `universe-kit-*.conda` cleanly.
+- [ ] #1 CI package jobs build and test each independent package; publication remains a separate credentialed lane.
 <!-- DOD:END -->

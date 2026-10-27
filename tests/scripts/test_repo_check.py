@@ -161,7 +161,12 @@ def test_versioned_packages_must_match_their_versions_files(tmp_path: Path) -> N
     assets.mkdir(parents=True)
     (assets / "VERSIONS").write_text("0.2.0\n", encoding="utf-8")
     (assets / "Cargo.toml").write_text("[package]\nversion.workspace = true\n", encoding="utf-8")
+    facade = tmp_path / "crates/universe-cli"
+    facade.mkdir(parents=True)
+    (facade / "VERSIONS").write_text("0.2.0\n", encoding="utf-8")
+    (facade / "Cargo.toml").write_text("[package]\nversion.workspace = true\n", encoding="utf-8")
 
     errors = "\n".join(validate_repo(tmp_path))
 
     assert "version drift in crates/universe-assets: VERSIONS=0.2.0, manifest=0.1.0" in errors
+    assert "version drift in crates/universe-cli: VERSIONS=0.2.0, manifest=0.1.0" in errors

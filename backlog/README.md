@@ -6,13 +6,15 @@ status.
 
 ## Read first
 
-1. [`decisions/decision-13`](decisions/decision-13%20-%20Layer-universe-core-library-and-ecosystem-adapters-under-a-single-universe-kit-CLI.md) — neutral core and compiled adapters.
-2. [`decisions/decision-14`](decisions/decision-14%20-%20Canonical-Universe-product-and-artifact-names.md) — product and artifact names.
-3. [`decisions/decision-15`](decisions/decision-15%20-%20Standalone-toolchain-and-quality-gates.md) — Pixi/Rust/Python toolchain and the gate contract.
-4. [`decisions/decision-17`](decisions/decision-17%20-%20CLI-stdout-contract-and-interactive-UX-boundaries.md) — CLI output and interaction boundaries.
-5. [`decisions/decision-118`](decisions/decision-118%20-%20Enable-pixi-sandbox-lock-repair-for-Cargo-Pixi-and-Bun.md) — Cargo/Pixi/Bun lock repair.
-6. [`docs/development/doc-202`](docs/development/doc-202%20-%20Development-guide.md) — development workflow.
-7. [`docs/development/doc-203`](docs/development/doc-203%20-%20Backlog-structure-and-planning.md) — backlog layout and milestone/task conventions.
+1. [`decisions/decision-119`](decisions/decision-119%20-%20Full-multi-ecosystem-v1-and-static-catalog-distribution.md) — integrated v1 scope and distribution boundaries.
+2. [`docs/architecture/doc-111`](docs/architecture/doc-111%20-%20V1-package-layout-and-offline-readiness.md) — target package map, offline dependencies/tests, and relock guidance.
+3. [`decisions/decision-13`](decisions/decision-13%20-%20Layer-universe-core-library-and-ecosystem-adapters-under-a-single-universe-kit-CLI.md) — neutral core and separate ecosystem adapters.
+4. [`decisions/decision-14`](decisions/decision-14%20-%20Canonical-Universe-product-and-artifact-names.md) — product and artifact names.
+5. [`decisions/decision-15`](decisions/decision-15%20-%20Standalone-toolchain-and-quality-gates.md) — Pixi/Rust/Python toolchain and the gate contract.
+6. [`decisions/decision-17`](decisions/decision-17%20-%20CLI-stdout-contract-and-interactive-UX-boundaries.md) — CLI output and interaction boundaries.
+7. [`decisions/decision-118`](decisions/decision-118%20-%20Enable-pixi-sandbox-lock-repair-for-Cargo-Pixi-and-Bun.md) — Cargo/Pixi/Bun lock repair.
+8. [`docs/development/doc-202`](docs/development/doc-202%20-%20Development-guide.md) — development workflow.
+9. [`docs/development/doc-203`](docs/development/doc-203%20-%20Backlog-structure-and-planning.md) — backlog layout and milestone/task conventions.
 
 ## Layout
 

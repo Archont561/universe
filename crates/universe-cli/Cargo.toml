@@ -1,0 +1,12 @@
+[package]
+name = "universe-cli"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "universe"
+path = "src/main.rs"

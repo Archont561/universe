@@ -14,7 +14,7 @@ dependencies:
 documentation:
   - backlog/docs/architecture/doc-3 - Static-channel-and-SvelteKit-UnoCSS-portal-specification.md
   - backlog/decisions/decision-6 - SvelteKit-3-+-Svelte-5-SSG-+-UnoCSS-for-@universe-portal-using-template-route-cloning-and-no-Storybook.md
-  - backlog/decisions/decision-11 - Headless-v0.1.0-first,-browser-portal-deferred-to-v0.2.0.md
+  - backlog/decisions/decision-119 - Full-multi-ecosystem-v1-and-static-catalog-distribution.md
 priority: high
 type: feature
 ordinal: 5000
@@ -23,10 +23,7 @@ ordinal: 5000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-> Deferred from M1 to M6 by decision-11. The headless `v0.1.0` release embeds a committed
-> offline placeholder at `crates/universe-assets/placeholder/index.html` via a `build.rs`
-> fallback; the real SSG output built here takes precedence automatically once present, and
-> the release re-wiring plus placeholder removal are tracked by `UNI-26`.
+> The portal is a required part of the integrated v1 (decision-119), not a separate later release. A placeholder may support local scaffold builds only; v1 release packaging must use the real generated SSG output for the exact pinned catalog snapshot (`UNI-26`/`UNI-46`).
 
 The initial package layout, Bun manifests/lock, shared config and schema package scaffolds, and package `VERSIONS` files are present. They are not a completed portal implementation. Continue with the functional scope below.
 

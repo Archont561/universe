@@ -1,10 +1,10 @@
 ---
 id: m-2
-title: "M2 — Core CLI: recipe lint, DAG planner, build, test, and goblin binary auditor"
+title: "M2 — Kit planning, artifact orchestration, test delegation, and audit"
 ---
 
 ## Description
 
-Implement the core `universe-kit` Rust subcommands replacing per-repository `<TOOL>-conda` Python glue: `lint` (recipe/manifest/workflow static checks), `plan` (`petgraph` intra-universe dependency DAG + `rattler_repodata_gateway` channel diffing -> GitHub Actions matrix JSON), `build` & `test` (wrapping pinned `rattler-build` + native Rust Windows MSVC discovery), and `audit` (streaming `.conda` inspection + `goblin` ELF64/PE32+/Mach-O header & RPATH leak verification + JSON fragment emission), backed by `rstest`, `rstest-bdd`, and `proptest`.
+Implement core `universe-kit` subcommands that replace per-repository glue: lint manifests/recipes/workflows; plan native dependency DAGs; run explicitly configured external build/test commands; audit/verify collected artifacts; and emit deterministic receipts/fragments. Rattler, Cargo, Python wheel, and npm tools remain external native builders/packers. Kit does not bundle or implement them as runtime build systems. Preserve artifact identity, digest checks, isolation, and credential separation.
 
-Exit condition: All Rust unit, property, and Gherkin BDD suites pass under `cargo nextest` + `cargo llvm-cov`, and `universe-kit` builds, tests, and audits a real multi-recipe fixture locally.
+Exit condition: Rust unit/property/BDD suites pass under the repository gates; command-recording fixtures prove deterministic invocation/collection without network; representative external fixture commands emit and audit artifacts without Kit choosing or implementing ecosystem build steps.

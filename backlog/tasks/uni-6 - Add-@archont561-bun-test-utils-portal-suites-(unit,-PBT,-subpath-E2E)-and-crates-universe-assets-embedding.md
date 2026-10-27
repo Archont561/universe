@@ -17,7 +17,7 @@ documentation:
   - backlog/decisions/decision-4 - Static-file-and-codegen-Rust-to-TypeScript-bridge-(ts-rs-+-schemars-+-include_dir!)-with-zero-runtime-FFI-or-WASM.md
   - backlog/decisions/decision-6 - SvelteKit-3-+-Svelte-5-SSG-+-UnoCSS-for-@universe-portal-using-template-route-cloning-and-no-Storybook.md
   - backlog/decisions/decision-7 - Symmetrical-testing,-coverage,-and-offline-sandbox-architecture-(rstest-+-rstest-bdd-+-proptest;-@archont561-bun-test-utils;-pixi-sandbox).md
-  - backlog/decisions/decision-11 - Headless-v0.1.0-first,-browser-portal-deferred-to-v0.2.0.md
+  - backlog/decisions/decision-119 - Full-multi-ecosystem-v1-and-static-catalog-distribution.md
 priority: high
 type: feature
 ordinal: 6000
@@ -26,12 +26,9 @@ ordinal: 6000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-> Deferred from M1 to M6 by decision-11. `crates/universe-assets` now exists and embeds the
-> committed headless placeholder; its SSG preference/fallback is scaffolded. The generated-portal
-> tests, deterministic extraction API, coverage, and release integration below remain incomplete
-> and are still tracked by this task.
+> Portal implementation is part of integrated v1 (decision-119). `crates/universe-assets` and its scaffolded SSG preference/fallback exist; generated-portal tests, deterministic extraction, coverage, and release integration remain incomplete.
 
-Complete the portal testing and asset-embedding loop (`decision-4`, `decision-6`, `decision-7`, `decision-11`). The package layout is scaffolded; this task still owns the functional test and integration work:
+Complete the portal testing and asset-embedding loop (`decision-4`, `decision-6`, `decision-7`, `decision-119`). The package layout is scaffolded; this task still owns the functional test and integration work:
 - Write `bun test` suites in `packages/portal/tests/` using `@archont561/bun-test-utils` (`./bdd`, `./pbt`, `./snap`, and `happy-dom` preload):
   - Property-based tests (`test.prop` + `fc`) on `install-snippet.svelte.ts`, `catalog-filter.svelte.ts`, and relative subpath joining.
   - Snapshot tests (`snapshot`) on rendered `pixi`/`conda`/`mamba` snippets across multi-channel configurations.
