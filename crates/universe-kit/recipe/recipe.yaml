@@ -1,0 +1,45 @@
+# Co-located Conda package recipe for the connected Universe Kit CLI.
+schema_version: 1
+
+context:
+  version: "0.1.0"
+
+package:
+  name: universe-kit
+  version: ${{ version }}
+
+source:
+  - path: ../../..
+
+build:
+  number: 0
+  script:
+    env:
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+    content:
+      - if: unix
+        then:
+          - cargo build --release --locked --package universe-kit
+          - mkdir -p "$PREFIX/bin"
+          - install target/release/universe-kit "$PREFIX/bin/universe-kit"
+        else:
+          - cargo build --release --locked --package universe-kit
+          - if not exist "%LIBRARY_BIN%" mkdir "%LIBRARY_BIN%"
+          - copy /Y "target\\release\\universe-kit.exe" "%LIBRARY_BIN%\\universe-kit.exe"
+
+requirements:
+  build:
+    - rust >=1.99.0,<2
+    - ${{ compiler('c') }}
+    - ${{ stdlib('c') }}
+
+tests:
+  - script:
+      - universe-kit --version
+
+about:
+  summary: Connected owner and producer CLI for portable Universe catalogs
+  license: MIT
+  license_file: LICENSE
+  homepage: https://github.com/Archont561/universe
+  repository: https://github.com/Archont561/universe

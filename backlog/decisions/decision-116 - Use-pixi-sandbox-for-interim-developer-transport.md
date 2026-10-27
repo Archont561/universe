@@ -21,4 +21,7 @@ Initialization does not publish a branch or certify offline development. Standal
 
 ## Status boundary
 
+The original no-relock-bot policy was superseded on 2026-10-27 by [decision-118](decision-118%20-%20Enable-pixi-sandbox-lock-repair-for-Cargo-Pixi-and-Bun.md), which explicitly enables lock repair for the expanded Cargo/Pixi/Bun workspace.
+
+
 Tooling integration initialized and locally checked, not a new application feature. Native render checks and plan validation passed; no real transport has been packed/restored/published. No commits/pushes/publication are authorized by initialization. See [interim transport guide](../docs/doc-110%20-%20Interim-development-transport-with-pixi-sandbox.md).

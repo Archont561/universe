@@ -6,9 +6,13 @@ Rust toolkit for building self-hosted universes of software, data, models, and s
 
 Universe is a standalone Rust monorepo. This checkout is a **basic,
 gate-clean scaffold**: it establishes the shared core, three
-version-reporting binaries, Python repository checks, agent skills, and the
-Backlog design/roadmap store. It does not yet build packages, publish
-channels, or restore sealed snapshots; that work is tracked in `backlog/`.
+version-reporting binaries, an embedded-assets crate, the Bun package workspace
+for shared configuration/schema/static portal scaffolding, Python repository
+checks, agent skills, and the Backlog design/roadmap store. It does not yet build
+channels, publish them, or restore sealed snapshots; that work is tracked in `backlog/`.
+
+This repository is MIT-licensed. Imported package and asset components retain their
+upstream MIT OR Apache-2.0 license texts under `third_party/licenses/`.
 
 ## Products
 
@@ -18,6 +22,7 @@ channels, or restore sealed snapshots; that work is tracked in `backlog/`.
 | `universe-airlock` | Finite offline snapshot consumer | Same version contract |
 | `universe-airlock-bootstrap` | Thin standalone restore/bootstrap executable | Same version contract |
 | `universe-core` | Ecosystem-neutral shared Rust library | Product identity, version-command parsing, stdout envelope |
+| `universe-assets` | Embedded static portal assets | Placeholder-aware `include_dir` bundle; M6 build integration remains pending |
 
 ## Repository map
 
@@ -26,6 +31,13 @@ crates/universe-core/               ecosystem-neutral shared library
 crates/universe-kit/                producer CLI
 crates/universe-airlock/            sealed offline consumer CLI
 crates/universe-airlock-bootstrap/  thin native bootstrapper
+crates/universe-kit/recipe/          Conda build recipe for the producer CLI
+crates/universe-airlock/recipe/      Conda build recipe for the offline consumer
+crates/universe-assets/             embedded portal assets with a source placeholder
+packages/config/                    shared TypeScript config and UnoCSS setup
+packages/schema/                    shared Conda-facing schema contracts
+packages/portal/                    SvelteKit static portal scaffold
+packages/*/VERSIONS                 package version contract (checked against manifests)
 scripts/                            Python repository checks
 tests/scripts/                      pytest suites for repository checks
 backlog/                            decisions, docs, milestones, tasks
@@ -57,8 +69,9 @@ pixi run gates
 - Rust `cargo check` and strict mypy for Python scripts/tests;
 - Rust nextest and doc tests, plus pytest for repository automation;
 - Rust LCOV coverage with a 90% line threshold, plus Python LCOV coverage;
-- Backlog, repository, agent-skill, workflow, dependency-audit, and build checks.
+- Backlog, repository, agent-skill, workflow, dependency-audit, package-workspace, and build checks.
 
-There is no root TypeScript configuration or TypeScript repository scripting
-in this standalone scaffold. Future TypeScript product packages must be added
-as explicit packages with their own task wiring and Backlog decision.
+The root Bun/Turbo workspace is reserved for product packages; repository
+automation remains Python under `scripts/`. `pixi run web-check` runs the
+locked package checks, while the Rust/Python gates remain separately owned by
+Pixi. The package and asset scaffolds do not imply the M6 portal is complete.

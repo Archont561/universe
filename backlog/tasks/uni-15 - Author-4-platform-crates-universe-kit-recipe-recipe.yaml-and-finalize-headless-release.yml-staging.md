@@ -4,7 +4,7 @@ title: Author 4-platform crates/universe-kit/recipe/recipe.yaml and finalize hea
 status: To Do
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-27 13:40'
+updated_date: '2026-10-27 20:30'
 labels:
   - release
   - ci
@@ -26,6 +26,8 @@ ordinal: 15000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+An initial MIT-licensed `universe-kit` recipe and platform variants have been added. This task remains open for the complete 4-platform packaging/release pipeline, self-audit, and CLI behavior below; the initial recipe does not yet include `rattler-build` as a runtime or perform the audit.
+
 Finalize the self-packaging Conda recipe and 4-platform release pipeline for `universe-kit` (`doc-1`, `decision-1`, `decision-3`, `decision-8`):
 - Author `crates/universe-kit/recipe/recipe.yaml` building `universe-kit` with `cargo auditable` / `cargo install --locked --path crates/universe-kit`, declaring `rattler-build >=0.58,<0.65` in `requirements.run`, and running `universe-kit --version` + `universe-kit init --help` + `universe-kit pages --help` in `tests:`.
 - Stage `v0.1.0` headless per decision-11: no release job runs the SvelteKit toolchain, so `packages/portal/build/` is absent and `crates/universe-assets/build.rs` falls back to the committed offline placeholder in `crates/universe-assets/placeholder/`. Point the recipe's portal source entry at that placeholder directory (or remove the entry for v0.1.0 and restore it in `UNI-26`) so all four `rattler-build` jobs embed identical placeholder bytes without Bun on the macOS/Windows runners. The real SSG build and `UNIVERSE_KIT_PORTAL_DIST` staging are restored in `UNI-26` for `v0.2.0`.

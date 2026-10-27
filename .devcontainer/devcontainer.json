@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+  "name": "universe",
+  "image": "ghcr.io/prefix-dev/pixi:0.83.0",
+  "postCreateCommand": "pixi install --locked && pixi run setup",
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer", "svelte.svelte-vscode", "biomejs.biome"]
+    }
+  }
+}

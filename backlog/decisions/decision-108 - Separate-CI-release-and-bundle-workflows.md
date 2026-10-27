@@ -13,7 +13,7 @@ Development checks, distributing the Universe Airlock executable, and publishing
 
 Keep **ci.yml** and **release.yml** separate. The future init-generated bundle workflow is a third responsibility, not another application-release job. Repository workflow run steps use named Pixi tasks.
 
-Use cargo-dist compressed application archives and **rattler-build** with `crates/universe-airlock/recipe.yml`. Trusted prefix.dev publication targets `archont561/archont561` from **release.yml**, using GitHub environment **prefix** and OIDC/id-token permission. Additional raw binary assets are not required.
+The intended application release may use cargo-dist compressed archives and **rattler-build** with `crates/universe-airlock/recipe/recipe.yaml`. Trusted prefix.dev publication and its canonical channel, workflow, GitHub environment, and OIDC permissions remain to be implemented and configured. Additional raw binary assets are not required.
 
 ## Consequences
 

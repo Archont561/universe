@@ -1,0 +1,4 @@
+# Do not inherit ecosystem-specific advisory exceptions. Every locked crate is audited
+# against the current RustSec database; review any future ignore with a removal condition.
+[advisories]
+ignore = []

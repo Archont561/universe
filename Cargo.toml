@@ -4,6 +4,7 @@ members = [
   "crates/universe-airlock",
   "crates/universe-airlock-bootstrap",
   "crates/universe-core",
+  "crates/universe-assets",
   "crates/universe-kit",
 ]
 
@@ -12,12 +13,18 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99.0"
 authors = ["Archont561 <142521648+Archont561@users.noreply.github.com>"]
+license = "MIT"
 homepage = "https://github.com/Archont561/universe"
 repository = "https://github.com/Archont561/universe"
 publish = false
 
 [workspace.dependencies]
 universe-core = { path = "crates/universe-core", version = "=0.1.0" }
+universe-assets = { path = "crates/universe-assets", version = "=0.1.0" }
+include_dir = "0.7.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

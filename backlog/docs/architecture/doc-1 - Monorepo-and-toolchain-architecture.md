@@ -15,7 +15,7 @@ tags:
 
 ## Status
 
-Approved project specification governing repository layout, Pixi orchestration, offline reproducibility, owner-lane CI/release workflows, and testing infrastructure (`decision-1`, `decision-3`, `decision-4`, `decision-7`, `decision-8`, `decision-9`, `decision-10`, `decision-15`). Decision-15 controls the current scaffold toolchain: Pixi tasks, Rust crates, and Python repository checks; future TypeScript packages require explicit package wiring.
+Approved target architecture for repository layout, Pixi orchestration, offline reproducibility, owner-lane CI/release workflows, and testing infrastructure (`decision-1`, `decision-3`, `decision-4`, `decision-7`, `decision-8`, `decision-9`, `decision-10`, `decision-15`). This document contains planned-state examples and is not an inventory of current files: in particular, `ci.yml`, `autorelease.yml`, and `release.yml` are not implemented. The current toolchain uses Pixi tasks, Rust crates, Python repository checks, and the authorized Bun product-package workspace. Python remains the language for repository automation.
 
 ## Repository layout
 
@@ -40,19 +40,23 @@ universe-kit/
 │   ├── ci.yml                        # PR + main gates + packaging proof
 │   ├── autorelease.yml               # Convco observe on main; cut on milestone-v* / dispatch
 │   ├── release.yml                   # 4-platform rattler-build + OIDC prefix.dev + GitHub Release
-│   ├── relock.yml                    # pixi-sandbox automated lock refresh
+│   ├── relock.yml                    # pixi-sandbox Cargo, Pixi, and Bun lock refresh
 │   └── publish-sandbox.yml           # GHCR offline sandbox pack publisher
 ├── backlog/                          # Backlog.md project management workspace
 ├── crates/
 │   ├── package.json                  # @universe/rust — Turbo facade over Cargo
-│   ├── universe-core/                # Schemas, DAG, goblin auditor, CEP-15/16 indexer, publisher, watcher
-│   ├── universe-assets/              # include_dir! wrapper over packages/portal/build with placeholder/ fallback (headless v0.1.0, decision-11; + skills/)
-│   └── universe-kit/               # clap CLI binary + lol_html portal hydration
-│       └── recipe/
-│           └── recipe.yaml           # Co-located Conda recipe published to archont561/archont561
+│   ├── universe-core/                # ecosystem-neutral core and version output
+│   ├── universe-assets/              # include_dir! portal wrapper with placeholder fallback
+│   │   └── VERSIONS                  # checked against Cargo.toml
+│   ├── universe-kit/                # producer CLI and Conda recipe
+│   │   └── recipe/                  # recipe.yaml + platform variants
+│   └── universe-airlock/            # offline consumer CLI and Conda recipe
+│       └── recipe/                  # recipe.yaml + platform variants
 ├── packages/
-│   ├── schema/                       # @universe/schema — committed ts-rs bindings + JSON Schemas
-│   └── portal/                       # @universe/portal — SvelteKit 3 + Svelte 5 SSG + UnoCSS
+│   ├── config/                       # @workspace/config — shared TypeScript/UnoCSS settings
+│   ├── schema/                       # @universe/conda-schema — shared schema contracts
+│   └── portal/                       # @universe/portal — SvelteKit static portal scaffold
+│       └── VERSIONS                  # checked against package.json
 ├── schemas/
 │   ├── universe.schema.json          # Exported schemars schema for universe.toml
 │   └── package.schema.json           # Exported schemars schema for package.toml
@@ -141,7 +145,7 @@ package       = { cmd = "rattler-build build --recipe crates/universe-kit/recipe
 ci            = { cmd = "bun ./the Pixi `ci` task", depends-on = ["bun-install"] }
 ```
 
-Note (`decision-15`): repository automation is Python (`python -m scripts.<module>`) under Pixi; no root TypeScript workspace is used for glue.
+Note (`decision-15`): repository automation remains Python (`python -m scripts.<module>`) under Pixi. The root Bun/Turbo workspace is product-only and package versions are checked from `VERSIONS`.
 
 ## Bun & Turbo task graph (`package.json`, `turbo.json`, `crates/package.json`)
 

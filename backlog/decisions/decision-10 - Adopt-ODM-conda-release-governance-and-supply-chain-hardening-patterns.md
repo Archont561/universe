@@ -32,7 +32,7 @@ Adopt the following patterns, implemented in Rust and expressed as backlog tasks
    acknowledgement flags that default to `false`. The credentialed publisher performs no
    checkout and no repository-script execution; corresponding source is uploaded before the
    channel binary, and releases originate from published GitHub Releases rather than bare
-   tag pushes. This makes the implemented `release.yml` match the decision-8 design.
+   tag pushes. When implemented, this will bring the release workflow into alignment with the decision-8 target design.
 3. **Artifact identity and payload-leak audit (`UNI-21`)** — filename/index metadata
    consistency, an explicit payload allowlist rejecting `.git`/`.pixi`/cache leaks,
    `$ORIGIN`-only RPATH enforcement, declared-dependency verification, and license-file

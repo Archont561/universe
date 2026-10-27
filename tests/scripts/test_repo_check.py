@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 from scripts.repo_check import (
+    extract_recipe_context_version,
+    extract_recipe_package_name,
     extract_toml_version,
     extract_workflow_refs,
     is_immutable_sha,
@@ -30,6 +32,20 @@ def test_extracts_the_first_toml_version() -> None:
     assert extract_toml_version('name = "x"') is None
 
 
+def test_extracts_recipe_version_and_package_name() -> None:
+    recipe = """context:
+  version: "2.3.4"
+
+package:
+  name: universe-kit
+  version: ${{ version }}
+"""
+
+    assert extract_recipe_context_version(recipe) == "2.3.4"
+    assert extract_recipe_package_name(recipe) == "universe-kit"
+    assert extract_recipe_context_version("package:\n  name: x\n") is None
+
+
 def test_the_standalone_repository_passes_repo_check() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     assert validate_repo(repo_root) == []
@@ -38,7 +54,8 @@ def test_the_standalone_repository_passes_repo_check() -> None:
 def test_reports_missing_forbidden_and_unreadable_paths(tmp_path: Path) -> None:
     scripts = tmp_path / "scripts"
     scripts.mkdir()
-    (tmp_path / "LICENSE").write_text("placeholder\n", encoding="utf-8")
+    (tmp_path / "LICENSE").write_text("MIT License\n", encoding="utf-8")
+    (tmp_path / "copying").write_text("placeholder\n", encoding="utf-8")
     (tmp_path / ".gitkeep").write_text("", encoding="utf-8")
     (scripts / "legacy.ts").write_text("export {};\n", encoding="utf-8")
     legacy_name = "conda" + "-universe.txt"
@@ -49,7 +66,8 @@ def test_reports_missing_forbidden_and_unreadable_paths(tmp_path: Path) -> None:
     errors = "\n".join(validate_repo(tmp_path))
 
     assert "required file is missing: AGENTS.md" in errors
-    assert "forbidden standalone-cleanup path exists: LICENSE" in errors
+    assert "forbidden standalone-cleanup path exists: LICENSE" not in errors
+    assert "forbidden license/notice/placeholder file: copying" in errors
     assert "forbidden license/notice/placeholder file: .gitkeep" in errors
     assert "TypeScript repository script is forbidden: scripts/legacy.ts" in errors
     assert f"legacy repository reference in path: {legacy_name}" in errors
@@ -85,3 +103,22 @@ def test_main_prints_success_and_failure(
     assert main(["--root", str(repo_root)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "repo-check: repository invariants are valid\n"
+
+
+def test_versioned_packages_must_match_their_versions_files(tmp_path: Path) -> None:
+    (tmp_path / "Cargo.toml").write_text(
+        '[workspace.package]\nversion = "0.1.0"\n', encoding="utf-8"
+    )
+    for package in ("packages/config", "packages/portal", "packages/schema"):
+        directory = tmp_path / package
+        directory.mkdir(parents=True)
+        (directory / "VERSIONS").write_text("0.1.0\n", encoding="utf-8")
+        (directory / "package.json").write_text('{"version":"0.1.0"}\n', encoding="utf-8")
+    assets = tmp_path / "crates/universe-assets"
+    assets.mkdir(parents=True)
+    (assets / "VERSIONS").write_text("0.2.0\n", encoding="utf-8")
+    (assets / "Cargo.toml").write_text("[package]\nversion.workspace = true\n", encoding="utf-8")
+
+    errors = "\n".join(validate_repo(tmp_path))
+
+    assert "version drift in crates/universe-assets: VERSIONS=0.2.0, manifest=0.1.0" in errors

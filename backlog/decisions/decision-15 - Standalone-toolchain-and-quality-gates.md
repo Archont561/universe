@@ -8,10 +8,10 @@ status: accepted
 ## Context
 
 The standalone repository contains Rust crates, Markdown Backlog records,
-agent skills, and small repository-maintenance checks. It has no browser
-portal package, schema package, release lane, or TypeScript application yet.
-The scaffold should therefore stay small and reproducible without carrying a
-second JavaScript toolchain only to run repository glue.
+agent skills, and Python repository-maintenance checks. A product-facing Bun
+workspace is now explicitly authorized for the shared configuration, schema,
+and static portal packages; that toolchain must not replace Python for repo
+glue or weaken the ecosystem-neutral core boundary.
 
 ## Decision
 
@@ -20,19 +20,21 @@ second JavaScript toolchain only to run repository glue.
   `tests/` directory where practical.
 - Repository checks are Python modules under `scripts/`, tested by pytest
   under `tests/scripts/`, formatted/linted by Ruff, and type-checked by mypy.
-- There is no root `tsconfig.json`, root `package.json`, Biome config, Bun
-  lockfile, or TypeScript repository scripting.
-- Future TypeScript product packages may be introduced only as explicit
-  packages with their own Backlog decision, task wiring in Pixi, and tests;
-  they must not resurrect an implicit root JavaScript workspace for glue.
-- `pixi run gates` is non-negotiable and covers formatting, lint, typecheck,
-  Rust and Python tests, Rust/Python coverage, Backlog/repo/skills
-  validation, workflow lint, dependency audit, and a full build.
+- A root `package.json`, Bun lockfile, Biome/Turbo/TypeScript configuration, and
+  `packages/{config,schema,portal}` are allowed only for product workspace packages.
+  Every package has a `VERSIONS` file checked against its package manifest.
+- Python remains the implementation language for repository scripts and tests; no
+  TypeScript repo-glue migration is implied by the product workspace.
+- Pixi remains the only outer task entrypoint. Its locked environment owns Bun as
+  well as Rust/Python tools, and the package workspace is invoked through named
+  Pixi tasks. `pixi run gates` covers the existing Rust/Python gates and the Bun
+  product-package checks.
 - Rust line coverage must be at least 90%; Python repository scripts emit
   LCOV and have their own coverage floor in the Pixi task.
 
 ## Consequences
 
-Decision-2 is superseded for repository automation. Local development, hooks,
-and CI all enter through the same named Pixi tasks, and the current tree can
-be checked without installing host Rust, Python, Node, or Bun toolchains.
+Decision-2 remains superseded for repository automation. Local development, hooks,
+and CI enter through the same named Pixi tasks. The `packages/*` and embedded-assets
+scaffolds are in place; the M6 portal behavior and generated-site acceptance criteria
+remain tracked by UNI-5/UNI-6 and are not complete.

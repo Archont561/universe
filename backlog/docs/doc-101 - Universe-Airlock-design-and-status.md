@@ -15,10 +15,10 @@ Consolidated on 26 October and updated on **27 October 2026** from the design di
 | Item | Selected value |
 |---|---|
 | Product, executable, application crate | Universe Airlock / `universe-airlock` / `crates/universe-airlock` |
-| GitHub repository | `Archont561/aripack` — spelling intentional |
-| prefix.dev channel | `archont561/archont561` |
-| Conda build recipe | `crates/universe-airlock/recipe.yml` |
-| Publication workflow and environment | `release.yml` / `prefix` |
+| GitHub repository | `Archont561/universe` |
+| prefix.dev channel | Planned; not yet configured or published |
+| Conda build recipe | `crates/universe-airlock/recipe/recipe.yaml` (recipe scaffold; build not yet validated) |
+| Application publication workflow and environment | Not implemented |
 | Current application version | `0.1.0` |
 
 **Implemented application behavior is deliberately limited to VERSION and version reporting.** The CLI/core Cargo workspace and external Rust tests exist. Developer tooling, hooks, CI, coverage configuration, and release automation are scaffolding, not an implementation of the cache product.
