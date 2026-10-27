@@ -11,6 +11,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/**/Cargo.toml"
+      - ".github/workflows/publish-sandbox.yml"
       - "pixi.toml"
       - "pixi.lock"
 
