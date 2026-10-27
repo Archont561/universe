@@ -1,0 +1,20 @@
+[package]
+name = "universe-kit"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Connected owner/producer CLI for Universe"
+
+[lints]
+workspace = true
+
+[dependencies]
+universe-core = { workspace = true }
+
+[[bin]]
+name = "universe-kit"
+path = "src/main.rs"

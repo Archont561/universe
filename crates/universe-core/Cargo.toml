@@ -1,0 +1,13 @@
+[package]
+name = "universe-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Ecosystem-neutral identity and CLI output primitives for Universe"
+
+[lints]
+workspace = true
