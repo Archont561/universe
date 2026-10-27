@@ -1,0 +1,47 @@
+# Explicit Convco 0.7.x policy. Both lint tasks pass this path explicitly.
+header: |
+  # Changelog
+
+  All notable changes to `universe` are documented in this file.
+
+types:
+  - type: feat
+    section: Features
+    hidden: false
+  - type: fix
+    section: Bug Fixes
+    hidden: false
+  - type: perf
+    section: Performance
+    hidden: false
+  - type: refactor
+    section: Refactoring
+    hidden: true
+  - type: docs
+    section: Documentation
+    hidden: true
+  - type: test
+    section: Testing
+    hidden: true
+  - type: build
+    section: Build System
+    hidden: true
+  - type: ci
+    section: Continuous Integration
+    hidden: true
+  - type: chore
+    section: Miscellaneous
+    hidden: true
+
+issuePrefixes: ["#"]
+host: https://github.com
+owner: Archont561
+repository: universe
+# Anchor both ends so malformed scopes cannot pass through a valid substring.
+scopeRegex: "^[[:alnum:]]+(?:[-_/][[:alnum:]]+)*$"
+lineLength: 100
+wrapDisabled: false
+linkCompare: true
+linkReferences: true
+merges: false
+firstParent: false

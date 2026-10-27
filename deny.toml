@@ -1,0 +1,31 @@
+[graph]
+all-features = false
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.95
+unused-allowed-license = "allow"
+allow = ["Apache-2.0", "MIT", "Unicode-3.0"]
+
+[licenses.private]
+# Workspace crates are private and are not published as crates.io packages.
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = [
+  { name = "openssl", reason = "Use pure-Rust rustls for portable network code" },
+  { name = "openssl-sys", reason = "Use pure-Rust rustls for portable network code" },
+  { name = "native-tls", reason = "Use pure-Rust rustls for portable network code" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

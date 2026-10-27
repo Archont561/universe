@@ -1,0 +1,32 @@
+pre-commit:
+  parallel: false
+  commands:
+    fmt-check:
+      run: pixi run fmt-check
+    lint-actions:
+      glob: ".github/workflows/*.yml"
+      run: pixi run lint-actions
+    backlog-check:
+      glob: "backlog/**/*.md"
+      run: pixi run backlog-check
+    repo-check:
+      run: pixi run repo-check
+    skills-check:
+      glob: ".agents/skills/**"
+      run: pixi run skills-check
+
+pre-push:
+  parallel: false
+  commands:
+    gates:
+      run: pixi run gates
+
+commit-msg:
+  commands:
+    conventional:
+      run: pixi run lint-commit < {1}
+
+post-checkout:
+  commands:
+    install:
+      run: pixi run setup

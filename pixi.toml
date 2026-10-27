@@ -1,0 +1,99 @@
+# Reproducible developer and CI environment for the standalone Universe repo.
+[workspace]
+name = "universe"
+version = "0.1.0"
+description = "Self-hosted universes of software, data, models, and skills, with sealed offline delivery"
+authors = ["Archont561 <142521648+Archont561@users.noreply.github.com>"]
+homepage = "https://github.com/Archont561/universe"
+repository = "https://github.com/Archont561/universe"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+requires-pixi = ">=0.83.0"
+
+[workspace.dependencies]
+actionlint = ">=1.7.12,<2"
+c-compiler = "*"
+cargo-audit = ">=0.22.1,<0.23"
+cargo-deny = ">=0.20.2,<0.21"
+cargo-llvm-cov = ">=0.9.1,<0.10"
+cargo-nextest = ">=0.9.149,<0.10"
+convco = ">=0.7.2,<0.8"
+cxx-compiler = "*"
+lefthook = ">=2.2.2,<3"
+llvm-tools = "*"
+mypy = ">=1.15,<2"
+pkg-config = "*"
+pytest = ">=8.0,<10"
+pytest-cov = ">=6.0,<8"
+python = ">=3.13,<3.14"
+ruff = ">=0.11,<1"
+rust = ">=1.99.0,<2"
+taplo = ">=0.10.0,<0.11"
+
+[feature.dev.dependencies]
+actionlint = { workspace = true }
+c-compiler = { workspace = true }
+cargo-audit = { workspace = true }
+cargo-deny = { workspace = true }
+cargo-llvm-cov = { workspace = true }
+cargo-nextest = { workspace = true }
+convco = { workspace = true }
+cxx-compiler = { workspace = true }
+lefthook = { workspace = true }
+llvm-tools = { workspace = true }
+mypy = { workspace = true }
+pkg-config = { workspace = true }
+pytest = { workspace = true }
+pytest-cov = { workspace = true }
+python = { workspace = true }
+ruff = { workspace = true }
+rust = { workspace = true }
+taplo = { workspace = true }
+
+[feature.dev.activation.env]
+LLVM_COV = "$CONDA_PREFIX/bin/llvm-cov"
+LLVM_PROFDATA = "$CONDA_PREFIX/bin/llvm-profdata"
+
+[environments]
+default = { features = ["dev"], solve-group = "default" }
+
+[tasks]
+hooks-install = { cmd = "lefthook install", description = "Install Git hooks" }
+setup = { depends-on = [
+  "hooks-install",
+], description = "Materialise the Pixi environment and Git hooks" }
+
+fmt = { cmd = "cargo fmt --all && taplo fmt && ruff format scripts tests/scripts && ruff check --fix scripts tests/scripts", description = "Format Rust, TOML, and Python files" }
+fmt-check = { cmd = "cargo fmt --all --check && taplo fmt --check && ruff format --check scripts tests/scripts", description = "Verify Rust, TOML, and Python formatting" }
+lint = { cmd = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && ruff check scripts tests/scripts", description = "Lint Rust and Python files" }
+typecheck = { cmd = "cargo check --workspace --all-targets --all-features --locked && mypy scripts tests/scripts", description = "Type-check Rust and Python" }
+test = { cmd = "cargo nextest run --workspace --all-features --locked && cargo test --workspace --locked --doc && pytest", description = "Run Rust unit/integration/doc tests and Python script tests" }
+build = { cmd = "cargo build --workspace --all-features --locked", description = "Build every Universe crate and binary" }
+coverage = { cmd = "mkdir -p target/coverage/python && cargo llvm-cov --workspace --all-features --locked --fail-under-lines 90 --lcov --output-path target/coverage/lcov.info && pytest --cov=scripts --cov-fail-under=80 --cov-report=lcov:target/coverage/python/lcov.info --cov-report=term-missing", description = "Generate Rust and Python LCOV coverage and enforce line thresholds" }
+
+backlog-check = { cmd = "python -m scripts.backlog_check", description = "Validate Backlog IDs, frontmatter, statuses, filenames, and links" }
+repo-check = { cmd = "python -m scripts.repo_check", description = "Validate required files, versions, clean layout, and immutable action refs" }
+skills-check = { cmd = "python -m scripts.skills_check", description = "Validate agent-skill frontmatter and content hashes" }
+skills-check-write = { cmd = "python -m scripts.skills_check --write", description = "Refresh agent-skill content hashes after a deliberate skill edit" }
+lint-actions = { cmd = "actionlint .github/workflows/*.yml", description = "Lint GitHub Actions workflows" }
+lint-commit = { cmd = "convco check --config .config/convco.yml --from-stdin", description = "Validate one conventional commit message" }
+lint-commits = { cmd = "convco check --config .config/convco.yml", description = "Validate a conventional commit range" }
+audit = { cmd = "cargo deny check && cargo audit --deny warnings", description = "Audit locked Rust dependencies and supply-chain policy" }
+
+check = { depends-on = [
+  "fmt-check",
+  "lint",
+  "typecheck",
+  "test",
+  "backlog-check",
+  "repo-check",
+  "skills-check",
+], description = "Run format, lint, type, test, backlog, repository, and skill checks" }
+gates = { depends-on = [
+  "check",
+  "coverage",
+  "lint-actions",
+  "audit",
+  "build",
+], description = "Every required local quality gate" }
+ci = { depends-on = ["gates"], description = "Run the complete CI gate suite locally" }
