@@ -239,6 +239,7 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
         "packages/portal",
         "packages/schema",
         "crates/universe-assets",
+        "crates/universe-cli",
     )
     for package in versioned_packages:
         directory = root / package
@@ -289,6 +290,29 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
                     errors.append(
                         f"recipe version drift in {recipe.relative_to(root)}: "
                         f"found {recipe_version or '<missing>'}, expected {canonical_version}"
+                    )
+
+            facade_recipe = root / "crates" / "universe-cli" / "recipe" / "recipe.yaml"
+            if path_exists(facade_recipe):
+                text = facade_recipe.read_text(encoding="utf-8")
+                recipe_name = extract_recipe_package_name(text)
+                recipe_version = extract_recipe_context_version(text)
+                expected_version_file = root / "crates" / "universe-cli" / "VERSIONS"
+                expected_version = (
+                    expected_version_file.read_text(encoding="utf-8").strip()
+                    if path_exists(expected_version_file)
+                    else ""
+                )
+                if recipe_name != "universe":
+                    errors.append(
+                        f"recipe package name drift in {facade_recipe.relative_to(root)}: "
+                        f"found {recipe_name or '<missing>'}, expected universe"
+                    )
+                if recipe_version != expected_version:
+                    errors.append(
+                        f"recipe version drift in {facade_recipe.relative_to(root)}: "
+                        f"found {recipe_version or '<missing>'}, "
+                        f"expected {expected_version or '<missing>'}"
                     )
 
     workflow_root = root / ".github" / "workflows"

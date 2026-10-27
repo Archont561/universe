@@ -17,7 +17,7 @@ documentation:
   - backlog/docs/architecture/doc-3 - Static-channel-and-SvelteKit-UnoCSS-portal-specification.md
   - backlog/decisions/decision-5 - Static-Conda-channel-on-GitHub-Pages-+-GitHub-Releases-via-CEP-15-base_url,-CEP-16-shards,-and-immutable-JSON-fragments.md
   - backlog/decisions/decision-6 - SvelteKit-3-+-Svelte-5-SSG-+-UnoCSS-for-@universe-portal-using-template-route-cloning-and-no-Storybook.md
-  - backlog/decisions/decision-11 - Headless-v0.1.0-first,-browser-portal-deferred-to-v0.2.0.md
+  - backlog/decisions/decision-119 - Full-multi-ecosystem-v1-and-static-catalog-distribution.md
 priority: high
 type: feature
 ordinal: 25000
@@ -26,8 +26,9 @@ ordinal: 25000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Implement the browser-HTML half of `universe-kit pages build`, split out of the headless
-`UNI-12` channel indexer per decision-11 (`doc-3`, `decision-5`, `decision-6`):
+Implement the browsable portal HTML/catalog generation as a distinct layer beside the standard
+static Conda channel (`UNI-12`), consistent with the integrated v1 scope (`doc-3`, `decision-5`,
+`decision-6`, `decision-119`):
 - Extract the embedded `crates/universe-assets` portal files (the real SSG output delivered by
   `UNI-6`, replacing the committed headless placeholder), remove the `packages/__pkg__/`
   template route from the emitted tree, and clone it once per discovered package.

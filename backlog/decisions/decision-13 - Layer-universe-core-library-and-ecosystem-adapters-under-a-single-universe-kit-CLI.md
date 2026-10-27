@@ -5,12 +5,13 @@ date: '2026-10-27 12:00'
 status: accepted
 ---
 
-> **Adapter-budget reconciliation:** ecosystem names in the historical context
-> below are candidates, not commitments. The canonical first-class budget is
-> five—`conda`, `generic`, `skills`, `python`, and `stac`—with at most two
-> additional experimental adapters in this repository. Cargo, Julia, Helm/apt,
-> Playwright payloads, models, datasets, and similar kinds start as generic
-> profiles unless a later decision proves a distinct native contract.
+> **Scope amendment (decision-119):** retain the neutral-core/separate-adapter
+> architecture below, but replace its earlier adapter budget and sequencing.
+> V1 first-class protocols are Conda, Cargo, Python wheels, and npm. Generic
+> assets, Agent Skills, and STAC are deferred from v1; they are not a binding
+> five-adapter budget. Cargo/Python/npm adapters are separate implementations,
+> not generic profiles, because native clients require protocol-compatible
+> indexes and artifacts.
 
 ## Context
 
@@ -266,29 +267,31 @@ Schema 1 documents desugar deterministically: top-level `[[targets]]` →
 drift gates remain authoritative; schema 2 adds per-ecosystem sections via
 the same Rust-owned ts-rs + schemars pipeline (decision-4).
 
-## Migration sequencing
+## Current v1 sequencing (decision-119)
 
-Do the split **now**, before UNI-7/8/10/11/12 land in the wrong crate — right
-after UNI-30 is the cheapest possible moment. But do not implement Python
-builds before Conda is proven:
+This section replaces the older staged roadmap and adapter budget elsewhere in
+the historical decision text. Keep the decision's core separation rule: neutral
+models in `universe-core`, protocol behavior in separate adapters, orchestration
+in Kit, and consumer execution in Airlock.
 
-1. **UNI-25** — Extract `universe-conda` from `universe-core` per §2; core
-   compiles with zero `rattler_*` deps; `universe-kit` behaviour unchanged.
-2. **UNI-26** — `universe-kit` crate (dispatch + shim forwarding), feature
-   flags, manifest schema 2 with schema-1 desugaring, conformance test-kit.
-3. Continue UNI-7…UNI-18 unchanged, now inside `universe-conda`. Ship
-   `universe-kit v0.1.0` (and `universe-kit` with only `conda` meaningful).
-4. **Post-v0.1.0** — `universe-python` adapter: lint/plan against upstream
-   git, `cibuildwheel` build, wheel audit, PEP 503/691 indexer, Pages/Releases
-   + optional PyPI targets, portal install tabs (`pip` / `uv`).
-5. Cargo/Julia/Helm/apt adapters each re-open this decision with a
-   conformance-suite pass as the acceptance bar.
+1. Stabilize neutral catalog/identity/integrity contracts and conformance fixtures.
+2. Keep Conda as an initial producer workflow, but publish actual package bytes
+   and metadata at standard static channel paths.
+3. Implement Cargo sparse-index/crate, Python wheel Simple API, and npm registry
+   adapters as first-class v1 protocols, with native-client fixtures.
+4. Use a thin `universe` facade for command dispatch/umbrella install; retain
+   separately installable `universe-kit`, `universe-airlock`, and the distinct
+   bootstrap artifact.
+5. Generate the browsable portal from a pinned catalog snapshot and verified
+   GitHub Release manifests/assets. The portal is not a registry.
+6. Gate the integrated release on Airlock consumption and offline/connected
+   evidence for all supported components. No Conda-only `v0.1.0` release is a
+   substitute for the v1 acceptance target.
 
-Owner distribution (decision-1) is unchanged: `universe-kit` itself is built
-by the Conda adapter and published to `prefix.dev/Archont561/Archont561` +
-GitHub Releases — dogfooding the multi-ecosystem tool through its first
-adapter. Repo rename, if desired, is a post-v0.1.0 cosmetic step, not part of
-this decision.
+Kit invokes configured external native build/test commands and validates,
+collects, indexes, and publishes their outputs; it does not implement package
+builders. Generic assets, Agent Skills, STAC, Julia, Helm, and apt are outside
+this v1 scope unless separately accepted.
 
 ## Consequences
 

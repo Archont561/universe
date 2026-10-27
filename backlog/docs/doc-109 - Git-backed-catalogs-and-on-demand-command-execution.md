@@ -8,7 +8,7 @@ updated_date: '2026-10-27T09:20:00Z'
 
 # Git-backed catalogs and on-demand command execution
 
-**Status: accepted product direction from the 27 October 2026 discussion; not implemented.** `universe-airlock` still only reports VERSION 0.1.0. Command/ref/record spellings here are illustrative, not a released interface.
+**Status: accepted product direction from the 27 October 2026 discussion; not implemented.** `universe-airlock` still only reports VERSION 0.1.0. Command/ref/record spellings here are illustrative, not a released interface. Decision-119 fixes the integrated v1 scope as Conda, Cargo, Python wheels, npm, Airlock consumption, a browsable portal, and standard static Conda publishing; the portal is not a registry.
 
 ## Supported-command execution
 

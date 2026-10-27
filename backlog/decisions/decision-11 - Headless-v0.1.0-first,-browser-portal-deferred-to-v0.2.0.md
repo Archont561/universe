@@ -2,10 +2,12 @@
 id: decision-11
 title: Headless v0.1.0 first, browser portal deferred to v0.2.0
 date: '2026-10-27 13:40'
-status: accepted
+status: superseded
 ---
 
-## Context
+> **Superseded on 2026-10-27:** the split headless `v0.1.0` / portal `v0.2.0` release plan is retired. The integrated v1 must include the portal, Conda/static Conda publishing, Cargo, Python wheels, npm, and Airlock consumption. Portal and headless-channel implementation work remains valid; only the product release sequencing and v1 scope changed. See decision-119 and doc-111.
+
+## Historical context (retained for audit trail)
 
 The approved roadmap (doc-4, decision-5, decision-6) placed the SvelteKit/UnoCSS browser
 portal in M1, ahead of every CLI capability and of the `v0.1.0` release in M4. Reviewing the

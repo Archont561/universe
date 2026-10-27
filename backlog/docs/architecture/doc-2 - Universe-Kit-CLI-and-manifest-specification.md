@@ -16,7 +16,9 @@ tags:
 
 ## Status
 
-Approved domain specification for consumer repository manifests (`universe.toml`, `package.toml`), CLI subcommands, DAG planning, `rattler-build` execution, pure-Rust `goblin` binary auditing, upstream release watching, and generated consumer workflows (`decision-1`, `decision-3`, `decision-5`, `decision-8`).
+Approved domain specification for consumer repository manifests (`universe.toml`, `package.toml`), CLI subcommands, DAG planning, external native-command orchestration, pure-Rust `goblin` binary auditing, upstream release watching, and generated consumer workflows (`decision-1`, `decision-3`, `decision-5`, `decision-8`).
+
+**Scope amendment (decision-119):** the integrated v1 includes Conda, Cargo crates, Python wheels, npm packages, Airlock consumption, a browsable portal, and a standard static Conda channel. Kit may invoke a configured native build/test command and validate/collect its outputs, but it does not implement or bundle package builders. This document's older Conda-centric manifest/command examples are the initial interface contract; the versioned multi-ecosystem manifest and release-asset schema are tracked by UNI-41. Public command invocation uses the thin `universe` facade described in doc-111; direct component executables remain available.
 
 ## Consumer repository layout
 
@@ -143,7 +145,7 @@ Derived via `clap` with `--json` structured output support on inspection/CI verb
 
 9. **`universe-kit pages build --fragments <dir> --output <site-dir>`**
    - Synthesizes CEP-15 `repodata.json(.zst)`, CEP-16 `repodata_shards.msgpack.zst` + `shards/`, `run_exports.json(.zst)`, `channeldata.json`, `.nojekyll`, `catalog.json`, `packages/<name>/package.json`, and hydrated SvelteKit + UnoCSS static HTML pages (`doc-3`).
-   - Delivery split per decision-11: the headless `v0.1.0` implementation (`UNI-12`) emits only the solver artifacts (`repodata*`, shards, `run_exports*`, `channeldata.json`, `.nojekyll`); `catalog.json`/`package.json` generation and HTML hydration land in `v0.2.0` via `UNI-25` (M6).
+   - Conda solver/channel artifacts and portal/catalog generation are separate implementation layers (`UNI-12` and `UNI-25`/`UNI-46`) but both are required for integrated v1. Conda metadata and binaries must remain available at standard static channel paths; portal HTML is not the registry.
 
 10. **`universe-kit watch [--package <name>] [--apply | --open-pr | --open-issue] [--dry-run] [--json]`**
     - Polls upstream providers (`github-releases`, `github-tags`, `pypi`, `crates-io`), compares normalized upstream versions against `recipes/<pkg>/recipe.yaml` (`rattler_conda_types::Version`), fetches new source archive `sha256` digests, and either opens/updates a deduplicated PR (`chore(deps): bump <pkg> to <ver>` with `build.number = 0`) or files/updates a single deduplicated upstream tracking issue.

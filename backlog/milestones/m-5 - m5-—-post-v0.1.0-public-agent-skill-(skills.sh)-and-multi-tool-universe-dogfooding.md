@@ -1,10 +1,10 @@
 ---
 id: m-5
-title: "M5 — Post-v0.1.0 public Agent Skill (skills.sh) and multi-tool universe dogfooding"
+title: "M5 — Post-v1 public Agent Skill and multi-tool Universe dogfooding"
 ---
 
 ## Description
 
-Once the headless `universe-kit v0.1.0` is live on `archont561/archont561`, publish and validate the top-level `skills/universe-kit/SKILL.md` package for `skills.sh` indexing (`npx skills add Archont561/universe`) and prove the full system by bootstrapping a live multi-package universe (migrating recipes such as `CloudCompare` / `ODM`) publishing to both `prefix.dev` and a headless GitHub Pages CEP-15/CEP-16 solver channel. Per decision-11 the browser documentation portal is not part of this milestone; live portal verification belongs to M6 (`UNI-26`).
+After the integrated Universe v1 release (M10/UNI-16), publish and validate the public `skills/universe-kit/SKILL.md` package for `skills.sh` indexing and prove real multi-package Universe usage, including migrated recipes such as CloudCompare/ODM where appropriate. The skill rollout and generic/Agent-Skill artifact support are post-v1; the presence of a public skill does not expand v1's registry adapter scope.
 
-Exit condition: `skills-ref validate skills/universe-kit` and `pixi run repo-check` version gates pass, `npx skills add Archont561/universe` installs cleanly, and a live consumer universe serves installable Conda packages through `pixi`/`conda` resolution against the headless channel.
+Exit condition: `skills-ref validate skills/universe-kit`, repository version gates, and public installation checks pass; dogfooding reports reproducible native Conda resolution through the standard static channel and documents which producer/consumer surfaces were exercised.

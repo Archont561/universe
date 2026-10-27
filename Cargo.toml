@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+  "crates/universe-cli",
   "crates/universe-airlock",
   "crates/universe-airlock-bootstrap",
   "crates/universe-core",

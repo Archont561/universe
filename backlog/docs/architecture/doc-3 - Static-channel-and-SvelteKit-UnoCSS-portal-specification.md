@@ -18,9 +18,9 @@ tags:
 
 ## Status
 
-Approved specification for the dual-purpose static Conda channel + documentation portal output emitted by `universe-kit pages build`, the Rust <-> TypeScript schema contract, and the `@universe/portal` SvelteKit 3 + Svelte 5 + UnoCSS architecture (`decision-4`, `decision-5`, `decision-6`, `decision-7`).
+Approved specification for the static Conda channel plus browsable portal output, the Rust <-> TypeScript schema contract, and the `@universe/portal` SvelteKit 3 + Svelte 5 + UnoCSS architecture (`decision-4`, `decision-5`, `decision-6`, `decision-7`). Its delivery/release sequencing is amended by decision-119: the portal and standard static Conda channel are both required for the integrated v1, alongside Cargo, Python-wheel, and npm protocol surfaces and Airlock consumption.
 
-**Delivery order (decision-11, 2026-10-27):** the specification stays approved and unchanged, but its two layers ship in different releases. The CEP-15/CEP-16 channel invariants and solver-facing tree below ship headless in `v0.1.0` via `UNI-12` (no generated HTML); the SvelteKit/UnoCSS portal architecture, `lol_html` hydration, and per-package pages ship in `v0.2.0` via milestone M6 (`UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`). Until then `crates/universe-assets` embeds a committed offline placeholder instead of the SSG output described here.
+**V1 distribution invariant:** a portal is not a registry. It is generated from a pinned catalog snapshot and verified GitHub Release metadata/assets. Conda clients must be served package binaries and metadata at standard channel/subdirectory paths; release download links alone are insufficient. The other native adapters similarly publish their protocol-compatible indexes/metadata and artifacts. See doc-111 for the full package layout and release flow. The earlier headless `v0.1.0` / portal `v0.2.0` split in decision-11 is superseded.
 
 ## Emitted static site + Conda channel tree
 

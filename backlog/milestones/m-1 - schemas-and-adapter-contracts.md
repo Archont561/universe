@@ -1,23 +1,21 @@
 ---
 id: m-1
-title: "M1 — Schemas and adapter contracts"
+title: "M1 — Neutral schemas and adapter contracts"
 ---
 
 ## Description
 
-Define the authoritative ecosystem-neutral Rust domain models for
-`universe.toml`, package/entry manifests, catalogues, fragments, artifacts,
-diagnostics, snapshots, and result envelopes. `UNI-30` owns the neutral
-schema slice; `UNI-31` owns the adapter boundary and conformance fixtures.
+Define authoritative ecosystem-neutral Rust domain models for `universe.toml`,
+package/entry manifests, catalogues, fragments, artifacts, diagnostics, snapshots,
+and result envelopes. `UNI-30` owns the neutral schema slice; `UNI-31` owns the
+adapter boundary and conformance fixtures; `UNI-41` extends the existing project
+manifest and defines the pinned multi-ecosystem release-manifest contract.
 
-Generated bindings for a future browser or documentation package are not part
-of the standalone scaffold. If such a package is introduced, it must consume
-versioned schemas from the Rust/core contract and be wired through Pixi as an
-explicit package.
+Generated bindings for browser/documentation packages consume versioned schemas
+from Rust/core contracts and are wired through Pixi as explicit package work.
+The portal is required in the integrated v1 (M6/M10); the old `v0.2.0`
+deferment is superseded by decision-119.
 
-The SvelteKit/UnoCSS portal remains deferred to milestone M6 and `v0.2.0` by
-decision-11.
-
-Exit condition: `pixi run gates` proves the schema/adapter contracts with
-fixtures while `universe-core` stays free of ecosystem, UI, and network
-dependencies.
+Exit condition: neutral model and manifest validation are deterministic and
+fixture-tested, with no ecosystem protocol implementation, UI, or network
+behavior leaking into `universe-core`.
