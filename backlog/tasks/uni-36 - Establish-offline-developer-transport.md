@@ -19,18 +19,26 @@ ordinal: 36000
 
 ## Description
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Decide how a clean checkout materialises the locked Pixi/Rust/Python/Cargo
-environment under a documented network boundary: a generated Universe-native
-developer bundle, an explicitly configured sandbox transport, or a documented
-deferral until the Airlock consumer can carry developer environments.
-Generated launchers and configuration must be reproducible and tested.
+Choose and implement a reproducible transport for materialising the locked
+Pixi/Rust/Python/Cargo developer environment under a documented network
+boundary. Evaluate a separately published, platform-qualified bundle containing
+the default Pixi environment and Cargo vendor tree, with a generated native
+restore launcher that fetches only the selected transport ref and restores
+locally. Keep transport publication manual and fail-closed by default; support
+explicit no-fetch and no-user-tool-registration modes so restore does not
+silently alter profiles or require public package registries after the bundle
+is available. Do not treat this developer transport as an Airlock sealed
+snapshot or as proof that npm, advisories, arbitrary tools, or native host
+prerequisites are included. Generated launcher/configuration must be
+reproducible and tested.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A clean checkout can materialise the locked environment under the documented network boundary, or the limitation is explicitly accepted in a decision.
-- [ ] #2 Generated launchers/config are reproducible and covered by tests.
-- [ ] #3 The transport choice states how it relates to UNI-27 and the Airlock bootstrap boundary.
+- [ ] #1 A clean Linux x86_64 checkout can materialise the locked environment under the documented network boundary, or the limitation is explicitly accepted in a decision.
+- [ ] #2 The reviewed bundle config and publisher include the default Pixi environment, every workspace Cargo dependency, and republish triggers for root/crate Cargo manifests, Cargo.lock, pixi.toml, and pixi.lock.
+- [ ] #3 The checked-in restore launcher verifies the published branch before restore, supports a no-profile-edit mode, and has shell/config regression coverage.
+- [ ] #4 The transport choice states how it relates to UNI-27 and the Airlock bootstrap boundary.
 <!-- AC:END -->
 
 ## Definition of Done
