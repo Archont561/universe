@@ -53,7 +53,7 @@ def test_offline_cargo_gates_require_vendored_transport() -> None:
     publisher = "args: pixi-sandbox pipeline\n  --cargo-vendor true\n"
     lefthook = (
         "pre-push:\n  commands:\n    gates:\n"
-        "      run: CARGO_NET_OFFLINE=true pixi run offline-gates\n"
+        "      run: CARGO_NET_OFFLINE=true pixi run --offline --as-is offline-gates\n"
     )
     pixi_config = (
         '[tasks.offline-gates]\ndepends-on = ["check", "coverage", "lint-actions", "build"]\n'
@@ -74,6 +74,16 @@ def test_offline_cargo_gates_require_vendored_transport() -> None:
     assert any("publisher must include Cargo vendor data" in error for error in errors)
     assert any("pre-push must run offline-gates" in error for error in errors)
 
+    pixi_with_online_dependency = (
+        '[tasks.offline-gates]\ndepends-on = ["check", "coverage", "lint-actions", "build"]\n'
+        '[tasks.check]\ndepends-on = ["audit"]\n'
+        '[tasks.audit]\ncmd = "cargo audit"\n'
+    )
+    online_errors = validate_offline_cargo_transport(
+        lockfile, sandbox_config, publisher, lefthook, pixi_with_online_dependency
+    )
+    assert any("transitively includes online task: audit" in error for error in online_errors)
+
 
 def test_the_standalone_repository_passes_repo_check() -> None:
     repo_root = Path(__file__).resolve().parents[2]
@@ -87,6 +97,9 @@ def test_reports_missing_forbidden_and_unreadable_paths(tmp_path: Path) -> None:
     (tmp_path / "copying").write_text("placeholder\n", encoding="utf-8")
     (tmp_path / ".gitkeep").write_text("", encoding="utf-8")
     (scripts / "legacy.ts").write_text("export {};\n", encoding="utf-8")
+    vendor_license = tmp_path / ".pixi-sandbox" / "vendor" / "memchr-2.8.3" / "COPYING"
+    vendor_license.parent.mkdir(parents=True)
+    vendor_license.write_text("MIT License\n", encoding="utf-8")
     legacy_name = "conda" + "-universe.txt"
     (tmp_path / legacy_name).write_text("legacy path\n", encoding="utf-8")
     (tmp_path / "legacy-content.txt").write_text("air" + "pack\n", encoding="utf-8")
@@ -98,6 +111,7 @@ def test_reports_missing_forbidden_and_unreadable_paths(tmp_path: Path) -> None:
     assert "forbidden standalone-cleanup path exists: LICENSE" not in errors
     assert "forbidden license/notice/placeholder file: copying" in errors
     assert "forbidden license/notice/placeholder file: .gitkeep" in errors
+    assert ".pixi-sandbox/vendor/memchr-2.8.3/COPYING" not in errors
     assert "TypeScript repository script is forbidden: scripts/legacy.ts" in errors
     assert f"legacy repository reference in path: {legacy_name}" in errors
     assert "legacy repository reference in content: legacy-content.txt" in errors

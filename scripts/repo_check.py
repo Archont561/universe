@@ -53,6 +53,7 @@ SKIP_DIRS = {
     ".git",
     ".mypy_cache",
     ".pixi",
+    ".pixi-sandbox",
     ".pytest_cache",
     ".ruff_cache",
     "__pycache__",
@@ -122,7 +123,7 @@ def validate_offline_cargo_transport(
     if not re.search(vendor_arg, publisher_workflow):
         errors.append("sandbox publisher must include Cargo vendor data")
     if not re.search(
-        r"(?m)^\s*run:\s*CARGO_NET_OFFLINE=true\s+pixi run offline-gates\s*$",
+        r"(?m)^\s*run:\s*CARGO_NET_OFFLINE=true\s+pixi run --offline --as-is offline-gates\s*$",
         lefthook_config,
     ):
         errors.append("pre-push must run offline-gates with CARGO_NET_OFFLINE=true")
@@ -134,8 +135,27 @@ def validate_offline_cargo_transport(
     offline_gate = pixi_tasks.get("offline-gates", {})
     required_dependencies = {"check", "coverage", "lint-actions", "build"}
     dependencies = set(offline_gate.get("depends-on", []))
-    if not required_dependencies.issubset(dependencies):
-        errors.append("Pixi offline-gates must include check, coverage, lint-actions, and build")
+    if dependencies != required_dependencies:
+        errors.append(
+            "Pixi offline-gates dependencies must be check, coverage, lint-actions, and build"
+        )
+
+    network_tasks = {"audit", "ci", "gates", "web-build", "web-check", "web-install"}
+    pending = list(dependencies)
+    visited: set[str] = set()
+    while pending:
+        task_name = pending.pop()
+        if task_name in visited:
+            continue
+        visited.add(task_name)
+        if task_name in network_tasks:
+            errors.append(f"Pixi offline-gates transitively includes online task: {task_name}")
+        task = pixi_tasks.get(task_name, {})
+        for dependency in task.get("depends-on", []):
+            if isinstance(dependency, str):
+                pending.append(dependency)
+            elif isinstance(dependency, dict) and isinstance(dependency.get("task_name"), str):
+                pending.append(dependency["task_name"])
     return errors
 
 
