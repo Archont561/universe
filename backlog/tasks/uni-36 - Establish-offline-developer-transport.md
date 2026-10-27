@@ -39,12 +39,12 @@ reproducible and tested.
 - [ ] #2 The reviewed bundle config and publisher include the default Pixi environment, the complete locked Cargo dependency graph (vendoring registry crates when present), and republish triggers for root/crate Cargo manifests, Cargo.lock, pixi.toml, and pixi.lock.
 - [ ] #3 The checked-in restore launcher verifies the published branch before restore, supports a no-profile-edit mode, and has shell/config regression coverage.
 - [ ] #4 The transport choice states how it relates to UNI-27 and the Airlock bootstrap boundary.
-- [ ] #5 The pre-push hook runs `pixi run offline-gates` with `CARGO_NET_OFFLINE=true`; a freshly restored vendor-enabled environment passes without Cargo registry access. Bun installation and advisory-database updates remain in the full CI gate, not the offline hook.
+- [x] #5 The pre-push hook runs `CARGO_NET_OFFLINE=true pixi run --offline --as-is offline-gates`; a freshly restored vendor-enabled environment passes without network access. Bun installation and advisory-database updates remain in the full CI gate, not the offline hook.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 The chosen transport proves `CARGO_NET_OFFLINE=true pixi run offline-gates` from a wiped environment; the complete `pixi run gates` suite still passes in CI.
+- [x] #1 The chosen transport proves `CARGO_NET_OFFLINE=true pixi run --offline --as-is offline-gates` from a freshly restored vendor-enabled environment with `target` cleared; the complete `pixi run gates` suite still passes in CI.
 <!-- DOD:END -->
 
 ## Implementation Notes
@@ -57,8 +57,13 @@ reproducible and tested.
   guards the config/workflow/hook agreement. Pre-push now targets a dedicated
   offline-compatible gate set (Rust, Python, and repository checks); Bun install
   and advisory database updates remain in the complete CI gate because the
-  transport explicitly does not bundle those inputs. The current restored
-  bundle still fails offline Cargo resolution with `no matching package named
-  serde found`. This remains open until a fresh vendor-enabled sandbox is
-  published and `offline-gates` passes from a clean restore.
+  transport explicitly does not bundle those inputs. The old restored bundle
+  failed offline Cargo resolution with `no matching package named serde found`.
+- 2026-10-27: The merged publisher run completed successfully and published
+  sandbox snapshot `74b5d91` with 15 vendored crates (5.9 MiB). A verified fresh
+  restore included `.pixi-sandbox/vendor` and configured the sandbox Cargo home.
+  After clearing `target`, `CARGO_NET_OFFLINE=true pixi run --offline --as-is
+  offline-gates` passed. `repo-check` now skips generated `.pixi-sandbox`
+  contents so vendor license files are not mistaken for stale root-level
+  license files. Other transport acceptance criteria remain open.
 <!-- SECTION:NOTES:END -->

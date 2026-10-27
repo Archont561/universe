@@ -15,12 +15,12 @@ pre-commit:
       glob: ".agents/skills/**"
       run: pixi run skills-check
 
-# Keep registry-backed Cargo stages inside the vendored sandbox transport.
+# This hook fails closed without network; Cargo sources come from the sandbox vendor tree.
 pre-push:
   parallel: false
   commands:
     gates:
-      run: CARGO_NET_OFFLINE=true pixi run offline-gates
+      run: CARGO_NET_OFFLINE=true pixi run --offline --as-is offline-gates
 
 commit-msg:
   commands:
