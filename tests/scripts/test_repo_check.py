@@ -7,30 +7,11 @@ import pytest
 from scripts.repo_check import (
     extract_recipe_context_version,
     extract_recipe_package_name,
-    extract_toml_version,
-    extract_workflow_refs,
-    is_immutable_sha,
     main,
+    validate_audit_gate,
     validate_offline_cargo_transport,
     validate_repo,
 )
-
-
-def test_recognises_full_sha_workflow_refs_only() -> None:
-    sha = "0123456789abcdef0123456789abcdef01234567"
-    refs = extract_workflow_refs(
-        f"steps:\n  - uses: actions/checkout@{sha} # v1\n  - uses: owner/action@v1\n"
-    )
-
-    assert refs == [sha, "v1"]
-    assert is_immutable_sha(sha)
-    assert not is_immutable_sha("v1")
-    assert not is_immutable_sha(sha.upper())
-
-
-def test_extracts_the_first_toml_version() -> None:
-    assert extract_toml_version('name = "x"\nversion = "1.2.3"\nversion = "9.9.9"') == "1.2.3"
-    assert extract_toml_version('name = "x"') is None
 
 
 def test_extracts_recipe_version_and_package_name() -> None:
@@ -49,7 +30,20 @@ package:
 
 def test_offline_cargo_gates_require_vendored_transport() -> None:
     lockfile = '[[package]]\nname = "serde"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n'
-    sandbox_config = "cargo_vendor = true\n\n[[bundle]]\ncargo_vendor = true\n"
+    sandbox_config = (
+        "cargo_vendor = true\n"
+        "\n[[bundle]]\n"
+        "cargo_vendor = true\n"
+        "\n[workflow]\n"
+        "push_paths = [\n"
+        '  ".pixi-sandbox.toml",\n'
+        '  "Cargo.lock",\n'
+        '  "Cargo.toml",\n'
+        '  "crates/**/Cargo.toml",\n'
+        '  "pixi.lock",\n'
+        '  "pixi.toml",\n'
+        "]\n"
+    )
     publisher = "args: pixi-sandbox pipeline\n  --cargo-vendor true\n"
     lefthook = (
         "pre-push:\n  commands:\n    gates:\n"
@@ -90,16 +84,10 @@ def test_the_standalone_repository_passes_repo_check() -> None:
     assert validate_repo(repo_root) == []
 
 
-def test_reports_missing_forbidden_and_unreadable_paths(tmp_path: Path) -> None:
+def test_reports_legacy_references_and_unreadable_paths(tmp_path: Path) -> None:
+    """Shape checks moved to alint; the token scan and read failures stay here."""
     scripts = tmp_path / "scripts"
     scripts.mkdir()
-    (tmp_path / "LICENSE").write_text("MIT License\n", encoding="utf-8")
-    (tmp_path / "copying").write_text("placeholder\n", encoding="utf-8")
-    (tmp_path / ".gitkeep").write_text("", encoding="utf-8")
-    (scripts / "legacy.ts").write_text("export {};\n", encoding="utf-8")
-    vendor_license = tmp_path / ".pixi-sandbox" / "vendor" / "memchr-2.8.3" / "COPYING"
-    vendor_license.parent.mkdir(parents=True)
-    vendor_license.write_text("MIT License\n", encoding="utf-8")
     legacy_name = "conda" + "-universe.txt"
     (tmp_path / legacy_name).write_text("legacy path\n", encoding="utf-8")
     (tmp_path / "legacy-content.txt").write_text("air" + "pack\n", encoding="utf-8")
@@ -107,40 +95,24 @@ def test_reports_missing_forbidden_and_unreadable_paths(tmp_path: Path) -> None:
 
     errors = "\n".join(validate_repo(tmp_path))
 
-    assert "required file is missing: AGENTS.md" in errors
-    assert "forbidden standalone-cleanup path exists: LICENSE" not in errors
-    assert "forbidden license/notice/placeholder file: copying" in errors
-    assert "forbidden license/notice/placeholder file: .gitkeep" in errors
-    assert ".pixi-sandbox/vendor/memchr-2.8.3/COPYING" not in errors
-    assert "TypeScript repository script is forbidden: scripts/legacy.ts" in errors
     assert f"legacy repository reference in path: {legacy_name}" in errors
     assert "legacy repository reference in content: legacy-content.txt" in errors
     assert "cannot read broken-link" in errors
-
-
-def test_reports_version_and_workflow_drift(tmp_path: Path) -> None:
-    workflows = tmp_path / ".github" / "workflows"
-    workflows.mkdir(parents=True)
-    (tmp_path / "Cargo.toml").write_text('version = "1.0.0"\n', encoding="utf-8")
-    (tmp_path / "pixi.toml").write_text('version = "2.0.0"\n', encoding="utf-8")
-    (workflows / "ci.yml").write_text("steps:\n  - uses: actions/checkout@v4\n", encoding="utf-8")
-
-    errors = "\n".join(validate_repo(tmp_path))
-
-    assert "version drift: Cargo=1.0.0, Pixi=2.0.0" in errors
-    assert "action ref is not a full SHA: v4" in errors
-
-    (tmp_path / "pixi.toml").write_text('name = "universe"\n', encoding="utf-8")
-    errors = "\n".join(validate_repo(tmp_path))
-    assert "Cargo and Pixi must both declare a version" in errors
+    # Required files, forbidden paths, placeholder basenames, and TypeScript
+    # automation are `.alint.yml` rules now, so a bare tree is not their concern.
+    assert "required file is missing" not in errors
+    assert "forbidden license/notice/placeholder file" not in errors
+    assert "TypeScript repository script is forbidden" not in errors
 
 
 def test_main_prints_success_and_failure(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    (tmp_path / "legacy.txt").write_text("conda" + "-universe\n", encoding="utf-8")
+
     assert main(["--root", str(tmp_path)]) == 1
     captured = capsys.readouterr()
-    assert "required file is missing" in captured.err
+    assert "legacy repository reference" in captured.err
 
     repo_root = Path(__file__).resolve().parents[2]
     assert main(["--root", str(repo_root)]) == 0
@@ -170,3 +142,48 @@ def test_versioned_packages_must_match_their_versions_files(tmp_path: Path) -> N
 
     assert "version drift in crates/universe-assets: VERSIONS=0.2.0, manifest=0.1.0" in errors
     assert "version drift in crates/universe-cli: VERSIONS=0.2.0, manifest=0.1.0" in errors
+
+
+def test_audit_gate_requires_the_offline_first_runner() -> None:
+    configured = (
+        "[tasks]\n"
+        'audit = { cmd = "python -m scripts.audit check" }\n'
+        'audit-sync = { cmd = "python -m scripts.audit sync" }\n'
+    )
+    legacy = (
+        "[tasks]\n"
+        'audit = { cmd = "cargo deny check && cargo audit --deny warnings" }\n'
+        'audit-sync = { cmd = "python -m scripts.audit sync" }\n'
+    )
+    without_sync = '[tasks]\naudit = { cmd = "python -m scripts.audit check" }\n'
+
+    assert validate_audit_gate(configured) == []
+    assert "offline-first" in validate_audit_gate(legacy)[0]
+    assert "audit-sync" in validate_audit_gate(without_sync)[0]
+
+
+def test_offline_transport_requires_every_republish_trigger() -> None:
+    lockfile = '[[package]]\nname = "serde"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n'
+    sandbox_config = (
+        "cargo_vendor = true\n"
+        "\n[[bundle]]\n"
+        'name = "developer"\n'
+        'platforms = ["linux-64"]\n'
+        "cargo_vendor = true\n"
+        "\n[workflow]\n"
+        'push_paths = ["pixi.toml", "pixi.lock"]\n'
+    )
+    publisher = "args: pixi-sandbox pipeline\n  --cargo-vendor true\n"
+    lefthook = (
+        "pre-push:\n  commands:\n    gates:\n"
+        "      run: CARGO_NET_OFFLINE=true pixi run --offline --as-is offline-gates\n"
+    )
+    pixi_config = (
+        '[tasks.offline-gates]\ndepends-on = ["check", "coverage", "lint-actions", "build"]\n'
+    )
+
+    errors = validate_offline_cargo_transport(
+        lockfile, sandbox_config, publisher, lefthook, pixi_config
+    )
+
+    assert any("Cargo.lock" in error and "push_paths" in error for error in errors)

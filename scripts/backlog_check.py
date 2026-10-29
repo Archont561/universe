@@ -1,10 +1,16 @@
-"""Validate the Markdown Backlog store."""
+"""Validate the Markdown Backlog store.
+
+File naming shape and relative-link resolution are owned by `.alint.yml`
+(decision-121): alint also resolves links that leave `backlog/`, which this
+checker skipped. What stays here is the identity and cross-record work a
+declarative rule cannot express — filename-to-frontmatter-id equality, duplicate
+ids, status enums (RE2 has no look-ahead), and milestone/dependency resolution.
+"""
 
 import argparse
 import re
 import sys
 from pathlib import Path
-from urllib.parse import unquote
 
 from scripts.lib.files import list_files, path_exists
 
@@ -34,12 +40,6 @@ def parse_frontmatter(text: str) -> Frontmatter | None:
         key, value = match.groups()
         values[key] = re.sub(r"^[\"']|[\"']$", "", value)
     return values
-
-
-def extract_markdown_links(text: str) -> list[str]:
-    """Extract inline Markdown link targets, ignoring optional titles."""
-    pattern = re.compile(r'!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
-    return pattern.findall(text)
 
 
 def extract_frontmatter_list(text: str, key: str) -> list[str]:
@@ -74,12 +74,8 @@ def _category_for(relative_path: Path) -> str:
     return "other"
 
 
-def _is_external_or_anchor(target: str) -> bool:
-    return re.match(r"^(?:https?:|mailto:|tel:|#|/)", target) is not None
-
-
 def validate_backlog(repo_root: Path | None = None) -> list[str]:
-    """Validate IDs, statuses, filenames, frontmatter, and Backlog links."""
+    """Validate Backlog identity, statuses, and cross-record references."""
     root = Path.cwd() if repo_root is None else repo_root
     backlog_root = root / "backlog"
     errors: list[str] = []
@@ -124,20 +120,6 @@ def validate_backlog(repo_root: Path | None = None) -> list[str]:
                 errors.append(f"{relative_posix}: invalid decision status {status}")
             if category == "tasks" and status not in TASK_STATUSES:
                 errors.append(f"{relative_posix}: invalid task status {status}")
-
-        for target in extract_markdown_links(text):
-            if _is_external_or_anchor(target):
-                continue
-            clean = unquote(target.split("#", 1)[0].split("?", 1)[0])
-            if not clean or clean.endswith("/"):
-                continue
-            resolved = (file.parent / clean).resolve()
-            try:
-                resolved.relative_to(backlog_root.resolve())
-            except ValueError:
-                continue
-            if not path_exists(resolved):
-                errors.append(f"{relative_posix}: broken Backlog link {target}")
 
     categories_by_id: dict[str, str] = {}
     for file in files:

@@ -1,0 +1,267 @@
+# alint — declarative repository shape, structure, and cross-file checks.
+#
+# This file is the authoritative declarative layer for repository shape:
+# required/forbidden paths, naming, structured-config assertions, and cross-file
+# relations. `scripts/repo_check.py` no longer duplicates it. What stays in
+# Python is what cannot be expressed here — a token scan that must not match its
+# own config, version inheritance through a Cargo workspace, and set/graph
+# reasoning over the offline-transport contract. decision-121 records the split.
+#
+# Run with `pixi run alint-check`. Rule ids are stable; retire a rule by
+# redeclaring it with `level: off` and saying why.
+
+version: 1
+
+templates:
+  - id: universe-required-file
+    kind: file_exists
+    paths: ["{{vars.path}}"]
+    level: error
+    message: "Required repository file is missing: {{vars.path}}"
+
+extends:
+  # Always-on hygiene; every ecosystem ruleset below is a no-op off-ecosystem.
+  - alint://bundled/oss-baseline@v1
+  - alint://bundled/rust@v1
+  - alint://bundled/node@v1
+  - alint://bundled/monorepo@v1
+  - alint://bundled/monorepo/cargo-workspace@v1
+  - alint://bundled/ci/github-actions@v1
+  - alint://bundled/agent-context@v1
+
+rules:
+  # --- Bundled rules that do not fit this repository ------------------------
+  # The repository map lives in README.md and backlog/; it deliberately keeps
+  # crates and packages free of per-directory READMEs.
+  - id: monorepo-packages-have-readme
+    level: off
+  - id: cargo-workspace-member-has-readme
+    level: off
+  # Policy/community files are maintainer decisions, not lint findings, and the
+  # scaffold has none of them by design.
+  - id: oss-code-of-conduct-exists
+    level: off
+  - id: oss-codeowners-exists
+    level: off
+  - id: oss-security-policy-exists
+    level: off
+  - id: oss-security-policy-non-empty
+    level: off
+  - id: oss-dependency-update-tool
+    level: off
+  # The toolchain is pinned by pixi.lock and the Pixi manifest, not by a
+  # rust-toolchain file or a Node engines field.
+  - id: rust-toolchain-pinned
+    level: off
+  - id: node-engine-or-nvmrc
+    level: off
+
+  # The bundled `ci/github-actions` ruleset ships action pinning at `warning`;
+  # a mutable CI ref is a hard failure here, so it is redeclared at `error`.
+  - id: gha-pin-actions-to-sha
+    level: error
+
+  # --- Repository shape (now the authoritative declarative layer) ----------
+  # `paths:` on an existence rule is a disjunction, so "all of these files are
+  # required" is one instance per file, generated from a template.
+  - extends_template: universe-required-file
+    id: universe-required-devcontainer
+    vars: { path: .devcontainer/devcontainer.json }
+  - extends_template: universe-required-file
+    id: universe-required-alint-config
+    vars: { path: .alint.yml }
+  - extends_template: universe-required-file
+    id: universe-required-ci-workflow
+    vars: { path: .github/workflows/ci.yml }
+  - extends_template: universe-required-file
+    id: universe-required-agents-md
+    vars: { path: AGENTS.md }
+  - extends_template: universe-required-file
+    id: universe-required-changelog
+    vars: { path: CHANGELOG.md }
+  - extends_template: universe-required-file
+    id: universe-required-contributing
+    vars: { path: CONTRIBUTING.md }
+  - extends_template: universe-required-file
+    id: universe-required-cargo-manifest
+    vars: { path: Cargo.toml }
+  - extends_template: universe-required-file
+    id: universe-required-license
+    vars: { path: LICENSE }
+  - extends_template: universe-required-file
+    id: universe-required-readme
+    vars: { path: README.md }
+  - extends_template: universe-required-file
+    id: universe-required-backlog-config
+    vars: { path: backlog/config.yml }
+  - extends_template: universe-required-file
+    id: universe-required-airlock-recipe
+    vars: { path: crates/universe-airlock/recipe/recipe.yaml }
+  - extends_template: universe-required-file
+    id: universe-required-airlock-variants
+    vars: { path: crates/universe-airlock/recipe/variants.yaml }
+  - extends_template: universe-required-file
+    id: universe-required-kit-recipe
+    vars: { path: crates/universe-kit/recipe/recipe.yaml }
+  - extends_template: universe-required-file
+    id: universe-required-kit-variants
+    vars: { path: crates/universe-kit/recipe/variants.yaml }
+  - extends_template: universe-required-file
+    id: universe-required-development-doc
+    vars: { path: docs/DEVELOPMENT.md }
+  - extends_template: universe-required-file
+    id: universe-required-pixi-manifest
+    vars: { path: pixi.toml }
+  - extends_template: universe-required-file
+    id: universe-required-pyproject
+    vars: { path: pyproject.toml }
+  - extends_template: universe-required-file
+    id: universe-required-skills-lock
+    vars: { path: skills-lock.json }
+
+  - id: universe-forbidden-files
+    kind: file_absent
+    paths:
+      - NOTICE.md
+      - .agents/NOTICE.md
+      - backlog/MERGE-MAP.md
+      - website
+    message: "Forbidden standalone-cleanup path exists"
+    level: error
+
+  - id: universe-forbidden-directories
+    kind: dir_absent
+    paths:
+      - .agents/licenses
+      - website
+      - dist
+      - build
+    message: "Forbidden directory exists"
+    level: error
+
+  # License/notice placeholders and empty-directory placeholders are forbidden
+  # everywhere except the retained third-party license texts.
+  - id: universe-forbidden-basenames
+    kind: file_absent
+    paths:
+      - "**/.gitkeep"
+      - "**/copying"
+      - "**/license"
+      - "**/license.md"
+      - "**/license.txt"
+      - "**/notice"
+      - "**/notice.md"
+      - "**/notice.txt"
+    message: "Forbidden license/notice/placeholder file"
+    level: error
+
+  - id: third-party-licenses-vocabulary
+    kind: file_absent
+    paths:
+      - "**/LICENSE.txt"
+      - "**/LICENCE"
+      - "**/LICENCE.md"
+    message: "Use the retained third_party/licenses/ naming"
+    level: error
+
+  # Repository automation is Python under scripts/; TypeScript must not creep in.
+  - id: universe-no-typescript-automation
+    kind: file_absent
+    paths:
+      - "scripts/**/*.ts"
+      - "tests/scripts/**/*.ts"
+    message: "Repository automation is Python under scripts/, not TypeScript"
+    level: error
+
+  # --- Manifest and gate configuration assertions -------------------------
+  - id: universe-cargo-pixi-version-parity
+    kind: cross_file
+    source:
+      file: Cargo.toml
+      extract: { toml: "$.workspace.package.version" }
+    targets:
+      - file: pixi.toml
+        extract: { toml: "$.workspace.version" }
+    relation: equals
+    message: "Workspace version must match between Cargo.toml and pixi.toml"
+    level: error
+
+  - id: universe-audit-task-runs-offline-gate
+    kind: toml_path_matches
+    paths: pixi.toml
+    path: "$.tasks.audit.cmd"
+    matches: '^python -m scripts\.audit check$'
+    message: "The audit task must run the offline-first gate runner"
+    level: error
+
+  - id: universe-audit-sync-task-exists
+    kind: toml_path_matches
+    paths: pixi.toml
+    path: "$.tasks['audit-sync'].cmd"
+    matches: '^python -m scripts\.audit sync$'
+    message: "The audit gate needs an audit-sync task to seed the advisory cache"
+    level: error
+
+  - id: universe-sandbox-cargo-vendor
+    kind: toml_path_equals
+    paths: .pixi-sandbox.toml
+    path: "$.cargo_vendor"
+    equals: true
+    message: "The developer transport must vendor Cargo registry dependencies"
+    level: error
+
+  # --- Backlog store conventions -----------------------------------------
+  # Frontmatter shape: the checks that need to compare two files (filename id to
+  # frontmatter id, duplicate ids, milestone/dependency resolution) stay in
+  # scripts/backlog_check.py, as do the status enums: alint's RE2 engine has no
+  # look-ahead, so "a status line that is not one of the allowed values" is not
+  # expressible as a regex. These rules cover the single-file conventions.
+  - id: backlog-task-filename
+    kind: filename_regex
+    paths: "backlog/tasks/*.md"
+    pattern: "^uni-[0-9]+ - [^/]+\\.md$"
+    message: 'Backlog task files are named "uni-<n> - <Title-with-dashes>.md"'
+    level: error
+
+  - id: backlog-decision-filename
+    kind: filename_regex
+    paths: "backlog/decisions/*.md"
+    pattern: "^decision-[0-9]+ - [^/]+\\.md$"
+    message: 'Backlog decision files are named "decision-<n> - <Title>.md"'
+    level: error
+
+  - id: backlog-frontmatter-lead
+    kind: file_content_matches
+    paths: "backlog/{tasks,decisions,milestones,docs/**}/*.md"
+    pattern: "\\A---\\n"
+    message: "Backlog records start with a frontmatter block"
+    level: error
+
+  # Relative links inside the Backlog must resolve. The checker's own link walk
+  # also follows links into the repository root; this rule covers the tree.
+  - id: backlog-relative-links-resolve
+    kind: markdown_links_resolve
+    paths: "backlog/**/*.md"
+    message: "Backlog link target does not exist"
+    level: error
+
+  # --- Agent skills -------------------------------------------------------
+  - id: skills-registered-in-lock
+    kind: cross_file
+    source:
+      files: ".agents/skills/*/SKILL.md"
+    targets:
+      - file: skills-lock.json
+        extract: { json: "$.skills.*.skillPath" }
+    relation: registered
+    register_as: "{path}"
+    message: "Every agent skill directory must be registered in skills-lock.json"
+    level: error
+
+  - id: skills-lock-schema-version
+    kind: json_path_equals
+    paths: skills-lock.json
+    path: "$.version"
+    equals: 1
+    message: "skills-lock.json schema version is 1"
+    level: error

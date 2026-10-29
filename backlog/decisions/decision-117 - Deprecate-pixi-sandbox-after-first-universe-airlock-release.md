@@ -56,3 +56,5 @@ Until deprecation:
 ## Status boundary
 
 Decision is proposed. Implementation will occur when Universe Airlock v0.1.0 is released and native catalog/transport mechanisms are validated. The pixi-sandbox dependency remains active until explicit deprecation.
+
+The removal list under "Deprecation criteria" predates the current layout: there is no `utils` feature, `scripts/sandbox.py`, `tests/automation/test_sandbox.py`, or `config/sandbox-bootstrap.json` in this repository. `UNI-27` owns the removal and must re-derive the file list from the tree at that time instead of following the list above; `doc-110` states the transport, bootstrap, and `UNI-27` boundary.

@@ -35,12 +35,42 @@ Initialization/plan/drift checks are distinct from packing, restoring or publish
 The following are **not automatically supplied** merely by shipping a Pixi environment and Cargo vendor tree:
 
 - npm package payloads for Backlog/skills and other JavaScript tools;
-- cargo-deny's advisory database;
+- the audit advisory data: `cargo audit` and `cargo deny` each need a RustSec database, and
+  their yanked checks need a crates.io index cache. The transport does not ship them; the
+  `audit` gate therefore keeps them as project-local caches, runs offline from a populated
+  cache, and fails closed rather than hanging when the cache is absent (decision-120,
+  `UNI-49`). `pixi run audit-sync` is the only path that refreshes them;
 - additional downloaded cargo-dist/tool assets;
 - rattler-build's independently solved build/test dependencies;
 - host linker, system libraries or application services not present in the selected environment.
 
 Do not claim `setup`, the entire CI pipeline, conda packaging, or arbitrary projects are offline-ready based only on successful initialization. Vendor/restore wiring must preserve `.cargo/config.toml`, use the native activation contract, and account for this repository's detached-environment settings.
+
+## How this transport relates to UNI-27 and the Airlock bootstrap boundary
+
+Three different things must not be conflated:
+
+1. **This transport** materialises one *developer* environment — the locked Pixi
+   environment and a Cargo vendor tree — from a `sandbox/*` branch. It is
+   workspace-managed tooling (decision-116), not a product artifact, and it is
+   not versioned with any Universe release.
+2. **`universe-airlock-bootstrap` and `UNI-33`** own sealed-snapshot verify and
+   restore. That path verifies a manifest, content-addressed payloads, and the
+   restored tree for a *user's* universe, with no Pixi and no network. The
+   `scripts/restore.sh` launcher deliberately reuses the same shape — verify the
+   branch, restore, verify the restored tree — precisely so the sealed model is
+   exercised early, but its payload, trust root, and audience are not the sealed
+   product's.
+3. **`UNI-27`** removes this transport entirely, and only after `UNI-48` proves a
+   native replacement and the integrated v1 is released. The replacement must
+   restore the declared developer profile, verify every payload, and satisfy the
+   same offline/network boundary proven here; a stable Airlock release alone is
+   not sufficient evidence.
+
+Until `UNI-27` lands, this transport is the supported developer entrypoint, so
+the boundary above is a reason to keep the two transports' verification contracts
+aligned — not a licence to describe this one as sealed, offline-certified, or
+release-managed.
 
 ## Lessons adopted for future Universe Airlock work
 
@@ -65,11 +95,12 @@ pixi run --locked -e utils sandbox-plan          # reviewed JSON plan / CI matri
 pixi run --locked -e utils sandbox-bootstrap     # pinned verified standalone tool cache
 ```
 
-- [Reviewed bundle configuration](../../pixi-sandbox.toml).
-- [Generated Linux restore entrypoint](../../restore.sh).
+- [Reviewed bundle configuration](../../.pixi-sandbox.toml).
+- [Checked-in Linux restore entrypoint](../../scripts/restore.sh).
 - [Native publisher reference](../../config/pixi-sandbox/publish-sandbox.yml) and [native relock reference](../../config/pixi-sandbox/relock.yml): inactive, exact native renders. The active, project-extended relock workflow is [`.github/workflows/relock.yml`](../../.github/workflows/relock.yml), enabled by [decision-118](../decisions/decision-118%20-%20Enable-pixi-sandbox-lock-repair-for-Cargo-Pixi-and-Bun.md).
 - [Manual active publisher](../../.github/workflows/publish-sandbox.yml): dispatch with publish=false checks the plan only. Actual publication requires publish=true on the trusted repository's main branch, matching workflow/source commit and a clean checkout. Only that job gets contents:write; no prefix.dev/OIDC rights are added.
-- [Python orchestration](../../scripts/sandbox.py), available as named Pixi tasks or `pixi run scripts <name>`.
+- Named Pixi tasks wrap the pinned tooling; the checked-in restore entrypoint above is
+  the supported developer path, and publication remains a manual `pixi run` task.
 
 Do not call raw native init without the project's paths: use sandbox-init. The current Linux launcher is maintained on a POSIX host; Windows initialization would render a different shell flavor, so the wrapper refuses it. Other configured platform package versions are locked, not natively exercised here.
 

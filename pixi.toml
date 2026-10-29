@@ -53,6 +53,11 @@ ruff = { workspace = true }
 rust = { workspace = true }
 taplo = { workspace = true }
 
+[feature.dev.pypi-dependencies]
+# Static repository linter; the wheel embeds the binary, so no toolchain is needed.
+# Decision-121 owns what .alint.yml checks and what stays in scripts/.
+alint = "==0.20.1"
+
 [feature.dev.activation.env]
 LLVM_COV = "$CONDA_PREFIX/bin/llvm-cov"
 LLVM_PROFDATA = "$CONDA_PREFIX/bin/llvm-profdata"
@@ -95,7 +100,9 @@ skills-check-write = { cmd = "python -m scripts.skills_check --write", descripti
 lint-actions = { cmd = "actionlint .github/workflows/*.yml", description = "Lint GitHub Actions workflows" }
 lint-commit = { cmd = "convco check --config .config/convco.yml --from-stdin", description = "Validate one conventional commit message" }
 lint-commits = { cmd = "convco check --config .config/convco.yml", description = "Validate a conventional commit range" }
-audit = { cmd = "cargo deny check && cargo audit --deny warnings", description = "Audit locked Rust dependencies and supply-chain policy" }
+audit = { cmd = "python -m scripts.audit check", description = "Audit locked Rust dependencies and supply-chain policy offline when the advisory cache exists" }
+audit-sync = { cmd = "python -m scripts.audit sync", description = "Refresh the RustSec advisory and crates.io index caches (needs network)" }
+alint-check = { cmd = "alint check", description = "Validate repository structure, naming, and cross-file rules from .alint.yml" }
 
 check = { depends-on = [
   "fmt-check",
@@ -105,6 +112,7 @@ check = { depends-on = [
   "backlog-check",
   "repo-check",
   "skills-check",
+  "alint-check",
 ], description = "Run format, lint, type, test, backlog, repository, and skill checks" }
 offline-gates = { depends-on = [
   "check",
