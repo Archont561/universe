@@ -177,4 +177,17 @@ the duplicated Python branches are one follow-up change.
   and the parse test regained coverage of `extract_frontmatter_list` that the
   rewrite had dropped. `ruff`, the full pytest suite, `repo-check`,
   `backlog-check`, `skills-check`, and `alint check` (71/71) all pass.
+- 2026-10-29: AC#6 verified in CI on `a12dc43`: `gates` success in 56s and
+  `lock guard` success in 19s (run 40854528710 / 40854528556); `relock` and
+  `relock verdict` skipped because the lock did not drift. The `gates` job's step
+  `Run gates` succeeded, and that step runs `check`, which depends on
+  `alint-check` — so the 71-rule layer passed on the tree with the Python branches
+  actually removed. That is the point of the ordering: the retirement commit is
+  validated by the replacement, not by the code it deletes.
+- 2026-10-29: Step-level detail came from the jobs API, not the log archive. The
+  log archive is unreachable from this sandbox for network reasons, not
+  credentials: a freshly minted token returns `200` from `api.github.com`, while
+  the endpoint's `302` target `results-receiver.actions.githubusercontent.com`
+  fails at TLS handshake (`SSL_ERROR_SYSCALL`). Job/step conclusions are fetched
+  over `api.github.com`, so they are available; log text is not.
 <!-- SECTION:NOTES:END -->
