@@ -1,7 +1,7 @@
 ---
 id: UNI-50
 title: Adopt the alint declarative repository-lint layer
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-29'
 updated_date: '2026-10-29'

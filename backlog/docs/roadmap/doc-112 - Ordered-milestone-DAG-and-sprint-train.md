@@ -28,7 +28,7 @@ children, or a `sprint` field. Completed tasks are shown as prerequisites, not r
 
 | Order | Milestone | Contributing tasks | Prerequisite/outcome |
 |---:|---|---|---|
-| 0 | **M0 — Reproducible developer foundation** | `UNI-28`, `UNI-36`, `UNI-39`, `UNI-49` | Baseline is established (`UNI-28`, `UNI-39` done); offline developer transport is being closed (`UNI-36`). |
+| 0 | **M0 — Reproducible developer foundation** | `UNI-28`, `UNI-36`, `UNI-39`, `UNI-49`, `UNI-50` | **Complete.** Baseline (`UNI-28`, `UNI-39`), offline developer transport (`UNI-36`), the offline audit gate (`UNI-49`), and the declarative repository-lint layer (`UNI-50`) are all done. |
 | 1 | **M1 — Neutral schemas and adapter contracts** | `UNI-30`, `UNI-31`, `UNI-41` | Establish the shared types, adapter boundary, project manifest, and pinned release manifest. |
 | 2 | **M2 — Kit commands, artifact orchestration, and audit** | `UNI-7`–`UNI-10`, `UNI-21`, `UNI-22` | Validate/plan, invoke configured external commands, and verify/audit outputs. |
 | 3 | **M3 — Conda static channel and consumer initialization** | `UNI-11`–`UNI-13` | Publish verified Conda artifacts and indexes at standard static channel/subdir paths. |
@@ -93,7 +93,7 @@ work may proceed in parallel when its predecessor tasks are done.
 
 | Sprint | Focus | Tasks | Ordering notes / sprint exit |
 |---:|---|---|---|
-| **S0** | Close foundation/transport | `UNI-36`, `UNI-49` | Verify the restored developer profile and close its remaining acceptance evidence; `UNI-49` brings the audit gate inside the offline boundary (decision-120). `UNI-28` and `UNI-39` are already complete. |
+| **S0** | Close foundation/transport | `UNI-36`, `UNI-49`, `UNI-50` | **Exit condition met.** The restored developer profile is verified, the audit gate is inside the offline boundary (decision-120), and repository shape is enforced declaratively (decision-121). `UNI-28` and `UNI-39` were complete before the train started. |
 | **S1** | Contracts | `UNI-30`, `UNI-31`, `UNI-41` | In order: neutral models, adapter boundary, then project/release manifests. |
 | **S2** | Kit core and artifact safety | `UNI-7`, `UNI-8`, `UNI-9`, `UNI-10`, `UNI-21`, `UNI-22` | `UNI-9` waits for lint/planning and M1 contracts; hardening follows audit. |
 | **S3** | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38` | Conda path is `11 -> 12 -> 13`; Airlock path is `32 -> 33`, with recipe `38` after contracts. These tracks are parallel. |
