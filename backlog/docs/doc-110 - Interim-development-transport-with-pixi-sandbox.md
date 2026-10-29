@@ -95,11 +95,12 @@ pixi run --locked -e utils sandbox-plan          # reviewed JSON plan / CI matri
 pixi run --locked -e utils sandbox-bootstrap     # pinned verified standalone tool cache
 ```
 
-- [Reviewed bundle configuration](../../pixi-sandbox.toml).
-- [Generated Linux restore entrypoint](../../restore.sh).
+- [Reviewed bundle configuration](../../.pixi-sandbox.toml).
+- [Checked-in Linux restore entrypoint](../../scripts/restore.sh).
 - [Native publisher reference](../../config/pixi-sandbox/publish-sandbox.yml) and [native relock reference](../../config/pixi-sandbox/relock.yml): inactive, exact native renders. The active, project-extended relock workflow is [`.github/workflows/relock.yml`](../../.github/workflows/relock.yml), enabled by [decision-118](../decisions/decision-118%20-%20Enable-pixi-sandbox-lock-repair-for-Cargo-Pixi-and-Bun.md).
 - [Manual active publisher](../../.github/workflows/publish-sandbox.yml): dispatch with publish=false checks the plan only. Actual publication requires publish=true on the trusted repository's main branch, matching workflow/source commit and a clean checkout. Only that job gets contents:write; no prefix.dev/OIDC rights are added.
-- [Python orchestration](../../scripts/sandbox.py), available as named Pixi tasks or `pixi run scripts <name>`.
+- Named Pixi tasks wrap the pinned tooling; the checked-in restore entrypoint above is
+  the supported developer path, and publication remains a manual `pixi run` task.
 
 Do not call raw native init without the project's paths: use sandbox-init. The current Linux launcher is maintained on a POSIX host; Windows initialization would render a different shell flavor, so the wrapper refuses it. Other configured platform package versions are locked, not natively exercised here.
 

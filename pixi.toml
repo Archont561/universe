@@ -97,6 +97,7 @@ lint-commit = { cmd = "convco check --config .config/convco.yml --from-stdin", d
 lint-commits = { cmd = "convco check --config .config/convco.yml", description = "Validate a conventional commit range" }
 audit = { cmd = "python -m scripts.audit check", description = "Audit locked Rust dependencies and supply-chain policy offline when the advisory cache exists" }
 audit-sync = { cmd = "python -m scripts.audit sync", description = "Refresh the RustSec advisory and crates.io index caches (needs network)" }
+alint-check = { cmd = "alint check", description = "Validate repository structure, naming, and cross-file rules from .alint.yml" }
 
 check = { depends-on = [
   "fmt-check",

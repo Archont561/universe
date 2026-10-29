@@ -15,6 +15,7 @@ transport without confusing it with a sealed Airlock product snapshot.
 - `UNI-36` — establish/validate offline developer transport (**Done**).
 - `UNI-39` — formalize Backlog planning/reference integrity (**Done**).
 - `UNI-49` — make the audit gate offline-first with a bounded advisory cache (**Done**).
+- `UNI-50` — adopt the alint declarative repository-lint layer (**In Progress**; config verified, gate enrollment pending relock).
 
 ## Exit condition
 

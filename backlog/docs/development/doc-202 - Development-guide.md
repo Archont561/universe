@@ -52,7 +52,15 @@ pixi run gates
 - `repo-check` — required files, Cargo/Pixi version sync, clean standalone
   layout, and immutable workflow action refs.
 - `skills-check` — skill frontmatter and content hashes in `skills-lock.json`.
-- `audit` — `cargo deny` policy and `cargo audit --deny warnings`.
+- `audit` — the offline-first runner: `cargo deny --offline check` plus
+  `cargo audit --no-fetch` against a bounded advisory cache (decision-120).
+  `audit-sync` is the one networked task that seeds that cache.
+- `alint-check` — the declarative repository layer from `.alint.yml`:
+  required/forbidden paths, backlog filename and frontmatter conventions,
+  relative-link resolution, manifest and gate assertions, and the
+  skill-to-`skills-lock.json` registration relation (decision-121). It needs
+  `alint` in the environment, which is pinned by `pixi.lock` only after the
+  next relock, so the task is not yet part of `check`/`gates`.
 - `gates` — all checks plus workflow lint and build.
 
 ## Testing

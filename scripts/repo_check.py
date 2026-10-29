@@ -11,6 +11,7 @@ from pathlib import Path
 from scripts.lib.files import list_files, path_exists
 
 REQUIRED_FILES = (
+    ".alint.yml",
     ".github/workflows/ci.yml",
     ".devcontainer/devcontainer.json",
     "AGENTS.md",
