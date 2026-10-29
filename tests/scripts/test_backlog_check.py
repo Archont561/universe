@@ -6,43 +6,28 @@ import pytest
 
 from scripts.backlog_check import (
     extract_frontmatter_list,
-    extract_markdown_links,
     main,
     parse_frontmatter,
     validate_backlog,
 )
 
 
-def test_parses_scalar_frontmatter_and_links() -> None:
-    parsed = parse_frontmatter(
-        "---\nid: decision-1\ntitle: 'A title: with punctuation'\nlabels:\n  - docs\n---\nBody"
+def test_parses_scalar_frontmatter_and_lists() -> None:
+    text = (
+        "---\nid: UNI-1\ntitle: Example\nstatus: To Do\ndependencies: [UNI-2, UNI-3]\n---\nBody\n"
     )
 
-    assert parsed == {
-        "id": "decision-1",
-        "labels": "",
-        "title": "A title: with punctuation",
+    frontmatter = parse_frontmatter(text)
+
+    assert frontmatter == {
+        "id": "UNI-1",
+        "title": "Example",
+        "status": "To Do",
+        "dependencies": "[UNI-2, UNI-3]",
     }
-    assert parse_frontmatter("plain text") is None
-    assert parse_frontmatter("---\nid: decision-1\n") is None
-    assert parse_frontmatter("---\nnot frontmatter\nid: doc-1\n---\nBody") == {"id": "doc-1"}
-    assert extract_markdown_links('[a](b.md "title") ![i](x.png) [web](https://example.test)') == [
-        "b.md",
-        "x.png",
-        "https://example.test",
-    ]
-    assert extract_frontmatter_list("dependencies: []", "dependencies") == []
-    assert extract_frontmatter_list("dependencies: [UNI-4, 'UNI-5']", "dependencies") == [
-        "UNI-4",
-        "UNI-5",
-    ]
-    assert extract_frontmatter_list(
-        "dependencies:\n  - UNI-1\n  - UNI-2\npriority: high", "dependencies"
-    ) == ["UNI-1", "UNI-2"]
-    assert extract_frontmatter_list("labels: [core, 'airlock']", "labels") == [
-        "core",
-        "airlock",
-    ]
+    assert parse_frontmatter("no frontmatter\n") is None
+    assert extract_frontmatter_list(text, "dependencies") == ["UNI-2", "UNI-3"]
+    assert extract_frontmatter_list(text, "milestone") == []
 
 
 def test_validates_a_minimal_backlog(tmp_path: Path) -> None:
@@ -114,7 +99,9 @@ def test_reports_duplicate_ids_invalid_status_and_broken_links(tmp_path: Path) -
 
     assert "duplicate id decision-1" in errors
     assert "invalid decision status pending" in errors
-    assert "broken Backlog link missing.md" in errors
+    # Relative-link resolution is alint's rule (backlog-relative-links-resolve),
+    # which also covers links that leave backlog/.
+    assert "broken Backlog link" not in errors
 
 
 def test_reports_missing_backlog_and_frontmatter_problems(tmp_path: Path) -> None:

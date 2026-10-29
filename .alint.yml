@@ -1,10 +1,11 @@
 # alint — declarative repository shape, structure, and cross-file checks.
 #
-# This is the declarative layer of the repository checks: required/forbidden
-# paths, naming, structured-config assertions, and cross-file relations. Checks
-# that need real computation (content hashing over a whole directory, frontmatter
-# link/job graph resolution, version inheritance through a workspace) stay in
-# `scripts/` and are documented in decision-121.
+# This file is the authoritative declarative layer for repository shape:
+# required/forbidden paths, naming, structured-config assertions, and cross-file
+# relations. `scripts/repo_check.py` no longer duplicates it. What stays in
+# Python is what cannot be expressed here — a token scan that must not match its
+# own config, version inheritance through a Cargo workspace, and set/graph
+# reasoning over the offline-transport contract. decision-121 records the split.
 #
 # Run with `pixi run alint-check`. Rule ids are stable; retire a rule by
 # redeclaring it with `level: off` and saying why.
@@ -55,12 +56,20 @@ rules:
   - id: node-engine-or-nvmrc
     level: off
 
-  # --- Repository shape (mirrors scripts/repo_check.py) --------------------
+  # The bundled `ci/github-actions` ruleset ships action pinning at `warning`;
+  # a mutable CI ref is a hard failure here, so it is redeclared at `error`.
+  - id: gha-pin-actions-to-sha
+    level: error
+
+  # --- Repository shape (now the authoritative declarative layer) ----------
   # `paths:` on an existence rule is a disjunction, so "all of these files are
   # required" is one instance per file, generated from a template.
   - extends_template: universe-required-file
     id: universe-required-devcontainer
     vars: { path: .devcontainer/devcontainer.json }
+  - extends_template: universe-required-file
+    id: universe-required-alint-config
+    vars: { path: .alint.yml }
   - extends_template: universe-required-file
     id: universe-required-ci-workflow
     vars: { path: .github/workflows/ci.yml }

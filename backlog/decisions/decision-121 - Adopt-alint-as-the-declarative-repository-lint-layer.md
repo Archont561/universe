@@ -34,7 +34,10 @@ repository linter — as that declarative layer. This decision adopts the layer.
     covers sorted paths plus bytes, not a single file;
   - Backlog frontmatter identity: filename-to-`id` equality, duplicate ids, and
     milestone/dependency resolution, which need every record parsed and
-    cross-referenced (`backlog_check.py`);
+    cross-referenced (`backlog_check.py`). Relative-link resolution and the
+    filename shape are declarative rules; only the *equality between a filename
+    and its own frontmatter `id`* still needs Python, because it compares two
+    fields of the same file;
   - status enums (`To Do`/`In Progress`/`Done`, decision statuses): alint's regex
     engine is RE2, which has no look-ahead, so "a `status:` line that is not one of
     the allowed values" is not expressible;
@@ -49,6 +52,11 @@ repository linter — as that declarative layer. This decision adopts the layer.
 - A rule is only kept if it is proven to bite: every custom rule was mutation-tested
   by introducing its violation in a scratch copy and confirming alint reports that
   rule id.
+- Where the bundled rulesets ship a rule we depend on below `error`, the config
+  overrides `level` explicitly rather than inheriting the default. That is why
+  `gha-pin-actions-to-sha` carries a top-level `level: error`: the bundled default
+  is `warning`, and retiring the Python SHA check against that default would have
+  silently downgraded a hard gate.
 
 ## Status boundary
 
@@ -66,9 +74,42 @@ a restored checkout runs `alint-check` offline. That is the intended division of
 labour for a manifest edit made where the network is not — the lockfile is never
 written by hand, and the repaired commit is validated before it is trusted.
 
-Retiring the duplicated Python branches (`UNI-50` AC#6) is deliberately not part of
-this change: it must happen only once the declarative layer is green in CI, so that
-enforcement is never reduced by a lock that has not been repaired yet.
+## Retirement of the duplicated branches
+
+`UNI-50` AC#6 retires the Python code that the declarative layer now owns. It is
+sequenced after the green CI run so that enforcement is never reduced by a lock
+that has not been repaired yet: `gates` is green with `alint-check` inside it
+before a single branch is deleted.
+
+What was removed:
+
+- from `repo_check.py`: `REQUIRED_FILES`, `FORBIDDEN_PATHS`, `FORBIDDEN_BASENAMES`,
+  the required/forbidden/placeholder loops, the TypeScript-automation check, and
+  `extract_workflow_refs`/`is_immutable_sha` plus the workflow SHA loop;
+- from `backlog_check.py`: the Markdown link walk (`extract_markdown_links`,
+  `_is_external_or_anchor`, `unquote`) and the standalone filename-shape test.
+
+What was kept, with the reason:
+
+- the legacy-token scan — it must read every file, including `.alint.yml` itself,
+  so it cannot be a rule inside that file;
+- `VERSIONS` and recipe checks, because Cargo crates inherit
+  `version.workspace = true` and alint's value relations skip non-literal values;
+- `validate_offline_cargo_transport` and `validate_audit_gate`, which are graph and
+  set reasoning;
+- Backlog identity (filename-to-`id` equality, duplicate ids), status enums, and
+  milestone/dependency resolution.
+
+Each removed branch was checked against alint before deletion by introducing its
+violation in a scratch copy: missing required file, absent forbidden file, absent
+forbidden directory, placeholder basename, TypeScript automation, unpinned action,
+a malformed Backlog filename, and a broken relative link each fail at `error` and
+name the rule that replaces the Python code. The link case is a net gain: alint
+also resolves links that leave `backlog/`, which the Python walk deliberately
+skipped.
+
+The deleted branches are gone from the tests too, so no test can pass by asserting
+on code that no longer runs; the tests that remain target what Python still owns.
 
 Adopting this layer does not change what counts as evidence: a rule that reports
 green in CI is evidence, a rule authored and never run is not.

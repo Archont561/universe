@@ -39,7 +39,7 @@ the duplicated Python branches are one follow-up change.
 - [x] #3 Every custom rule is mutation-tested: introducing its violation makes alint report that rule id.
 - [x] #4 `pixi run alint-check` is the single entrypoint, and `.alint.yml` is a required repository file.
 - [x] #5 `alint` is pinned in `pixi.lock`, `alint-check` is part of `check`/`gates`, and CI enforces it.
-- [ ] #6 The Python branches that alint now owns are deleted, with their tests retired or retargeted.
+- [x] #6 The Python branches that alint now owns are deleted, with their tests retired or retargeted.
 <!-- AC:END -->
 
 ## Definition of Done
@@ -132,7 +132,49 @@ the duplicated Python branches are one follow-up change.
   (8 241 448 bytes), so a restored checkout installs `alint` without network.
   Caveat recorded rather than hidden: the transport branch now points at the pull
   request head, so it tracks `dfa43a0` until the next main-branch publish.
-- 2026-10-29: Only AC#6 remains — deleting the Python branches alint now
-  duplicates must be its own change, so that a review can see the enforcement move
-  from Python to `.alint.yml` rather than infer it from a lockfile diff.
+- 2026-10-29: AC#6 is kept as its own change so a review can see the enforcement
+  move from Python to `.alint.yml` rather than infer it from a lockfile diff. It
+  starts from a green `gates` on `4a17bff`, so no branch is deleted while the
+  replacement is unproven.
+
+  Two gaps were found by probing before deleting anything, and both were closed in
+  the config rather than left to the deletion:
+
+  - `.alint.yml` was not among the required files, so removing `REQUIRED_FILES`
+    would have stopped requiring the config itself. Added
+    `universe-required-alint-config`.
+  - `gha-pin-actions-to-sha` is a bundled `warning`, while the Python check failed
+    the build. Added a top-level `level: error` override. Without it the retirement
+    would have silently downgraded a hard gate to a warning — the one failure mode
+    that leaves CI green while enforcement disappears.
+
+  The config is now 71 rules. Deleted: from `repo_check.py`, `REQUIRED_FILES`,
+  `FORBIDDEN_PATHS`, `FORBIDDEN_BASENAMES`, the required/forbidden/placeholder
+  loops, the TypeScript-automation check, and `extract_workflow_refs` /
+  `is_immutable_sha` with the workflow SHA loop; from `backlog_check.py`, the
+  Markdown link walk (`extract_markdown_links`, `_is_external_or_anchor`,
+  `unquote`) and the standalone filename-shape test — 213 lines removed against 64
+  added. Kept, with reasons: the legacy-token scan (it must read `.alint.yml`
+  itself), `VERSIONS` and recipe equality (Cargo inheritance defeats alint's value
+  relations), the offline-transport and audit-gate validators (graph and set
+  reasoning), and Backlog identity/status/milestone/dependency resolution.
+
+  Every retired branch was proven to be replaced before deletion, by introducing
+  its violation in a scratch copy of the tree and confirming that alint fails at
+  `error` and names the successor rule: missing required file →
+  `universe-required-readme`; absent forbidden file → `universe-forbidden-files`;
+  absent forbidden directory → `universe-forbidden-directories`; placeholder
+  basename → `universe-forbidden-basenames`; TypeScript automation →
+  `universe-no-typescript-automation`; unpinned action →
+  `gha-pin-actions-to-sha`; malformed Backlog filename → `backlog-task-filename`;
+  broken relative link → `backlog-relative-links-resolve`. The link case is a net
+  gain: alint also resolves links that leave `backlog/`, including one that pointed
+  at a missing file under `scripts/`, which the Python walk skipped by construction.
+
+  Tests were retargeted, not deleted wholesale: the shape assertions were replaced
+  by assertions on what Python still owns (legacy tokens, unreadable paths), the
+  `main` failure path now trips the token scan instead of a missing required file,
+  and the parse test regained coverage of `extract_frontmatter_list` that the
+  rewrite had dropped. `ruff`, the full pytest suite, `repo-check`,
+  `backlog-check`, `skills-check`, and `alint check` (71/71) all pass.
 <!-- SECTION:NOTES:END -->

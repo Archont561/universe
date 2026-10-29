@@ -48,19 +48,26 @@ pixi run gates
 - `test` — nextest, Rust doc tests, and pytest.
 - `coverage` — instrumented Rust tests with a 90% line threshold and Python
   script LCOV with its Pixi-task coverage floor.
-- `backlog-check` — Backlog IDs, statuses, filenames, frontmatter, and links.
-- `repo-check` — required files, Cargo/Pixi version sync, clean standalone
-  layout, and immutable workflow action refs.
+- `backlog-check` — Backlog identity and cross-record integrity: filename-to-`id`
+  equality, duplicate ids, status enums, and milestone/dependency resolution.
+  Filename shape and relative-link resolution are `alint-check` rules.
+- `repo-check` — what a declarative rule cannot express: the legacy-token scan,
+  Cargo/Pixi version sync through workspace inheritance, recipe drift, and the
+  offline-transport and audit-gate contracts.
 - `skills-check` — skill frontmatter and content hashes in `skills-lock.json`.
 - `audit` — the offline-first runner: `cargo deny --offline check` plus
   `cargo audit --no-fetch` against a bounded advisory cache (decision-120).
   `audit-sync` is the one networked task that seeds that cache.
-- `alint-check` — the declarative repository layer from `.alint.yml`:
-  required/forbidden paths, backlog filename and frontmatter conventions,
-  relative-link resolution, manifest and gate assertions, and the
+- `alint-check` — the declarative repository layer from `.alint.yml` (71 rules):
+  required/forbidden paths and basenames, backlog filename and frontmatter
+  conventions, relative-link resolution including links that leave `backlog/`,
+  manifest and gate assertions, immutable workflow action refs, and the
   skill-to-`skills-lock.json` registration relation (decision-121). It runs
   inside `check`, so it also runs in `offline-gates`: `alint` is pinned in
-  `pixi.lock` and reaches a restored checkout with the next transport publish.
+  `pixi.lock` and reaches a restored checkout with the transport publish. Rules
+  inherited from a bundled ruleset at a weaker level are overridden explicitly —
+  `gha-pin-actions-to-sha` is `error` here, not the bundled `warning` — so
+  retiring a Python check never downgrades a gate.
 - `gates` — all checks plus workflow lint and build.
 
 ## Testing

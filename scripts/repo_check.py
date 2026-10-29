@@ -1,4 +1,12 @@
-"""Validate standalone-repository invariants."""
+"""Validate the invariants a declarative config cannot express.
+
+Repository shape — required files, forbidden paths and basenames, naming, and
+immutable CI refs — is owned by `.alint.yml` (decision-121, `pixi run
+alint-check`). What stays here is the rest: a legacy-token scan that must not
+match its own configuration, version inheritance through a Cargo workspace,
+recipe drift, and set/graph reasoning over the offline transport and the audit
+gate.
+"""
 
 import argparse
 import json
@@ -8,47 +16,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from scripts.lib.files import list_files, path_exists
-
-REQUIRED_FILES = (
-    ".alint.yml",
-    ".github/workflows/ci.yml",
-    ".devcontainer/devcontainer.json",
-    "AGENTS.md",
-    "LICENSE",
-    "docs/DEVELOPMENT.md",
-    "crates/universe-kit/recipe/recipe.yaml",
-    "crates/universe-kit/recipe/variants.yaml",
-    "crates/universe-airlock/recipe/recipe.yaml",
-    "crates/universe-airlock/recipe/variants.yaml",
-    "Cargo.toml",
-    "CHANGELOG.md",
-    "CONTRIBUTING.md",
-    "README.md",
-    "backlog/config.yml",
-    "pixi.toml",
-    "pyproject.toml",
-    "skills-lock.json",
-)
-
-FORBIDDEN_PATHS = (
-    "NOTICE.md",
-    ".agents/NOTICE.md",
-    ".agents/licenses",
-    "backlog/MERGE-MAP.md",
-    "website",
-)
-
-FORBIDDEN_BASENAMES = {
-    ".gitkeep",
-    "copying",
-    "license",
-    "license.md",
-    "license.txt",
-    "notice",
-    "notice.md",
-    "notice.txt",
-}
+from scripts.lib.files import path_exists
 
 SKIP_DIRS = {
     ".git",
@@ -69,23 +37,6 @@ LEGACY_TOKENS = (
     "conda" + "_universe",
     "air" + "pack",
 )
-
-
-def extract_workflow_refs(text: str) -> list[str]:
-    """Extract the ref after every GitHub Actions ``uses:`` value."""
-    pattern = re.compile(r"^\s*(?:-\s*)?uses:\s*[^@\s]+@([^\s#]+)", re.M)
-    return pattern.findall(text)
-
-
-def is_immutable_sha(ref: str) -> bool:
-    """Return ``True`` only for a full lowercase 40-character commit SHA."""
-    return re.fullmatch(r"[0-9a-f]{40}", ref) is not None
-
-
-def extract_toml_version(text: str) -> str | None:
-    """Extract the first top-level TOML version assignment."""
-    match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.M)
-    return None if match is None else match.group(1)
 
 
 def validate_offline_cargo_transport(
@@ -231,33 +182,15 @@ def _contains_legacy_token(data: bytes) -> bool:
 
 
 def validate_repo(repo_root: Path | None = None) -> list[str]:
-    """Validate required files, versions, workflow refs, and clean layout."""
+    """Validate the non-declarative repository invariants."""
     root = Path.cwd() if repo_root is None else repo_root
     errors: list[str] = []
 
-    for required in REQUIRED_FILES:
-        if not path_exists(root / required):
-            errors.append(f"required file is missing: {required}")
-
-    for forbidden in FORBIDDEN_PATHS:
-        if path_exists(root / forbidden):
-            errors.append(f"forbidden standalone-cleanup path exists: {forbidden}")
-
+    # The token scan reads every file, so it also surfaces unreadable paths
+    # (dangling symlinks) instead of silently skipping them.
     for file in _iter_repo_files(root):
         relative_path = file.relative_to(root)
         relative_posix = relative_path.as_posix()
-        basename = file.name.lower()
-
-        if basename in FORBIDDEN_BASENAMES and relative_posix not in {
-            "LICENSE",
-            "third_party/licenses/imported-mit.txt",
-            "third_party/licenses/imported-apache-2.0.txt",
-        }:
-            errors.append(f"forbidden license/notice/placeholder file: {relative_posix}")
-        if file.suffix == ".ts" and (
-            relative_posix.startswith("scripts/") or relative_posix.startswith("tests/scripts/")
-        ):
-            errors.append(f"TypeScript repository script is forbidden: {relative_posix}")
         if _contains_legacy_token(relative_posix.encode()):
             errors.append(f"legacy repository reference in path: {relative_posix}")
             continue
@@ -268,16 +201,6 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
             continue
         if _contains_legacy_token(data):
             errors.append(f"legacy repository reference in content: {relative_posix}")
-
-    cargo_path = root / "Cargo.toml"
-    pixi_path = root / "pixi.toml"
-    if path_exists(cargo_path) and path_exists(pixi_path):
-        cargo_version = extract_toml_version(cargo_path.read_text(encoding="utf-8"))
-        pixi_version = extract_toml_version(pixi_path.read_text(encoding="utf-8"))
-        if cargo_version is None or pixi_version is None:
-            errors.append("Cargo and Pixi must both declare a version")
-        elif cargo_version != pixi_version:
-            errors.append(f"version drift: Cargo={cargo_version}, Pixi={pixi_version}")
 
     versioned_packages = (
         "packages/config",
@@ -359,15 +282,6 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
                         f"found {recipe_version or '<missing>'}, "
                         f"expected {expected_version or '<missing>'}"
                     )
-
-    workflow_root = root / ".github" / "workflows"
-    if path_exists(workflow_root):
-        workflows = [path for path in list_files(workflow_root) if path.suffix in {".yml", ".yaml"}]
-        for workflow in workflows:
-            text = workflow.read_text(encoding="utf-8")
-            for ref in extract_workflow_refs(text):
-                if not is_immutable_sha(ref):
-                    errors.append(f"{workflow}: action ref is not a full SHA: {ref}")
 
     offline_transport_paths = (
         root / "Cargo.lock",
