@@ -11,7 +11,7 @@ registry, Airlock, and portal work.
 
 ## Tasks
 
-- `UNI-30` — authoritative neutral schemas.
+- `UNI-30` — authoritative neutral schemas (**Done**; six modules plus the `crate-check` boundary gate).
 - `UNI-31` — adapter boundary and conformance fixtures (`UNI-30` blocker).
 - `UNI-41` — multi-ecosystem project and pinned release manifest (`UNI-30` and `UNI-31` blockers).
 

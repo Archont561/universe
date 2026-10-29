@@ -1,7 +1,7 @@
 ---
 id: UNI-30
 title: Define authoritative schemas in ecosystem-neutral core
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-27'
 updated_date: '2026-10-27'
