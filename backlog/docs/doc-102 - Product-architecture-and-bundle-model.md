@@ -8,7 +8,7 @@ updated_date: '2026-10-27T09:20:00Z'
 
 # Product architecture and bundle model
 
-**Status: agreed architectural direction, product implementation pending.** Only application version reporting exists today.
+**Status: agreed architectural direction.** The neutral vocabulary is implemented in `universe-core` (UNI-30): checked schema versions, artifact identity and digests, software/data/model/skill catalogues, diagnostics, the typed stdout envelope, and snapshots that pin one catalogue. The pipeline below — resolution, fetch, CAS, views, sealing — is still unimplemented, and project/release manifest contracts belong to UNI-41.
 
 ## Product contract
 

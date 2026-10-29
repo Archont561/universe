@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "id": "future",
+  "catalog": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "kind": "software",
+        "name": "cloudcompare",
+        "version": "2.13.2",
+        "summary": "Point-cloud and mesh processing desktop application",
+        "artifacts": [
+          {
+            "id": {
+              "name": "cloudcompare",
+              "version": "2.13.2"
+            },
+            "digest": "39d87dec0138df1d96638f60fa89e66b30afba6a2c5ee29d7a87233b2c45bda7",
+            "size_bytes": 1048576,
+            "media_type": "application/vnd.conda.package.v2"
+          }
+        ]
+      },
+      {
+        "kind": "data",
+        "name": "odm-sample-set",
+        "version": "1.0.0",
+        "artifacts": [
+          {
+            "id": {
+              "name": "odm-sample-set",
+              "version": "1.0.0"
+            },
+            "digest": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+            "size_bytes": 2048
+          }
+        ]
+      },
+      {
+        "kind": "model",
+        "name": "heritage-mesh",
+        "version": "2024.1",
+        "summary": "Reconstructed heritage-site mesh",
+        "artifacts": [
+          {
+            "id": {
+              "name": "heritage-mesh",
+              "version": "2024.1"
+            },
+            "digest": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+            "size_bytes": 3145728
+          }
+        ]
+      },
+      {
+        "kind": "skill",
+        "name": "universe-kit",
+        "version": "0.1.0",
+        "artifacts": [
+          {
+            "id": {
+              "name": "universe-kit",
+              "version": "0.1.0"
+            },
+            "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+            "size_bytes": 4096
+          }
+        ]
+      }
+    ]
+  }
+}

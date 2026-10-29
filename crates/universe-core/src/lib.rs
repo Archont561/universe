@@ -1,17 +1,40 @@
-//! Ecosystem-neutral identity and command-output primitives for Universe.
+//! Ecosystem-neutral identity, record, and command-output primitives for Universe.
 //!
-//! This scaffold crate deliberately contains no ecosystem adapter, terminal UI,
-//! networking, build, or publishing logic. Those concerns belong in adapter and
-//! binary crates built on top of this stable vocabulary.
+//! This crate deliberately contains no ecosystem adapter, terminal UI, networking,
+//! build, or publishing logic. It owns the vocabulary the rest of the workspace
+//! shares: product identity, the catalogue of software/data/model/skill entries,
+//! artifact identity and digests, diagnostics, pinned snapshots, and the versioned
+//! stdout envelope. Those concerns belong in adapter and binary crates built on
+//! top of this stable vocabulary.
+
+pub mod artifact;
+pub mod catalog;
+pub mod diagnostic;
+pub mod digest;
+pub mod error;
+pub mod schema;
+pub mod snapshot;
 
 use std::fmt;
 use std::process::ExitCode;
+
+pub use artifact::{Artifact, ArtifactId};
+pub use catalog::{Catalog, CatalogEntry};
+pub use diagnostic::{Diagnostic, Envelope, Severity};
+pub use digest::Sha256Digest;
+pub use error::ModelError;
+pub use schema::{CATALOG_SCHEMA_VERSION, SNAPSHOT_SCHEMA_VERSION, SchemaVersion};
+pub use snapshot::Snapshot;
 
 /// Workspace version shared by every Universe artifact.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Version of the machine-readable stdout envelope.
-pub const STDOUT_SCHEMA_VERSION: u32 = 1;
+///
+/// Version `2` widened `diagnostics` and `artifacts` from bare strings to the
+/// typed [`Diagnostic`] and [`Artifact`] records. The `version` command emits both
+/// arrays empty, so its bytes are unchanged, but the contract is not.
+pub const STDOUT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::V2;
 
 /// Maximum number of first-class ecosystem adapters maintained in this repo.
 pub const FIRST_CLASS_ADAPTER_BUDGET: usize = 5;
@@ -59,7 +82,8 @@ impl fmt::Display for Product {
 }
 
 /// The high-level catalogue entry kinds Universe is designed to describe.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum EntryKind {
     /// Packages, applications, libraries, runtimes, and tools.
     Software,
@@ -152,29 +176,22 @@ pub fn render_version(product: Product, options: VersionOptions) -> String {
             binary: &'static str,
             version: &'static str,
         }
-        #[derive(serde::Serialize)]
-        struct Envelope {
-            schema_version: u32,
-            command: &'static str,
-            ok: bool,
-            result: ResultValue,
-            diagnostics: Vec<&'static str>,
-            artifacts: Vec<&'static str>,
-        }
 
-        let envelope = Envelope {
-            schema_version: STDOUT_SCHEMA_VERSION,
-            command: "version",
-            ok: true,
-            result: ResultValue {
+        let envelope = Envelope::new(
+            STDOUT_SCHEMA_VERSION,
+            "version",
+            true,
+            ResultValue {
                 product: product.display_name(),
                 binary: product.binary_name(),
                 version: VERSION,
             },
-            diagnostics: Vec::new(),
-            artifacts: Vec::new(),
-        };
-        serde_json::to_string(&envelope).expect("serializing the version envelope cannot fail")
+            Vec::new(),
+            Vec::new(),
+        );
+        envelope
+            .to_json()
+            .expect("serializing the version envelope cannot fail")
     } else {
         format!("{} {VERSION}", product.binary_name())
     }

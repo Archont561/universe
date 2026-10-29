@@ -32,7 +32,7 @@ not a new Backlog record type or date commitment.
 
 | Order | Milestone outcome | Tasks | Exit gate |
 |---:|---|---|---|
-| **M0** | Reproducible developer foundation | `UNI-28`, `UNI-36`, `UNI-39` | Baseline/backlog foundations proven; offline gates and restore are verified, with remaining transport acceptance tracked in `UNI-36`. |
+| **M0** | Reproducible developer foundation | `UNI-28`, `UNI-36`, `UNI-39`, `UNI-49`, `UNI-50` | **Complete.** Baseline/backlog foundations, offline gates and restore, the offline audit gate, and the declarative repository-lint layer are all verified. |
 | **M1** | Neutral schemas and adapter contracts | `UNI-30`, `UNI-31`, `UNI-41` | Neutral schemas, adapter contract, project and pinned release manifests tested. |
 | **M2** | Kit commands, artifact orchestration, and audit | `UNI-7`–`UNI-10`, `UNI-21`, `UNI-22` | External command orchestration and deterministic artifact checks pass; no embedded builder. |
 | **M3** | Conda static channel and consumer initialization | `UNI-11`–`UNI-13` | Real native client resolves/downloads package bytes from standard static channel paths. |
@@ -56,7 +56,7 @@ an execution proposal, not a task hierarchy:
 
 | Sprint | Focus | Tasks |
 |---:|---|---|
-| S0 | Close foundation/transport | `UNI-36` |
+| S0 | Close foundation/transport | `UNI-36`, `UNI-49`, `UNI-50` |
 | S1 | Contracts | `UNI-30`, `UNI-31`, `UNI-41` |
 | S2 | Kit core and artifact safety | `UNI-7`, `UNI-8`, `UNI-9`, `UNI-10`, `UNI-21`, `UNI-22` |
 | S3 | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38` |
@@ -69,7 +69,7 @@ an execution proposal, not a task hierarchy:
 
 Dependencies inside and across sprints remain the task frontmatter source of truth. Work may
 run in parallel within a sprint after its actual blockers are complete. Already-completed
-`UNI-28` and `UNI-39` are prerequisites, not scheduled sprint work.
+`UNI-28`, `UNI-39`, `UNI-36`, `UNI-49`, and `UNI-50` are prerequisites, not scheduled sprint work.
 
 ## Post-v1 public Agent Skill rollout (`decision-9`)
 
