@@ -35,7 +35,11 @@ Initialization/plan/drift checks are distinct from packing, restoring or publish
 The following are **not automatically supplied** merely by shipping a Pixi environment and Cargo vendor tree:
 
 - npm package payloads for Backlog/skills and other JavaScript tools;
-- cargo-deny's advisory database;
+- the audit advisory data: `cargo audit` and `cargo deny` each need a RustSec database, and
+  their yanked checks need a crates.io index cache. The transport does not ship them; the
+  `audit` gate therefore keeps them as project-local caches, runs offline from a populated
+  cache, and fails closed rather than hanging when the cache is absent (decision-120,
+  `UNI-49`). `pixi run audit-sync` is the only path that refreshes them;
 - additional downloaded cargo-dist/tool assets;
 - rattler-build's independently solved build/test dependencies;
 - host linker, system libraries or application services not present in the selected environment.

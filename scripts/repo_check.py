@@ -159,6 +159,28 @@ def validate_offline_cargo_transport(
     return errors
 
 
+AUDIT_TASK_COMMAND = "python -m scripts.audit check"
+
+
+def validate_audit_gate(pixi_config: str) -> list[str]:
+    """Ensure the audit task runs the offline-first audit runner."""
+    try:
+        tasks = tomllib.loads(pixi_config).get("tasks", {})
+    except tomllib.TOMLDecodeError as exc:
+        return [f"cannot parse Pixi tasks for the audit gate: {exc}"]
+
+    errors: list[str] = []
+    audit = tasks.get("audit", {})
+    command = audit.get("cmd") if isinstance(audit, dict) else None
+    if not isinstance(command, str) or AUDIT_TASK_COMMAND not in command:
+        errors.append(
+            f"the audit task must run '{AUDIT_TASK_COMMAND}' so the gate stays offline-first"
+        )
+    if "audit-sync" not in tasks:
+        errors.append("the audit gate needs an audit-sync task to seed the advisory cache")
+    return errors
+
+
 def extract_recipe_context_version(text: str) -> str | None:
     """Extract a Rattler recipe's ``context.version`` literal."""
     match = re.search(r"(?ms)^context:\s*\n\s+version:\s*['\"]?([^'\"\s]+)", text)
@@ -344,6 +366,7 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
                 pixi_config.read_text(encoding="utf-8"),
             )
         )
+        errors.extend(validate_audit_gate(pixi_config.read_text(encoding="utf-8")))
 
     return errors
 

@@ -11,6 +11,7 @@ from scripts.repo_check import (
     extract_workflow_refs,
     is_immutable_sha,
     main,
+    validate_audit_gate,
     validate_offline_cargo_transport,
     validate_repo,
 )
@@ -170,3 +171,21 @@ def test_versioned_packages_must_match_their_versions_files(tmp_path: Path) -> N
 
     assert "version drift in crates/universe-assets: VERSIONS=0.2.0, manifest=0.1.0" in errors
     assert "version drift in crates/universe-cli: VERSIONS=0.2.0, manifest=0.1.0" in errors
+
+
+def test_audit_gate_requires_the_offline_first_runner() -> None:
+    configured = (
+        "[tasks]\n"
+        'audit = { cmd = "python -m scripts.audit check" }\n'
+        'audit-sync = { cmd = "python -m scripts.audit sync" }\n'
+    )
+    legacy = (
+        "[tasks]\n"
+        'audit = { cmd = "cargo deny check && cargo audit --deny warnings" }\n'
+        'audit-sync = { cmd = "python -m scripts.audit sync" }\n'
+    )
+    without_sync = '[tasks]\naudit = { cmd = "python -m scripts.audit check" }\n'
+
+    assert validate_audit_gate(configured) == []
+    assert "offline-first" in validate_audit_gate(legacy)[0]
+    assert "audit-sync" in validate_audit_gate(without_sync)[0]
