@@ -66,13 +66,19 @@ than duplicate the authoritative types.
   defined here; `UNI-41` owns them. This slice stops at catalogues, artifacts,
   diagnostics, snapshots, and the envelope, which is what the ACs name.
 - 2026-10-29: DoD#1 is enforced, not asserted. `scripts/crate_check.py` reads
-  `cargo metadata --locked --offline`, walks `universe-core`'s normal/build
+  `cargo metadata --locked`, walks `universe-core`'s normal/build
   closure (dev edges excluded, since they never reach the published contract), and
   fails closed against an allowlist of serialization and error-derive crates. It
   also rejects any dependency on a workspace crate, and runs as `crate-check`
   inside `check`, so `gates` and `offline-gates` both enforce it. Proven to bite:
   adding `universe-assets` reports the workspace-crate violation and the
   transitive `include_dir`/`include_dir_macros` it drags in.
+- 2026-10-29: Correction. `crate-check` originally passed `--offline`, which only
+  worked while some earlier task had already warmed the cargo cache; once the gate
+  tasks overlapped, or the cache was cold, it failed on a graph it could not read —
+  not on a boundary it had judged. The flag was removed (`--locked` stays), and a
+  test now pins that distinction so the check cannot quietly become an offline
+  assertion again.
 - 2026-10-29: AC#3 at merge time was met with committed, behaviour-named fixtures
   compiled into the test binary via `include_str!` plus a deterministic
   permutation-invariance test, because property tests were blocked: the offline

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from scripts import crate_check
-from scripts.crate_check import ALLOWED_DEPENDENCIES, validate_boundary
+from scripts.crate_check import ALLOWED_DEPENDENCIES, metadata_argv, validate_boundary
 
 
 def _package(package_id: str, name: str) -> dict[str, Any]:
@@ -160,3 +160,13 @@ def test_load_metadata_returns_the_parsed_graph(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr("scripts.crate_check.subprocess.run", lambda *args, **kwargs: completed)
 
     assert crate_check.load_metadata(Path("/repo"))["packages"]
+
+
+def test_metadata_is_locked_and_does_not_depend_on_a_warm_cache() -> None:
+    argv = metadata_argv("/usr/bin/cargo", Path("/repo"))
+
+    assert "--locked" in argv, "a stale lock must fail rather than be repaired here"
+    assert "--offline" not in argv, (
+        "offline made this task depend on another task having fetched the graph"
+        " first, which stops being true when the gate tasks overlap"
+    )

@@ -128,24 +128,39 @@ def validate_boundary(
     return errors
 
 
+def metadata_argv(cargo: str, root: Path) -> list[str]:
+    """Build the ``cargo metadata`` invocation for the workspace at ``root``.
+
+    ``--locked`` is the point: the boundary is checked against the graph the
+    repository actually ships, and a stale lock must fail rather than be repaired
+    silently by this check.
+
+    ``--offline`` is deliberately absent. It made this task depend on some earlier
+    task having warmed the cargo cache — true when ``gates`` ran the tasks in
+    order, false once they overlap, which is exactly how it started failing when a
+    dependency was added. Offline operation is already guaranteed where it matters:
+    the sandbox replaces crates.io with the vendored tree.
+    """
+    return [
+        cargo,
+        "metadata",
+        "--locked",
+        "--format-version",
+        "1",
+        "--manifest-path",
+        str(root / "Cargo.toml"),
+    ]
+
+
 def load_metadata(root: Path) -> dict[str, Any]:
-    """Run ``cargo metadata`` for the workspace at ``root``, offline and locked."""
+    """Run ``cargo metadata`` for the workspace at ``root`` against the locked graph."""
     cargo = shutil.which("cargo")
     if cargo is None:
         message = "cargo is not on PATH; run this through `pixi run crate-check`"
         raise SystemExit(f"crate-check: {message}")
 
     result = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        [
-            cargo,
-            "metadata",
-            "--locked",
-            "--offline",
-            "--format-version",
-            "1",
-            "--manifest-path",
-            str(root / "Cargo.toml"),
-        ],
+        metadata_argv(cargo, root),
         capture_output=True,
         check=False,
         text=True,
