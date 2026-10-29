@@ -57,15 +57,14 @@ against `alint 0.20.1`: `validate-config`, a green `check` over 70 rules, and 15
 mutation cases. `alint-check` runs inside `check`, so `gates` and `offline-gates`
 both enforce the declarative layer.
 
-Two facts about how this arrived are worth keeping visible. First, the dependency
-was added to `pixi.toml` where the network could not perform a solve, so the lock
-repair is delegated to the relock workflow (decision-118) rather than hand-edited;
-until that bot commits, `pixi install --locked` legitimately fails on this branch.
-Second, `alint` reaches a restored developer checkout only after the transport is
-republished, which the publisher does on the next main-branch run because
-`pixi.toml` and `pixi.lock` are both republish triggers (`UNI-36`). A checkout
-restored from the previous transport therefore fails `alint-check` until that
-republish lands — the failure is honest, not silent.
+The dependency was declared in `pixi.toml` from an environment that could not
+perform a solve, and the lock was repaired by the relock workflow (decision-118)
+rather than hand-edited: the bot committed the lock, validated the repaired head,
+and dispatched the configured CI and publisher. The publisher run republished the
+developer transport, so the new environment snapshot carries the `alint` wheel and
+a restored checkout runs `alint-check` offline. That is the intended division of
+labour for a manifest edit made where the network is not — the lockfile is never
+written by hand, and the repaired commit is validated before it is trusted.
 
 Retiring the duplicated Python branches (`UNI-50` AC#6) is deliberately not part of
 this change: it must happen only once the declarative layer is green in CI, so that

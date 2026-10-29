@@ -38,15 +38,15 @@ the duplicated Python branches are one follow-up change.
 - [x] #2 `alint check` passes on the current tree with zero violations, and every bundled ruleset that is deliberately not satisfied is switched off with a recorded reason.
 - [x] #3 Every custom rule is mutation-tested: introducing its violation makes alint report that rule id.
 - [x] #4 `pixi run alint-check` is the single entrypoint, and `.alint.yml` is a required repository file.
-- [ ] #5 `alint` is pinned in `pixi.lock`, `alint-check` is part of `check`/`gates`, and CI enforces it.
+- [x] #5 `alint` is pinned in `pixi.lock`, `alint-check` is part of `check`/`gates`, and CI enforces it.
 - [ ] #6 The Python branches that alint now owns are deleted, with their tests retired or retargeted.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [x] #1 decision-121 records the layer, what it owns, what stays in Python, and the enrollment boundary.
-- [ ] #2 `pixi run gates` passes with `alint-check` included.
-- [ ] #3 The developer transport is republished so a restored checkout has `alint` available offline.
+- [x] #2 `pixi run gates` passes with `alint-check` included.
+- [x] #3 The developer transport is republished so a restored checkout has `alint` available offline.
 <!-- DOD:END -->
 
 ## Implementation Notes
@@ -107,4 +107,32 @@ the duplicated Python branches are one follow-up change.
   in `backlog_check.validate_backlog` and its filename-shape check — with their
   tests retired or retargeted, then a transport republish so restored checkouts
   carry `alint`.
+- 2026-10-29: The relock bot repaired the lock in pull request #19. Guard failed on
+  `7cf7edf` as designed (manifest edited without a solve), the relock job ran
+  `pixi lock`, committed `dfa43a0 chore(lock): refresh lockfiles for #19` as
+  `pixi-sandbox[bot]`, and validated the repaired head itself
+  (`pixi lock --check`, `cargo fetch --locked`, `bun install --frozen-lockfile`).
+  The repair added 111 lines to `pixi.lock` and pinned
+  `alint-0.20.1-py3-none-manylinux_2_17_x86_64…whl` with SHA-256
+  `39d87dec0138df1d96638f60fa89e66b30afba6a2c5ee29d7a87233b2c45bda7` — the same
+  digest verified out of band against PyPI before the dependency was declared.
+  `alint` is the lock's first PyPI entry (lock schema v7).
+- 2026-10-29: The repaired head `dfa43a0` is green on every dispatched verdict:
+  `lock guard` success, `gates` success (ci dispatch 40853225061, 1m0s),
+  `Pack, verify, and publish linux-64` success (40853224909), and the
+  `pixi-sandbox relock validation` Check Run success. Because `check` depends on
+  `alint-check` and `gates` runs `check`, a green `gates` on the repaired head is
+  the proof that the pinned binary installed and `alint check` passed there; a
+  missing binary would have failed the task with a non-zero exit.
+- 2026-10-29: DOD#3 landed as a side effect of the relay: the publisher dispatched
+  by the relock job republished the transport to snapshot
+  `2026-10-29T09:55:16Z` (branch head `f81aac4`, source commit `dfa43a0`). The new
+  manifest lists 87 blobs where the previous one had 86, and the extra blob is
+  `envs/default/pack/pypi/alint-0.20.1-py3-none-manylinux_2_17_x86_64…whl`
+  (8 241 448 bytes), so a restored checkout installs `alint` without network.
+  Caveat recorded rather than hidden: the transport branch now points at the pull
+  request head, so it tracks `dfa43a0` until the next main-branch publish.
+- 2026-10-29: Only AC#6 remains — deleting the Python branches alint now
+  duplicates must be its own change, so that a review can see the enforcement move
+  from Python to `.alint.yml` rather than infer it from a lockfile diff.
 <!-- SECTION:NOTES:END -->
