@@ -22,10 +22,19 @@ publish = false
 [workspace.dependencies]
 universe-core = { path = "crates/universe-core", version = "=0.1.0" }
 universe-assets = { path = "crates/universe-assets", version = "=0.1.0" }
+assert_cmd = "2.0"
 include_dir = "0.7.4"
+predicates = "3.1"
+proptest = "1.12"
+rstest = "0.27"
+rstest-bdd = "=0.6.0"
+rstest-bdd-macros = { version = "=0.6.0", features = ["strict-compile-time-validation"] }
+rstest-reuse = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tempfile = "3.19"
 thiserror = "2.0"
+wiremock = "0.6"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
