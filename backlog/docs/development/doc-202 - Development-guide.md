@@ -55,7 +55,7 @@ pixi run gates
   Cargo/Pixi version sync through workspace inheritance, recipe drift, and the
   offline-transport and audit-gate contracts.
 - `skills-check` — skill frontmatter and content hashes in `skills-lock.json`.
-- `crate-check` — the dependency boundary of `universe-core`: `cargo metadata`
+- `crate-check` — the dependency boundary of `universe-core`: `cargo metadata --locked`
   resolves the normal/build closure and every crate in it must be on the neutral
   allowlist, so the shared vocabulary cannot silently acquire an ecosystem, UI,
   network, or package-resolution dependency (UNI-30).

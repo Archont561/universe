@@ -181,7 +181,12 @@ Note (`decision-15`): repository automation remains Python (`python -m scripts.<
 
 - Workspace `edition = "2024"`, `rust-version = "1.88"`.
 - Pure-Rust TLS policy: `deny.toml` bans `openssl-sys`, `openssl`, and `native-tls`; all HTTP/registry crates enable `rustls` features only.
-- Workspace `[workspace.dependencies]` pins test crates centrally:
+- Workspace `[workspace.dependencies]` pins test crates centrally. All nine are
+  declared; a crate enrolls one with `{ workspace = true }` when its own tests
+  start using it, which is the commit that puts it in `Cargo.lock` and the
+  vendored transport. `proptest` is enrolled in `universe-core` (property tests
+  for the neutral records); the rest enroll with `UNI-10`, `UNI-12`, `UNI-14`, and
+  the adapter tasks that name them.
   - `rstest = "0.27"`
   - `rstest-reuse = "0.7"`
   - `rstest-bdd = "=0.6.0"`
