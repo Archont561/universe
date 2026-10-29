@@ -92,7 +92,15 @@ the duplicated Python branches are one follow-up change.
   the dependency did not. The binary was verified out of band: the PyPI wheel's
   SHA-256 matches `39d87dec…c45bda7`, and `pixi run alint-check` was exercised
   green with the binary placed in the local environment prefix.
-- 2026-10-29: Follow-up (AC#5/#6) needs, in order: relock that adds `alint` to the
+- 2026-10-29: AC#5 landed as a dependency change plus gate wiring: `alint` is
+  declared under `[feature.dev.pypi-dependencies]` and `alint-check` is now a
+  dependency of `check`, so `gates` and `offline-gates` both run it. The lock
+  repair is delegated to the relock workflow: this environment cannot solve the
+  environment (no `conda.anaconda.org`), so `pixi.toml` was edited and the bot
+  commits `pixi.lock`. `pixi.lock` is v7 with no PyPI entries yet, so this adds the
+  first one. A restored checkout gains `alint` with the next main-branch transport
+  publish, because `pixi.toml`/`pixi.lock` are republish triggers.
+- 2026-10-29: Follow-up (AC#6) needs, in order: relock that adds `alint` to the
   Python dependencies, `alint-check` added to `check`, deletion of the
   now-duplicated Python branches — `repo_check.validate_repo`'s required-file,
   forbidden-path, forbidden-basename, and TypeScript guards; the Backlog link walk

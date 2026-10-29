@@ -53,6 +53,11 @@ ruff = { workspace = true }
 rust = { workspace = true }
 taplo = { workspace = true }
 
+[feature.dev.pypi-dependencies]
+# Static repository linter; the wheel embeds the binary, so no toolchain is needed.
+# Decision-121 owns what .alint.yml checks and what stays in scripts/.
+alint = "==0.20.1"
+
 [feature.dev.activation.env]
 LLVM_COV = "$CONDA_PREFIX/bin/llvm-cov"
 LLVM_PROFDATA = "$CONDA_PREFIX/bin/llvm-profdata"
@@ -107,6 +112,7 @@ check = { depends-on = [
   "backlog-check",
   "repo-check",
   "skills-check",
+  "alint-check",
 ], description = "Run format, lint, type, test, backlog, repository, and skill checks" }
 offline-gates = { depends-on = [
   "check",

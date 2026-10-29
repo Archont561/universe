@@ -58,9 +58,9 @@ pixi run gates
 - `alint-check` — the declarative repository layer from `.alint.yml`:
   required/forbidden paths, backlog filename and frontmatter conventions,
   relative-link resolution, manifest and gate assertions, and the
-  skill-to-`skills-lock.json` registration relation (decision-121). It needs
-  `alint` in the environment, which is pinned by `pixi.lock` only after the
-  next relock, so the task is not yet part of `check`/`gates`.
+  skill-to-`skills-lock.json` registration relation (decision-121). It runs
+  inside `check`, so it also runs in `offline-gates`: `alint` is pinned in
+  `pixi.lock` and reaches a restored checkout with the next transport publish.
 - `gates` — all checks plus workflow lint and build.
 
 ## Testing

@@ -52,17 +52,24 @@ repository linter — as that declarative layer. This decision adopts the layer.
 
 ## Status boundary
 
-The config and task are in place and verified against `alint 0.20.1`
-(`validate-config`, a green `check` over 70 rules, and 15 mutation cases).
-Enrollment in `check`/`gates`, and the retirement of the duplicated Python
-branches, is blocked on one environment fact: `alint` must arrive through
-`pixi.lock`, and adding a PyPI dependency requires a full solve that this
-environment cannot perform (no `conda.anaconda.org` access). Until the relock
-workflow (decision-118) repairs the lock and the developer transport is
-republished (decision-120's boundary), `alint-check` is *not* part of the gate,
-and the Python checkers keep enforcing every rule they already own. Deleting them
-before enrollment would silently reduce enforcement, so that step belongs to the
-enrollment change — tracked as `UNI-50`.
+The config, the pinned dependency, and the gate wiring are in place and verified
+against `alint 0.20.1`: `validate-config`, a green `check` over 70 rules, and 15
+mutation cases. `alint-check` runs inside `check`, so `gates` and `offline-gates`
+both enforce the declarative layer.
+
+Two facts about how this arrived are worth keeping visible. First, the dependency
+was added to `pixi.toml` where the network could not perform a solve, so the lock
+repair is delegated to the relock workflow (decision-118) rather than hand-edited;
+until that bot commits, `pixi install --locked` legitimately fails on this branch.
+Second, `alint` reaches a restored developer checkout only after the transport is
+republished, which the publisher does on the next main-branch run because
+`pixi.toml` and `pixi.lock` are both republish triggers (`UNI-36`). A checkout
+restored from the previous transport therefore fails `alint-check` until that
+republish lands — the failure is honest, not silent.
+
+Retiring the duplicated Python branches (`UNI-50` AC#6) is deliberately not part of
+this change: it must happen only once the declarative layer is green in CI, so that
+enforcement is never reduced by a lock that has not been repaired yet.
 
 Adopting this layer does not change what counts as evidence: a rule that reports
-green is evidence, a rule authored and never run is not.
+green in CI is evidence, a rule authored and never run is not.
