@@ -46,6 +46,32 @@ The following are **not automatically supplied** merely by shipping a Pixi envir
 
 Do not claim `setup`, the entire CI pipeline, conda packaging, or arbitrary projects are offline-ready based only on successful initialization. Vendor/restore wiring must preserve `.cargo/config.toml`, use the native activation contract, and account for this repository's detached-environment settings.
 
+## How this transport relates to UNI-27 and the Airlock bootstrap boundary
+
+Three different things must not be conflated:
+
+1. **This transport** materialises one *developer* environment — the locked Pixi
+   environment and a Cargo vendor tree — from a `sandbox/*` branch. It is
+   workspace-managed tooling (decision-116), not a product artifact, and it is
+   not versioned with any Universe release.
+2. **`universe-airlock-bootstrap` and `UNI-33`** own sealed-snapshot verify and
+   restore. That path verifies a manifest, content-addressed payloads, and the
+   restored tree for a *user's* universe, with no Pixi and no network. The
+   `scripts/restore.sh` launcher deliberately reuses the same shape — verify the
+   branch, restore, verify the restored tree — precisely so the sealed model is
+   exercised early, but its payload, trust root, and audience are not the sealed
+   product's.
+3. **`UNI-27`** removes this transport entirely, and only after `UNI-48` proves a
+   native replacement and the integrated v1 is released. The replacement must
+   restore the declared developer profile, verify every payload, and satisfy the
+   same offline/network boundary proven here; a stable Airlock release alone is
+   not sufficient evidence.
+
+Until `UNI-27` lands, this transport is the supported developer entrypoint, so
+the boundary above is a reason to keep the two transports' verification contracts
+aligned — not a licence to describe this one as sealed, offline-certified, or
+release-managed.
+
 ## Lessons adopted for future Universe Airlock work
 
 - Separate online acquisition from local-only installation and protocol serving.

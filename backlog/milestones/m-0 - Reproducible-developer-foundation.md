@@ -12,7 +12,7 @@ transport without confusing it with a sealed Airlock product snapshot.
 ## Tasks
 
 - `UNI-28` — establish the standalone monorepo baseline (**Done**).
-- `UNI-36` — establish/validate offline developer transport (**In Progress**).
+- `UNI-36` — establish/validate offline developer transport (**Done**).
 - `UNI-39` — formalize Backlog planning/reference integrity (**Done**).
 - `UNI-49` — make the audit gate offline-first with a bounded advisory cache (**Done**).
 

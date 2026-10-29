@@ -140,6 +140,28 @@ def validate_offline_cargo_transport(
             "Pixi offline-gates dependencies must be check, coverage, lint-actions, and build"
         )
 
+    # A transport that is not republished when its inputs change silently rots:
+    # a stale branch keeps restoring an environment that no longer matches the
+    # lockfiles. Require every input that changes the packed payload.
+    required_push_paths = {
+        ".pixi-sandbox.toml",
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/**/Cargo.toml",
+        "pixi.lock",
+        "pixi.toml",
+    }
+    workflow_table = config.get("workflow", {})
+    declared_push_paths = (
+        set(workflow_table.get("push_paths", [])) if isinstance(workflow_table, dict) else set()
+    )
+    missing_push_paths = sorted(required_push_paths - declared_push_paths)
+    if missing_push_paths:
+        errors.append(
+            "sandbox config push_paths must include every republish trigger; missing: "
+            + ", ".join(missing_push_paths)
+        )
+
     network_tasks = {"audit", "ci", "gates", "web-build", "web-check", "web-install"}
     pending = list(dependencies)
     visited: set[str] = set()

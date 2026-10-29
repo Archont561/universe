@@ -50,7 +50,20 @@ package:
 
 def test_offline_cargo_gates_require_vendored_transport() -> None:
     lockfile = '[[package]]\nname = "serde"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n'
-    sandbox_config = "cargo_vendor = true\n\n[[bundle]]\ncargo_vendor = true\n"
+    sandbox_config = (
+        "cargo_vendor = true\n"
+        "\n[[bundle]]\n"
+        "cargo_vendor = true\n"
+        "\n[workflow]\n"
+        "push_paths = [\n"
+        '  ".pixi-sandbox.toml",\n'
+        '  "Cargo.lock",\n'
+        '  "Cargo.toml",\n'
+        '  "crates/**/Cargo.toml",\n'
+        '  "pixi.lock",\n'
+        '  "pixi.toml",\n'
+        "]\n"
+    )
     publisher = "args: pixi-sandbox pipeline\n  --cargo-vendor true\n"
     lefthook = (
         "pre-push:\n  commands:\n    gates:\n"
@@ -189,3 +202,30 @@ def test_audit_gate_requires_the_offline_first_runner() -> None:
     assert validate_audit_gate(configured) == []
     assert "offline-first" in validate_audit_gate(legacy)[0]
     assert "audit-sync" in validate_audit_gate(without_sync)[0]
+
+
+def test_offline_transport_requires_every_republish_trigger() -> None:
+    lockfile = '[[package]]\nname = "serde"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n'
+    sandbox_config = (
+        "cargo_vendor = true\n"
+        "\n[[bundle]]\n"
+        'name = "developer"\n'
+        'platforms = ["linux-64"]\n'
+        "cargo_vendor = true\n"
+        "\n[workflow]\n"
+        'push_paths = ["pixi.toml", "pixi.lock"]\n'
+    )
+    publisher = "args: pixi-sandbox pipeline\n  --cargo-vendor true\n"
+    lefthook = (
+        "pre-push:\n  commands:\n    gates:\n"
+        "      run: CARGO_NET_OFFLINE=true pixi run --offline --as-is offline-gates\n"
+    )
+    pixi_config = (
+        '[tasks.offline-gates]\ndepends-on = ["check", "coverage", "lint-actions", "build"]\n'
+    )
+
+    errors = validate_offline_cargo_transport(
+        lockfile, sandbox_config, publisher, lefthook, pixi_config
+    )
+
+    assert any("Cargo.lock" in error and "push_paths" in error for error in errors)
