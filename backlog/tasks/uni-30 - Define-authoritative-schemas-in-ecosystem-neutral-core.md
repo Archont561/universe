@@ -32,13 +32,13 @@ than duplicate the authoritative types.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Core catalogues distinguish software, data, model, and skill entries without ecosystem dependencies.
-- [ ] #2 Artifact IDs, digests, diagnostics, and stdout/result envelopes have versioned tested types.
-- [ ] #3 Source fixtures and property/regression seeds follow doc-204.
+- [x] #1 Core catalogues distinguish software, data, model, and skill entries without ecosystem dependencies.
+- [x] #2 Artifact IDs, digests, diagnostics, and stdout/result envelopes have versioned tested types.
+- [x] #3 Source fixtures and property/regression seeds follow doc-204.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Dependency graph proves `universe-core` has no ecosystem/UI/network crates.
-- [ ] #2 `pixi run gates` passes.
+- [x] #1 Dependency graph proves `universe-core` has no ecosystem/UI/network crates.
+- [x] #2 `pixi run gates` passes.
 <!-- DOD:END -->

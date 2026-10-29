@@ -40,7 +40,7 @@ fn entry_kind_slugs_are_stable() {
 
     assert_eq!(actual, ["software", "data", "model", "skill"]);
     assert_eq!(FIRST_CLASS_ADAPTER_BUDGET, 5);
-    assert_eq!(STDOUT_SCHEMA_VERSION, 1);
+    assert_eq!(STDOUT_SCHEMA_VERSION.get(), 2);
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn renders_plain_and_json_versions() {
     assert_eq!(
         json,
         format!(
-            "{{\"schema_version\":1,\"command\":\"version\",\"ok\":true,\"result\":{{\"product\":\"Universe Airlock Bootstrap\",\"binary\":\"universe-airlock-bootstrap\",\"version\":\"{VERSION}\"}},\"diagnostics\":[],\"artifacts\":[]}}"
+            "{{\"schema_version\":2,\"command\":\"version\",\"ok\":true,\"result\":{{\"product\":\"Universe Airlock Bootstrap\",\"binary\":\"universe-airlock-bootstrap\",\"version\":\"{VERSION}\"}},\"diagnostics\":[],\"artifacts\":[]}}"
         )
     );
 }

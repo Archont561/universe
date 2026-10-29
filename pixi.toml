@@ -92,8 +92,8 @@ package-kit = { cmd = "rattler-build build --recipe crates/universe-kit/recipe/r
 package-airlock = { cmd = "rattler-build build --recipe crates/universe-airlock/recipe/recipe.yaml --variant-config crates/universe-airlock/recipe/variants.yaml --output-dir output/universe-airlock -c conda-forge", description = "Build the universe-airlock Conda package (use the packaging environment)" }
 coverage = { cmd = "mkdir -p target/coverage/python && cargo llvm-cov --workspace --all-features --locked --fail-under-lines 90 --lcov --output-path target/coverage/lcov.info && pytest --cov=scripts --cov-fail-under=80 --cov-report=lcov:target/coverage/python/lcov.info --cov-report=term-missing", description = "Generate Rust and Python LCOV coverage and enforce line thresholds" }
 
-backlog-check = { cmd = "python -m scripts.backlog_check", description = "Validate Backlog IDs, frontmatter, statuses, filenames, and links" }
-repo-check = { cmd = "python -m scripts.repo_check", description = "Validate required files, versions, clean layout, and immutable action refs" }
+backlog-check = { cmd = "python -m scripts.backlog_check", description = "Validate Backlog identity, statuses, and cross-record references" }
+repo-check = { cmd = "python -m scripts.repo_check", description = "Validate the invariants a declarative config cannot express: tokens, version parity, transport, audit gate" }
 sandbox-publish-logs = { cmd = "python -m scripts.print_sandbox_logs \"$RUNNER_TEMP/pixi-sandbox-logs\"", description = "Print bounded pixi-sandbox publishing diagnostics in CI annotations" }
 skills-check = { cmd = "python -m scripts.skills_check", description = "Validate agent-skill frontmatter and content hashes" }
 skills-check-write = { cmd = "python -m scripts.skills_check --write", description = "Refresh agent-skill content hashes after a deliberate skill edit" }
@@ -103,6 +103,7 @@ lint-commits = { cmd = "convco check --config .config/convco.yml", description =
 audit = { cmd = "python -m scripts.audit check", description = "Audit locked Rust dependencies and supply-chain policy offline when the advisory cache exists" }
 audit-sync = { cmd = "python -m scripts.audit sync", description = "Refresh the RustSec advisory and crates.io index caches (needs network)" }
 alint-check = { cmd = "alint check", description = "Validate repository structure, naming, and cross-file rules from .alint.yml" }
+crate-check = { cmd = "python -m scripts.crate_check", description = "Validate that universe-core depends on nothing ecosystem, UI, or network related" }
 
 check = { depends-on = [
   "fmt-check",
@@ -113,7 +114,8 @@ check = { depends-on = [
   "repo-check",
   "skills-check",
   "alint-check",
-], description = "Run format, lint, type, test, backlog, repository, and skill checks" }
+  "crate-check",
+], description = "Run format, lint, type, test, backlog, repository, skill, and crate-boundary checks" }
 offline-gates = { depends-on = [
   "check",
   "coverage",
