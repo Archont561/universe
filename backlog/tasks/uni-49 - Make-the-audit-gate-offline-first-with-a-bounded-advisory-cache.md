@@ -1,7 +1,7 @@
 ---
 id: UNI-49
 title: Make the audit gate offline-first with a bounded advisory cache
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-29'
 updated_date: '2026-10-29'
@@ -72,6 +72,9 @@ transport boundary this preserves.
   reports "yanked enforcement degraded (15 check(s) skipped)" because the
   transport carries no crates.io index cache; that is decision-120's stated
   limitation, not a silent pass.
+- 2026-10-29: Closed with `pixi run offline-gates` (exit 0), `pixi run web-check`
+  (17/17 Turbo tasks), and `pixi run audit` (exit 0) on this tree; Python
+  coverage for `scripts/audit.py` is 92%, repository total 93%.
 - 2026-10-29: `repo_check.validate_audit_gate` pins the task wiring, mirroring the
   existing pre-push/vendor guard, so a future edit cannot quietly restore the
   hanging command or drop the cache-seeding task.
