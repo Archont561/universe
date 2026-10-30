@@ -37,6 +37,10 @@ Emit CEP-15 repodata and CEP-16 shard files, `run_exports` metadata, channel met
 package can be downloaded by a native Conda client from the published static channel. Portal
 HTML/catalog hydration is implemented separately in UNI-25/UNI-46; this task owns the
 Conda solver and package artifact surface only.
+
+The adapter request/result boundary — capabilities, the plan/build/audit requests, the six
+outcomes, and produced artifacts — lives in `crates/universe-core/src/adapter.rs` (`UNI-31`).
+This task consumes those records instead of defining a per-command shape of its own.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

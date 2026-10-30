@@ -1,0 +1,11 @@
+{
+  "outcome": "unknown_evidence",
+  "path": "packages[0].smoke",
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "adapter.audit.evidence_missing",
+      "message": "no smoke command was declared, so installation was not exercised"
+    }
+  ]
+}

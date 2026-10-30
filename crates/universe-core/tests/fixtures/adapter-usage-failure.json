@@ -1,0 +1,10 @@
+{
+  "outcome": "usage_failure",
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "adapter.request.unknown_operation",
+      "message": "core asked for an operation the adapter does not implement"
+    }
+  ]
+}

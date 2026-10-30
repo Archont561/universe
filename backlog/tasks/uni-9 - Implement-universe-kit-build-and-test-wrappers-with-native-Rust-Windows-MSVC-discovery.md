@@ -37,6 +37,10 @@ runtime dependency, or infer build steps from ecosystem names.
 Record command/tool identity and exit status. Validate that each collected artifact matches
 the expected package identity, version, target, size, and digest before passing it to audit,
 indexing, or publication. Keep credentialed publication outside the untrusted build process.
+
+The adapter request/result boundary — capabilities, the plan/build/audit requests, the six
+outcomes, and produced artifacts — lives in `crates/universe-core/src/adapter.rs` (`UNI-31`).
+This task consumes those records instead of defining a per-command shape of its own.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

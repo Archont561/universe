@@ -1,0 +1,18 @@
+{
+  "outcome": "digest_mismatch",
+  "mismatch": {
+    "artifact": {
+      "name": "pkg",
+      "version": "0.1.0"
+    },
+    "expected": "9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c",
+    "found": "3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e3b7e"
+  },
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "adapter.audit.digest_mismatch",
+      "message": "the file on disk is not the file the record names"
+    }
+  ]
+}

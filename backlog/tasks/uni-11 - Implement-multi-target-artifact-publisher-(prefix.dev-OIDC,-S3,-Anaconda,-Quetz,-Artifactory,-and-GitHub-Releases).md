@@ -32,6 +32,10 @@ Implement `crates/universe-core::publish` and `universe-kit publish-artifacts` (
   - `anaconda`, `s3`, `quetz`, `artifactory`, `filesystem`: `rattler_upload` + `rattler_index` local filesystem indexing.
   - `github-pages`: idempotent creation/lookup of rolling `<release_tag_prefix>-<subdir>` GitHub Releases (`packages-linux-64`, `packages-win-64`, `packages-osx-64`, `packages-osx-arm64`, `packages-linux-aarch64`, `packages-noarch`) via typed `reqwest` GitHub REST v3 client, asset upload with SHA-256 skip-if-identical idempotency, configurable `max_builds_per_version` retention pruning (protecting against GitHub's 1,000-asset release cap), and atomic `.conda.json` fragment commit to `index_branch` (`universe-index`).
 - Support `--dry-run` printing every planned upload and pruning action without mutating remote state.
+
+The adapter request/result boundary — capabilities, the plan/build/audit requests, the six
+outcomes, and produced artifacts — lives in `crates/universe-core/src/adapter.rs` (`UNI-31`).
+This task consumes those records instead of defining a per-command shape of its own.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

@@ -29,6 +29,10 @@ Port and generalize all static recipe & repository lint rules (`CloudCompare-con
 - Validate `about.license` with `spdx::Expression::parse`, enforce `about.license_file` presence when `audit.enforce_license_file = true`, validate `rattler_conda_types::Version` on `context.version` / `package.version`, and check `build.number >= 0`.
 - Validate `universe.toml` and `recipes/*/package.toml` schemas, plus optional `--check-workflows` `# @generated` SHA-256 header drift verification.
 - Support both human-readable diagnostics (`miette`/annotated spans) and `--json` output.
+
+The adapter request/result boundary — capabilities, the plan/build/audit requests, the six
+outcomes, and produced artifacts — lives in `crates/universe-core/src/adapter.rs` (`UNI-31`).
+This task consumes those records instead of defining a per-command shape of its own.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

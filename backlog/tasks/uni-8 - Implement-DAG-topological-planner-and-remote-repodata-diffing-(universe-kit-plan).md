@@ -28,6 +28,10 @@ Implement `crates/universe-core::planner` and `universe-kit plan` (`doc-2`, `dec
 - Build a directed dependency graph (`petgraph`) across intra-universe rendered outputs (`host` and `run` specs), detect dependency cycles with explicit cycle traces, and partition jobs into topological build `levels`.
 - Implement `--changed-only` (git diff against `--base-ref`) and `--changed-or-missing` querying configured target channels via `rattler_repodata_gateway` to skip `(name, version, build_string, subdir)` artifacts already published on all configured targets, while automatically scheduling downstream dependents when an upstream intra-universe package rebuilds.
 - Emit deterministic GitHub Actions matrix JSON (`has_work`, `levels`, flat `jobs` for single-level fast path).
+
+The adapter request/result boundary — capabilities, the plan/build/audit requests, the six
+outcomes, and produced artifacts — lives in `crates/universe-core/src/adapter.rs` (`UNI-31`).
+This task consumes those records instead of defining a per-command shape of its own.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

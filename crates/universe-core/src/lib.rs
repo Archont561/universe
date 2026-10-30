@@ -7,6 +7,7 @@
 //! stdout envelope. Those concerns belong in adapter and binary crates built on
 //! top of this stable vocabulary.
 
+pub mod adapter;
 pub mod artifact;
 pub mod catalog;
 pub mod diagnostic;
@@ -18,6 +19,10 @@ pub mod snapshot;
 use std::fmt;
 use std::process::ExitCode;
 
+pub use adapter::{
+    Adapter, AuditRequest, BuildRequest, Capabilities, DigestMismatch, Operation, Outcome,
+    OutcomeKind, PlanRequest, ProducedArtifact, RequestContext,
+};
 pub use artifact::{Artifact, ArtifactId};
 pub use catalog::{Catalog, CatalogEntry};
 pub use diagnostic::{Diagnostic, Envelope, Severity};

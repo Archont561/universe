@@ -1,0 +1,10 @@
+{
+  "outcome": "infrastructure_failure",
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "adapter.build.spawn_failed",
+      "message": "the build tool exited 137 after the host ran out of memory"
+    }
+  ]
+}
