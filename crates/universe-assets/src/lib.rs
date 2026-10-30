@@ -1,7 +1,8 @@
-//! Compile-time embedded static portal assets for Universe.
+//! Embedded, compile-time assets: the portal bundle and the workflow templates.
 //!
-//! The committed placeholder keeps a fresh checkout buildable until the static portal has
-//! been generated. A generated `packages/portal/build` directory takes precedence in build.rs.
+//! Both are embedded rather than read from disk, so rendering a workflow needs no
+//! checkout of a template directory and no network. A template that only exists in the
+//! repository would make every consumer's render depend on a path that is not theirs.
 
 use include_dir::{Dir, include_dir};
 
@@ -16,9 +17,23 @@ pub fn portal_assets() -> &'static Dir<'static> {
     &PORTAL_DIST
 }
 
+/// The workflow file template every generated file is rendered from.
+pub const WORKFLOW_TEMPLATE: &str = include_str!("../templates/workflow.yml.j2");
+
+/// Actions this repository has already pinned, by the ref a template needs.
+///
+/// A generated workflow that used a mutable tag would fail the repository's own
+/// `gha-pin-actions-to-sha` rule, so the pin is part of the template's input rather than
+/// something a renderer guesses at.
+pub const CHECKOUT: &str = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1";
+
+/// `prefix-dev/setup-pixi`, pinned.
+pub const SETUP_PIXI: &str =
+    "prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2";
+
 #[cfg(test)]
 mod tests {
-    use super::{VERSION, portal_assets};
+    use super::{CHECKOUT, SETUP_PIXI, VERSION, WORKFLOW_TEMPLATE, portal_assets};
 
     #[test]
     fn version_matches_the_package_manifest() {
@@ -33,5 +48,30 @@ mod tests {
     #[test]
     fn a_fresh_build_embeds_an_index_page() {
         assert!(portal_assets().get_file("index.html").is_some());
+    }
+
+    // The template uses `<<`/`>>` for its own variables because GitHub expressions are
+    // `${{ }}`: a template in the default syntax could not contain a workflow expression
+    // at all. So every `{{` here must belong to a GitHub expression.
+    #[test]
+    fn the_template_uses_only_github_expressions_in_double_braces() {
+        assert!(WORKFLOW_TEMPLATE.contains("<< name >>"));
+        for (index, _) in WORKFLOW_TEMPLATE.match_indices("{{") {
+            assert!(
+                WORKFLOW_TEMPLATE[..index].ends_with('$'),
+                "a bare {{{{ at byte {index} would be parsed as a template variable"
+            );
+        }
+        assert!(WORKFLOW_TEMPLATE.contains("${{ github.ref }}"));
+    }
+
+    #[test]
+    fn action_pins_are_commit_shas() {
+        for action in [CHECKOUT, SETUP_PIXI] {
+            let reference = action.split('@').nth(1).expect("ref");
+            let sha = reference.split_whitespace().next().expect("sha");
+            assert_eq!(sha.len(), 40, "{action} is not pinned to a commit");
+            assert!(sha.bytes().all(|byte| byte.is_ascii_hexdigit()), "{action}");
+        }
     }
 }

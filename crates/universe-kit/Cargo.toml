@@ -14,7 +14,13 @@ description = "Connected owner/producer CLI for Universe"
 workspace = true
 
 [dependencies]
+serde_json = { workspace = true }
+toml_edit = { workspace = true }
 universe-core = { workspace = true }
+universe-workflow = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [[bin]]
 name = "universe-kit"
