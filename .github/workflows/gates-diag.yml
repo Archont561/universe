@@ -30,14 +30,13 @@ jobs:
       fail-fast: false
       matrix:
         task:
-          - lint
-          - typecheck
-          - test
-          - coverage
-          - crate-check
-          - audit
-          - build
-          - web-check
+          - fmt-check
+          - backlog-check
+          - repo-check
+          - skills-check
+          - alint-check
+          - lint-actions
+          - gates
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
