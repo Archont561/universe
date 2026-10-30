@@ -1,7 +1,7 @@
 ---
 id: DRAFT-8
 title: Vendor the BDD runner before claiming scenario coverage
-status: draft
+status: promoted
 created_date: '2026-10-31'
 updated_date: '2026-10-31'
 ---
@@ -26,7 +26,15 @@ sandbox publishes, so `pixi run test` can execute `.feature` files offline. Then
 first scenario for the renderer — "a manifest declaring two stores renders one publish job
 per store" — and let it drive the next behaviour change instead of following it.
 
-## Why it is a draft
+## Promoted (2026-10-31)
+
+The dependency declaration and the renderer's first five scenarios are in
+`crates/universe-workflow/tests/render_bdd.rs` with
+`tests/features/render.feature`. The lock cannot be regenerated from this
+environment, so the `relock` bot produces `Cargo.lock` and the sandbox
+publication vendors `rstest*` on the next run. Tracked as `UNI-57` AC #8.
+
+## Why it was a draft
 
 It is transport work (a sandbox publication), not product work, and it should not be
 scheduled ahead of `UNI-57`'s remaining acceptance criteria.

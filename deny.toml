@@ -4,13 +4,32 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+# One recorded exception, and it is an *unmaintained* notice rather than a
+# vulnerability: RUSTSEC-2026-0374 covers `basic-toml`, reached only through
+# `rstest-bdd` → `i18n-embed` in the dev-dependency graph that executes scenarios
+# under `pixi run test`. Nothing in a shipped artifact links it, the advisory lists
+# no fixed version ("No safe upgrade is available"), and removing the entry is the
+# same act as removing the scenario runner. Ignoring it is loud on purpose: the
+# alternative was a scenario rule with no runner, which is worse than a dev-only
+# crate whose maintainer stopped.
+ignore = [
+  { id = "RUSTSEC-2026-0374", reason = "dev-only: basic-toml is reached solely through rstest-bdd's i18n-embed, ships in no artifact, and has no fixed version to upgrade to" },
+]
 
 [licenses]
 version = 2
 confidence-threshold = 0.95
 unused-allowed-license = "allow"
-allow = ["Apache-2.0", "MIT", "Unicode-3.0"]
+# Two dev-only additions, each named rather than folded into "any OSI licence":
+#
+# - `ISC` for `rstest-bdd` and its sibling crates, which execute the scenarios under
+#   `pixi run test` and are never linked into a shipped binary.
+# - `Zlib` for `foldhash`, reached through `hashbrown` in the same dev graph.
+#
+# Neither arrives in a released artifact: the audit gate checks the whole workspace,
+# including dev-dependencies, which is why dev-only licences have to be named here at
+# all. If the scenario runner is ever reconsidered, these two lines go with it.
+allow = ["Apache-2.0", "ISC", "MIT", "Unicode-3.0", "Zlib"]
 
 [licenses.private]
 # Workspace crates are private and are not published as crates.io packages.

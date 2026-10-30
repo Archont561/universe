@@ -1,4 +1,10 @@
 # Do not inherit ecosystem-specific advisory exceptions. Every locked crate is audited
 # against the current RustSec database; review any future ignore with a removal condition.
+#
+# RUSTSEC-2026-0374 — `basic-toml` is unmaintained, reached only through
+# `rstest-bdd` → `i18n-embed` in the dev-dependency graph that runs the scenario suite
+# under `pixi run test`. It is in no shipped artifact and the advisory names no fixed
+# version, so there is nothing to upgrade to. Removal condition: drop this entry in the
+# same change that drops `rstest-bdd`, or sooner if a fixed version appears.
 [advisories]
-ignore = []
+ignore = ["RUSTSEC-2026-0374"]
