@@ -28,24 +28,31 @@ Three specific gaps surfaced while specifying `universe-workflow`:
 
 **One verdict job per file, one write scope per job, and a closed check vocabulary.**
 
-### 1. Every rendered file ends with exactly one verdict job
+### 1. Every job of a pull-request file is a required check
 
 | Rule | Consequence |
 | --- | --- |
-| The last job in every file is `<prefix> / verdict` | the file has one place where its outcome is stated |
-| It lists every other job in the file in `needs` and runs with `if: always()` | it runs even when a dependency failed, so the check always reports |
-| It fails unless every dependency concluded `success` | a skipped dependency is a failure, not a pass |
-| **Branch protection requires only the verdict jobs** | adding or renaming any other job cannot change the required-check set |
+| The last job in every file is `<prefix> / verdict`, needing every sibling, running `if: always()`, failing on `skipped` | the file states its own outcome in one line |
+| **Branch protection requires every job of every file that triggers on `pull_request`** | a specific failure is red in the settings page, not one aggregate |
+| A file that does not trigger on `pull_request` contributes no required checks | its failure blocks the release rather than the merge |
 
-The third row is the one that carries weight. A `verdict` that treats `skipped` as acceptable
-can report green on a run that never built anything, which is exactly the shape of failure
-that looks like success in a pull request. There is no `optional` marker today; a job that may
-legitimately not run belongs in another file with its own trigger, per `decision-124`.
+Requiring every job is bounded by something that is easy to miss: **a required check must be
+reported on the commit being merged.** `universe-publish.yml`, `universe-airlock.yml`, and
+`universe-watch.yml` do not run on a pull request, so their jobs never report there, and
+requiring one would leave every pull request waiting for a status that cannot arrive. The
+required set is therefore exactly the jobs that run before a merge — every job of
+`universe.yml`, and of the consumer-role file — and nothing from the other three.
 
-The fourth row is why this is a decision rather than a detail. The alternative — requiring
-each job individually — was rejected because it couples the required-check list, which lives
-in repository settings, to the job inventory, which lives in a template. The two would drift
-on the first rename, and the drift is invisible until a release is blocked.
+What this buys and what it costs, stated plainly: a reviewer sees *which* job failed without
+opening the run, and the cost is that renaming a job is now a repository-settings change. That
+coupling is accepted deliberately, and made mechanical rather than remembered:
+`universe ci render --print-required-checks` emits the list in the order the settings page
+expects, so the edit is a copy. Renames are a template decision, recorded, not something a
+refactor does in passing.
+
+The `verdict` job survives this rule even though it is no longer the gate: it answers "did this
+file pass" on a run whose matrix has twenty jobs, and it fails on `skipped` where a required
+check would pass. That difference is the reason it stays.
 
 ### 2. Privileges are declared per job, and a job may hold at most one write scope
 
@@ -117,9 +124,50 @@ Verification stays in the single `verify-index` job that `decision-124` already 
 every publish job, rather than inside each one. That job therefore holds the read secrets for
 every destination — including stores where `read_auth: token` makes reads credentialed — and
 still holds no write scope, so §2 continues to hold. `read_auth` never changes a publish job:
-it changes what the consumer lane and `verify-index` must present.
+it changes what the consumer lane and `verify-index` must present. *(`draft-7` lays out the four
+ways to place this read-back and what each costs; the placement is the one question in this
+record still open.)*
 
-### 6. Rendering is deterministic, with three permitted interpolations
+**Every destination is mandatory, so publication is all-or-nothing.** One failed destination
+fails the file: no destination's success is announced as a release until all of them have
+succeeded. The record keeps that policy from `decision-126` and states the consequence here
+because it is the publish jobs that pay for it — an expired npm token stalls a release whose
+bytes are already on the channel, and the recovery is the resume path, not a partial release.
+
+**The journal is a run artifact, not a branch.** Each publish job uploads
+`journal-<store>.json` recording the destinations it completed, together with the digest it
+published. Resume means re-running the failed jobs of the *same* run, which is exactly the
+remediation `decision-126` describes; a fresh run starts with an empty journal and therefore
+must refuse to start while a tag for the version exists. What is given up is cross-run resume:
+there is no memory of a publish that happened two runs ago. That is accepted because every
+cross-run memory is a thing to authenticate, expire, and audit, and the failure it would repair
+— a lost artifact — is rarer than the failure it would create, a stale journal that claims a
+destination succeeded.
+
+### 6. Rendering owns the set of files, and deletion is part of rendering
+
+The file set is derived from declared capabilities (`decision-124`), so a file whose capability
+is gone is drift, not history. `universe ci render` deletes it; `universe ci check` fails and names it,
+because the check never writes.
+
+Deletion stays in `render` rather than in `check` for the same reason fixtures never mutate the
+live repository: a check that repairs what it measures cannot be used to detect a change. A
+consumer who removes their last store therefore sees one failing check naming one file, and
+then a `render` that removes it — a two-step that is legible in a diff, which silently deleting
+during a check would not be.
+
+### 7. Action pins come from the renderer, not from the consumer
+
+Third-party actions are pinned by full SHA, and the pins are **data the renderer carries**, not
+values copied into each consumer's file by hand. Upgrading Universe upgrades the pins: a new
+version embeds a new pin table, and the next `ci render` rewrites the pins in every emitted
+file, so one bump here reaches every consumer as one commit they can read.
+
+That is the whole point of the stamp. A consumer who pins by hand drifts; a consumer who pins by
+tag takes whatever the tag points at today. A consumer who pins by SHA *and* gets those SHAs
+from the tool they already upgrade has both immutability and a single place to review it.
+
+### 8. Rendering is deterministic, with three permitted interpolations
 
 A rendered file may contain a pinned commit, the setup line that distinguishes owner from
 consumer mode (`decision-125`), and GitHub expressions untouched. It contains no timestamp, no
@@ -129,8 +177,14 @@ reviewed artifact — the YAML — the same bytes CI runs.
 
 ## Conditions that would change this decision
 
-- **GitHub's required-check matching stops being name-based**, or gains per-job aggregates. Then
-  the verdict job loses its purpose and should be deleted rather than kept as ceremony.
+- **GitHub's required-check matching stops being name-based**, or gains per-workflow aggregates.
+  Then requiring every job is no longer necessary, and the rename coupling in §1 is pure cost.
+- **GitHub allows a required check to be satisfied by an absent workflow** — for example a
+  required check scoped per workflow rather than per job. Then the tag-only files could join
+  the required set and §1 would cover all four files instead of one.
+- **Artifact retention becomes shorter than the interval between a failed publish and its
+  repair.** Then the journal has to move out of run artifacts, and §5 is superseded rather than
+  amended.
 - **A job needs two write scopes for a reason that is not two jobs** — for example, if publishing
   an asset and attesting it cannot be split because the attestation must be produced in the same
   process. That would be a genuine limit of the rule, and would be recorded as one.
@@ -147,7 +201,8 @@ reviewed artifact — the YAML — the same bytes CI runs.
 
 ## Consequences
 
-- The required-check set is one name per rendered file, and it never changes when jobs are added.
+- The required-check set is one name per job of the pull-request file, printed by the renderer so
+  a rename is a mechanical settings edit rather than a discovery.
 - A file's privilege is the union of its jobs' privileges, and each job states its own — the
   renderer can prove the union rather than assert it.
 - A `verdict` job exists in consumer repositories too. It reports the consumer role's four jobs
