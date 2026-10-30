@@ -15,6 +15,7 @@ from scripts.repo_check import (
     validate_offline_cargo_transport,
     validate_repo,
     validate_roadmap_coverage,
+    validate_workflow_push_paths,
 )
 
 
@@ -191,6 +192,65 @@ def test_offline_transport_requires_every_republish_trigger() -> None:
     )
 
     assert any("Cargo.lock" in error and "push_paths" in error for error in errors)
+
+
+def test_the_publish_workflow_lists_exactly_the_declared_push_paths() -> None:
+    sandbox_config = (
+        '[workflow]\npush_paths = [\n  ".pixi-sandbox.toml",\n  "Cargo.toml",\n  "bun.lock",\n]\n'
+    )
+    workflow = (
+        "on:\n"
+        "  push:\n"
+        "    branches: [main]\n"
+        "    paths:\n"
+        '      - ".pixi-sandbox.toml"\n'
+        '      - "Cargo.toml"\n'
+        '      - "bun.lock"\n'
+        "\n"
+        "permissions:\n"
+        "  contents: read\n"
+    )
+
+    assert validate_workflow_push_paths(sandbox_config, workflow) == []
+
+
+def test_a_publish_workflow_that_forgot_a_declared_trigger_is_reported() -> None:
+    # The transport rots silently when a trigger exists in the config and not in the
+    # workflow: a change to `bun.lock` repacks the environment but never republishes it.
+    sandbox_config = '[workflow]\npush_paths = [".pixi-sandbox.toml", "Cargo.toml", "bun.lock"]\n'
+    workflow = (
+        "on:\n"
+        "  push:\n"
+        "    paths:\n"
+        '      - ".pixi-sandbox.toml"\n'
+        '      - "Cargo.toml"\n'
+        "\n"
+        "permissions:\n"
+        "  contents: read\n"
+    )
+
+    errors = validate_workflow_push_paths(sandbox_config, workflow)
+
+    assert len(errors) == 1
+    assert "bun.lock" in errors[0]
+    assert "workflow" in errors[0]
+
+
+def test_a_publish_workflow_trigger_the_config_does_not_declare_is_reported() -> None:
+    sandbox_config = '[workflow]\npush_paths = ["Cargo.toml"]\n'
+    workflow = 'on:\n  push:\n    paths:\n      - "Cargo.toml"\n      - "docs/**"\n'
+
+    errors = validate_workflow_push_paths(sandbox_config, workflow)
+
+    assert any("docs/**" in error for error in errors)
+
+
+def test_a_publish_workflow_with_no_push_paths_block_is_reported() -> None:
+    sandbox_config = '[workflow]\npush_paths = ["Cargo.toml"]\n'
+
+    errors = validate_workflow_push_paths(sandbox_config, "on:\n  workflow_dispatch:\n")
+
+    assert any("push" in error and "paths" in error for error in errors)
 
 
 def _write_task(root: Path, number: int) -> None:

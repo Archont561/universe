@@ -1,5 +1,10 @@
 # Publish the reviewed Linux developer bundle to sandbox/developer-linux-64.
 # The release binary and checksum are pinned to one pixi-sandbox version.
+#
+# `paths:` is a copy of `[workflow] push_paths` in `.pixi-sandbox.toml`, which owns
+# the policy. `pixi run repo-check` fails when the two drift, because a trigger that
+# changes the packed payload without republishing leaves the branch serving an older
+# tree with nothing failing.
 name: publish sandbox
 
 on:
@@ -11,6 +16,13 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/**/Cargo.toml"
+      - "crates/package.json"
+      - "package.json"
+      - "bun.lock"
+      - "packages/**/package.json"
+      - "biome.json"
+      - "tsconfig.json"
+      - "turbo.json"
       - ".github/workflows/publish-sandbox.yml"
       - "pixi.toml"
       - "pixi.lock"
