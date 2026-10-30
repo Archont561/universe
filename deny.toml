@@ -10,7 +10,10 @@ ignore = []
 version = 2
 confidence-threshold = 0.95
 unused-allowed-license = "allow"
-allow = ["Apache-2.0", "MIT", "Unicode-3.0"]
+# `ISC` is here for `rstest-bdd` and its sibling crates, which are used only to
+# execute scenarios under `pixi run test`. The allowlist stays an allowlist: the
+# entry is deliberate and named, not a relaxation to "any OSI licence".
+allow = ["Apache-2.0", "ISC", "MIT", "Unicode-3.0"]
 
 [licenses.private]
 # Workspace crates are private and are not published as crates.io packages.
