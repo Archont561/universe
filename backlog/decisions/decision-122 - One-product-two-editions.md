@@ -3,7 +3,7 @@ id: DECISION-122
 title: One product, two editions
 status: accepted
 created_date: '2026-10-30'
-updated_date: '2026-10-30'
+updated_date: '2026-10-31'
 ---
 
 ## Context
@@ -69,6 +69,10 @@ None of these hold. Absent one, a split buys nothing and costs a shared schema.
   bootstrap phase.
 - `Product` in `universe-core` reduces to the two editions. Doing this before the first
   publication is free; afterwards it is a breaking change to a documented envelope field.
+  **Done on 2026-10-31**, before any publication: the enum is `Kit | Airlock`, and a binary
+  that is not its edition's executable names itself through `render_version_as` /
+  `execute_version_as` / `run_main_as`. The bootstrapper therefore reports the Airlock edition
+  with `binary: "universe-airlock-bootstrap"`, which is the honest answer to "what is this".
 - Naming hazard, recorded rather than solved: the word "universe" is generic and taken on
   PyPI and npm, while "Airlock" is the distinctive mark. Documentation leads with Airlock
   where disambiguation matters, and always distinguishes "the Universe channel" from "your

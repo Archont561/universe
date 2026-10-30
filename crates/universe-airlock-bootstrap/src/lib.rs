@@ -7,13 +7,19 @@ use universe_core::{CommandOutput, Product};
 /// is released under (`decision-122`: one tag, one version train).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// This executable's name, which is not the edition's executable name.
+///
+/// The bootstrapper is a phase of the Airlock edition (`decision-122`), so it reports that
+/// edition while naming itself here.
+pub const BINARY_NAME: &str = "universe-airlock-bootstrap";
+
 /// Execute the current scaffold command for the Airlock bootstrapper.
 pub fn run<I, S>(args: I) -> CommandOutput
 where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    universe_core::execute_version(Product::Bootstrap, args)
+    universe_core::execute_version_as(Product::Airlock, BINARY_NAME, args)
 }
 
 /// Execute, print, and return the process code for the Airlock bootstrapper.
@@ -22,7 +28,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    universe_core::run_main(Product::Bootstrap, args)
+    universe_core::run_main_as(Product::Airlock, BINARY_NAME, args)
 }
 
 #[cfg(test)]
