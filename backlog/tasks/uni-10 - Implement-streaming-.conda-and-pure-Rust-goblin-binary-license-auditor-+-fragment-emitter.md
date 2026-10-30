@@ -4,7 +4,7 @@ title: Implement streaming .conda and pure-Rust goblin binary/license auditor + 
 status: In Progress
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-11-01 09:20'
+updated_date: '2026-11-01 12:05'
 labels:
   - audit
   - channel
@@ -56,9 +56,18 @@ is inspected: the `about.json` expression parses as SPDX, and every licence file
 record names is present and non-empty. `CondaPackage` gained `read_info_member` and
 `info_member_names` so a rule can ask "is this record here?" without a second reader.
 
-Not yet done: md5 and `info/paths.json` verification, the goblin binary audit
-(ELF/PE/Mach-O arch, RPATH leak, `DT_NEEDED`), `audit.expected_binaries`, and
-`--emit-fragment`.
+`audit_binary` reads ELF headers through `goblin` and applies three rules without
+executing anything: the machine type matches the subdirectory, no `DT_RPATH` or
+`DT_RUNPATH` entry is an absolute path, and a `noarch` package carries no compiled
+code at all. `DT_NEEDED` is reported as the inventory a fragment records. The
+fixture is an ELF64 built field by field in `tests/support`, so the header, the
+dynamic string table, and the address translation are exercised rather than
+mocked.
+
+Not yet done: PE32+ and Mach-O parsing (`BinaryFormat` reports the format but
+leaves architecture and rpaths empty, so those platforms pass unexamined — the
+v0.1.0 milestone is `linux-64` only, `decision-132`), md5 and `info/paths.json`,
+`audit.expected_binaries`, `--emit-fragment`, and the `universe-kit audit` verb.
 
 
 ## Acceptance Criteria
