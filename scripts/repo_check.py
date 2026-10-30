@@ -172,6 +172,49 @@ ROADMAP_DOCUMENTS = (
     "backlog/docs/roadmap/doc-112 - Ordered-milestone-DAG-and-sprint-train.md",
 )
 
+# Documentation a reader is meant to follow today. Backlog records are excluded on
+# purpose: a task may name the Pixi task it intends to add, and that is a promise
+# rather than a command someone will run this afternoon.
+DOCUMENTED_TASK_DOCUMENTS = (
+    "README.md",
+    "CONTRIBUTING.md",
+    "AGENTS.md",
+)
+DOCUMENTED_TASK_GLOBS = ("docs/*.md",)
+
+# `pixi run` accepts either a declared task or an executable, and the two are
+# indistinguishable by shape. The second form is enumerated so that a renamed or
+# never-written task is an error instead of silently reading as a binary name.
+PIXI_RUN_EXECUTABLES = frozenset(
+    {
+        "actionlint",
+        "alint",
+        "bash",
+        "bun",
+        "cargo",
+        "convco",
+        "deno",
+        "gh",
+        "git",
+        "mypy",
+        "node",
+        "npm",
+        "pixi",
+        "pytest",
+        "python",
+        "python3",
+        "rattler-build",
+        "ruff",
+        "sh",
+        "taplo",
+        "uv",
+    }
+)
+
+# Flags whose value is a separate token. Every other flag stands alone.
+PIXI_VALUE_FLAGS = frozenset({"-e", "--color", "--environment", "--manifest-path"})
+PIXI_TASK_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
+
 
 def extract_task_ids(repo_root: Path) -> set[str]:
     """Collect the task identifiers declared by the Backlog task records."""
@@ -212,6 +255,70 @@ def validate_roadmap_coverage(repo_root: Path) -> list[str]:
             f"{path.name}: {phantom} is referenced but has no task record"
             for phantom in sorted(referenced - tasks, key=_task_number)
         )
+    return errors
+
+
+def _documented_pixi_commands(text: str) -> list[str]:
+    """Return the command each `pixi run` on a line invokes.
+
+    Only the same line is inspected: a wrapped sentence or a fenced block ends the
+    command, and reading past it would invent invocations that were never written.
+    """
+    commands: list[str] = []
+    for match in re.finditer(r"pixi run\b", text):
+        tokens = text[match.end() :].split("\n", 1)[0].split()
+        index = 0
+        while index < len(tokens):
+            token = tokens[index].strip("`\"'(),;:")
+            if not token or token.startswith("#"):
+                break
+            if token.startswith("-"):
+                index += 1 + (token in PIXI_VALUE_FLAGS)
+                continue
+            commands.append(token)
+            break
+    return commands
+
+
+def validate_documented_pixi_tasks(repo_root: Path) -> list[str]:
+    """Ensure every `pixi run` a reader is told to use names something that exists.
+
+    A documented command is a promise about this checkout. When it names a task that
+    was renamed or never written, the failure surfaces in a terminal minutes after a
+    clone rather than in review, so the documentation is checked like code.
+    """
+    config_path = repo_root / "pixi.toml"
+    if not path_exists(config_path):
+        return []
+    try:
+        tasks = tomllib.loads(config_path.read_text(encoding="utf-8")).get("tasks", {})
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        return [f"cannot read the Pixi task table: {exc}"]
+    declared = set(tasks)
+
+    documents = [repo_root / name for name in DOCUMENTED_TASK_DOCUMENTS]
+    for pattern in DOCUMENTED_TASK_GLOBS:
+        documents.extend(sorted(repo_root.glob(pattern)))
+
+    errors: list[str] = []
+    for document in documents:
+        if not path_exists(document):
+            continue
+        try:
+            text = document.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"cannot read {document.name}: {exc}")
+            continue
+        relative = document.relative_to(repo_root).as_posix()
+        for command in _documented_pixi_commands(text):
+            if not PIXI_TASK_NAME.match(command):
+                continue
+            if command in declared or command in PIXI_RUN_EXECUTABLES:
+                continue
+            errors.append(
+                f"{relative}: `pixi run {command}` names no declared Pixi task "
+                "and no known executable"
+            )
     return errors
 
 
@@ -337,6 +444,7 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
                     )
 
     errors.extend(validate_roadmap_coverage(root))
+    errors.extend(validate_documented_pixi_tasks(root))
 
     offline_transport_paths = (
         root / "Cargo.lock",
