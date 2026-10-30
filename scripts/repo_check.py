@@ -167,6 +167,59 @@ def extract_recipe_package_name(text: str) -> str | None:
     return None if match is None else match.group(1)
 
 
+ROADMAP_DOCUMENTS = (
+    "backlog/docs/roadmap/doc-4 - Milestone-roadmap-and-skills-sh-rollout.md",
+    "backlog/docs/roadmap/doc-112 - Ordered-milestone-DAG-and-sprint-train.md",
+)
+
+
+def extract_task_ids(repo_root: Path) -> set[str]:
+    """Collect the task identifiers declared by the Backlog task records."""
+    identifiers: set[str] = set()
+    for path in sorted((repo_root / "backlog" / "tasks").glob("uni-*.md")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        match = re.search(r"(?m)^id:\s*(UNI-\d+)\s*$", text)
+        if match is not None:
+            identifiers.add(match.group(1))
+    return identifiers
+
+
+def validate_roadmap_coverage(repo_root: Path) -> list[str]:
+    """Ensure the roadmap documents describe exactly the tasks that exist.
+
+    A roadmap that quietly stops mentioning a task is worse than no roadmap: it is the
+    document a reader trusts when asking what is planned, and its DAG is where blocker edges
+    are explained. Both directions matter, so a phantom identifier is also an error.
+    """
+    errors: list[str] = []
+    tasks = extract_task_ids(repo_root)
+    if not tasks:
+        return errors
+
+    for document in ROADMAP_DOCUMENTS:
+        path = repo_root / document
+        if not path_exists(path):
+            continue
+        referenced = set(re.findall(r"UNI-\d+", path.read_text(encoding="utf-8")))
+        errors.extend(
+            f"{path.name}: task {task} is missing from the roadmap"
+            for task in sorted(tasks - referenced, key=_task_number)
+        )
+        errors.extend(
+            f"{path.name}: {phantom} is referenced but has no task record"
+            for phantom in sorted(referenced - tasks, key=_task_number)
+        )
+    return errors
+
+
+def _task_number(identifier: str) -> int:
+    """Sort task identifiers numerically rather than lexicographically."""
+    return int(identifier.split("-")[1])
+
+
 def _iter_repo_files(repo_root: Path) -> list[Path]:
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(repo_root):
@@ -282,6 +335,8 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
                         f"found {recipe_version or '<missing>'}, "
                         f"expected {expected_version or '<missing>'}"
                     )
+
+    errors.extend(validate_roadmap_coverage(root))
 
     offline_transport_paths = (
         root / "Cargo.lock",
