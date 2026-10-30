@@ -1,10 +1,10 @@
 ---
 id: UNI-10
 title: Implement streaming .conda and pure-Rust goblin binary/license auditor + fragment emitter
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-26 20:15'
+updated_date: '2026-10-31 22:40'
 labels:
   - audit
   - channel
@@ -41,6 +41,19 @@ The adapter request/result boundary — capabilities, the plan/build/audit reque
 outcomes, and produced artifacts — lives in `crates/universe-core/src/adapter.rs` (`UNI-31`).
 This task consumes those records instead of defining a per-command shape of its own.
 <!-- SECTION:DESCRIPTION:END -->
+
+### Progress (2026-10-31)
+
+The adapter crate `crates/universe-conda` exists and `open_package` reads an
+archive's `info/index.json`, size, and sha256 through the streaming reader, with
+fixtures built in-test rather than downloaded. The dependency enrollment and the
+policy records it forced (`BSD-3-Clause`, `bzip2-1.0.6`, `MPL-2.0`,
+`RUSTSEC-2024-0449`) landed separately in #45 so that this slice could be written
+test-first against a compilable API rather than from memory.
+
+Not yet done: md5 and `info/paths.json` verification, the SPDX and licence-file
+checks, the goblin binary audit, `audit.expected_binaries`, and `--emit-fragment`.
+
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
