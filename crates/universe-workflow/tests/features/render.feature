@@ -32,3 +32,9 @@ Feature: Rendering the workflow set from a project manifest
     When the workflow set is rendered
     And the same manifest is rendered again
     Then both renders are byte-identical
+
+  Scenario: Every job gets a runner, and one that runs a project command checks out first
+    Given a project that publishes its Airlock package to a hosted channel and to a static channel
+    When the workflow set is rendered
+    Then every job names the runner it runs on
+    And every job that runs a project command checks the project out and sets up Pixi first
