@@ -10,7 +10,7 @@
 //! no Conda tooling at all.
 
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rattler_digest::Sha256;
 use serde::Deserialize;
@@ -78,6 +78,7 @@ pub struct PackageIndex {
 /// An opened archive: the neutral artifact record plus the Conda index.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CondaPackage {
+    path: PathBuf,
     artifact: Artifact,
     index: PackageIndex,
 }
@@ -93,6 +94,74 @@ impl CondaPackage {
     #[must_use]
     pub fn index(&self) -> &PackageIndex {
         &self.index
+    }
+
+    /// Path of the archive on disk.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Every entry the archive's info section carries, in archive order.
+    ///
+    /// The list is what a rule needs to ask "is this record here at all?" without
+    /// paying to decompress it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PackageError`] when the archive cannot be opened or read.
+    pub fn info_member_names(&self) -> Result<Vec<String>, PackageError> {
+        self.info_entries()
+    }
+
+    /// One entry from the info section, or `None` when the archive omits it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PackageError`] when the archive cannot be opened or read.
+    pub fn read_info_member(&self, name: &str) -> Result<Option<Vec<u8>>, PackageError> {
+        let mut archive = self.open_info_archive()?;
+        let entries = archive
+            .entries()
+            .map_err(|error| PackageError::Unreadable(error.to_string()))?;
+        for entry in entries {
+            let mut entry = entry.map_err(|error| PackageError::Unreadable(error.to_string()))?;
+            let entry_path = entry
+                .path()
+                .map_err(|error| PackageError::Unreadable(error.to_string()))?;
+            if entry_path == Path::new(name) {
+                let mut contents = Vec::new();
+                std::io::Read::read_to_end(&mut entry, &mut contents)
+                    .map_err(|error| PackageError::Unreadable(error.to_string()))?;
+                return Ok(Some(contents));
+            }
+        }
+        Ok(None)
+    }
+
+    fn open_info_archive(&self) -> Result<tar::Archive<impl std::io::Read>, PackageError> {
+        let file = File::open(&self.path).map_err(|source| PackageError::Io {
+            path: self.path.display().to_string(),
+            source,
+        })?;
+        rattler_package_streaming::seek::stream_conda_info(file)
+            .map_err(|error| PackageError::Unreadable(error.to_string()))
+    }
+
+    fn info_entries(&self) -> Result<Vec<String>, PackageError> {
+        let mut archive = self.open_info_archive()?;
+        let entries = archive
+            .entries()
+            .map_err(|error| PackageError::Unreadable(error.to_string()))?;
+        let mut names = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|error| PackageError::Unreadable(error.to_string()))?;
+            let path = entry
+                .path()
+                .map_err(|error| PackageError::Unreadable(error.to_string()))?;
+            names.push(path.to_string_lossy().into_owned());
+        }
+        Ok(names)
     }
 }
 
@@ -116,7 +185,7 @@ pub fn open_package(path: impl AsRef<Path>) -> Result<CondaPackage, PackageError
         })?
         .len();
 
-    let index_bytes = read_info_member(path)?;
+    let index_bytes = read_index_member(path)?;
     let index: PackageIndex =
         serde_json::from_slice(&index_bytes).map_err(PackageError::InvalidIndex)?;
 
@@ -131,6 +200,7 @@ pub fn open_package(path: impl AsRef<Path>) -> Result<CondaPackage, PackageError
         .map_err(|error| PackageError::InvalidIdentity(error.to_string()))?;
 
     Ok(CondaPackage {
+        path: path.to_path_buf(),
         artifact: Artifact {
             id,
             digest,
@@ -141,8 +211,8 @@ pub fn open_package(path: impl AsRef<Path>) -> Result<CondaPackage, PackageError
     })
 }
 
-/// Read `info/index.json` from the archive's info section.
-fn read_info_member(path: &Path) -> Result<Vec<u8>, PackageError> {
+/// Read `info/index.json` before a [`CondaPackage`] exists to ask.
+fn read_index_member(path: &Path) -> Result<Vec<u8>, PackageError> {
     let file = File::open(path).map_err(|source| PackageError::Io {
         path: path.display().to_string(),
         source,

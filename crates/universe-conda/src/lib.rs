@@ -6,6 +6,8 @@
 //! a solver reads. `universe-core` owns the neutral vocabulary the results are
 //! reported in, and knows none of this.
 
+mod licence;
 mod package;
 
+pub use licence::{LicenceAudit, LicenceRules, audit_licence};
 pub use package::{CondaPackage, PackageError, PackageIndex, open_package};
