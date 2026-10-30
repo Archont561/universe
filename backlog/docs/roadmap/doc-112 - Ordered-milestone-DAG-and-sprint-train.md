@@ -3,7 +3,7 @@ id: doc-112
 title: Ordered milestone DAG and proposed sprint train
 status: Proposed schedule; dependency DAG accepted for planning
 created_date: '2026-10-27'
-updated_date: '2026-10-31'
+updated_date: '2026-11-01'
 tags:
   - roadmap
   - dag
@@ -45,6 +45,11 @@ M5 and M6 depend on M1 and can progress in parallel with the M2–M4 producer pa
 table is a clear topological linearization, not a claim that those independent tasks must wait
 for every earlier-numbered milestone. M7 joins those tracks; M8–M10 are integration/release
 gates. M11 is explicitly post-v1.
+
+**M12 is not in the table on purpose.** The `v0.1.0` pre-release checkpoint
+(`decision-132`) is scheduled in time before M10 but blocks nothing and satisfies no v1
+surface, so giving it a row here would imply a topological position it does not have. It
+is described in its own section below.
 
 ## Task dependency DAG
 
@@ -93,6 +98,28 @@ The frontmatter on each task is authoritative. If the diagram and a task's depen
 fix the task record and regenerate this view; do not add a dependency merely to make a diagram
 look linear. `UNI-35` is optional and scheduled late for focus, not because v1 blocks it.
 
+## Pre-release checkpoint — M12 (`v0.1.0`)
+
+`decision-132` makes `v0.1.0` a packaging checkpoint rather than a v1 cut. Its milestone
+record (`m-12`) states the checkpoint as one loop a consumer can walk:
+
+| Beat | Delivered by | Task owner |
+| --- | --- | --- |
+| Render the release workflow from `universe.toml` | `UNI-57` #5–#7 | M1 |
+| Build and audit `universe-airlock` | `UNI-10`, `UNI-38` | M2, M5 |
+| Publish to a Git-branch channel and prefix.dev | `UNI-11`, `UNI-12`, `UNI-58` | M3, M12 |
+| Restore with a rendered entrypoint | `UNI-32`, `UNI-33`, `UNI-53` | M5 |
+| Develop against the channel locally | `UNI-58` exit condition | M12 |
+| Cut the tag and verify both destinations | `UNI-59` | M12 |
+
+Only `UNI-58` and `UNI-59` belong to M12. Everything else is consumed from the milestone
+that already owns it; this checkpoint re-scopes no task, and a task's remaining criteria
+are still the ones that decide when it is done.
+
+`M12` does not gate `M10`. It is a checkpoint the owner asked for on the Conda track, and
+the v1 gate in `decision-119` continues to require all six surfaces regardless of whether
+this checkpoint is reached.
+
 ## Proposed sprint train
 
 No dates or sprint lengths are assigned. Each task appears in one sprint only. Within a sprint,
@@ -104,6 +131,7 @@ work may proceed in parallel when its predecessor tasks are done.
 | **S1** | Contracts | `UNI-30`, `UNI-31`, `UNI-41`, `UNI-57` | In order: neutral models, adapter boundary, then project/release manifests; the renderer follows the manifest because a schema nothing renders from has never been falsified. |
 | **S2** | Kit core and artifact safety | `UNI-7`, `UNI-8`, `UNI-9`, `UNI-10`, `UNI-21`, `UNI-22` | `UNI-9` waits for lint/planning and M1 contracts; hardening follows audit. |
 | **S3** | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38`, `UNI-51`, `UNI-52`, `UNI-53` | Conda path is `11 -> 12 -> 13`; Airlock path is `32 -> 33`, with recipe `38` after contracts, then the mirror slices `51 -> 52` and the entrypoint renderer `53`. These tracks are parallel. |
+| **S3.5** | `v0.1.0` pre-release checkpoint | `UNI-58`, `UNI-59` | Runs once `UNI-57` #5–#7, `UNI-38`, `UNI-53`, and the channel tasks can be demonstrated together. It is reported separately from S4 because it is a checkpoint on the Conda track, not a step towards the v1 gate; a failure here delays the tag and nothing else. |
 | **S4** | Trusted release and native registries | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34`, `UNI-42`, `UNI-43`, `UNI-44`, `UNI-54`, `UNI-55`, `UNI-56` | Establish `UNI-34` before packaging `UNI-15`; then `UNI-20` and `UNI-23`. The three registry adapters can proceed in parallel after S1. The release controller `54` and the setup actions `56` follow the lanes; the bootstrap package `55` follows its recipe and verbs. |
 | **S5** | Portal and public facade | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-40`, `UNI-46` | Portal UI/tests precede hydration and release integration; `UNI-46` also waits for Conda/Cargo/Python/npm fixtures. Facade waits for Kit/Airlock packaging. |
 | **S6** | Airlock protocol integration and evidence review | `UNI-45`, `UNI-47` | Verify four native clients through Airlock, then independently review the complete evidence matrix. |
