@@ -9,7 +9,7 @@ labels:
   - airlock
   - bootstrap
   - release
-milestone: m-4
+milestone: m-5
 dependencies:
   - UNI-33
   - UNI-38

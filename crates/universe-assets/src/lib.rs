@@ -26,6 +26,11 @@ mod tests {
     }
 
     #[test]
+    fn version_matches_the_versions_file() {
+        assert_eq!(VERSION, include_str!("../VERSIONS").trim());
+    }
+
+    #[test]
     fn a_fresh_build_embeds_an_index_page() {
         assert!(portal_assets().get_file("index.html").is_some());
     }

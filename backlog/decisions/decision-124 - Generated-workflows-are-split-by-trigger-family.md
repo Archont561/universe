@@ -3,7 +3,7 @@ id: DECISION-124
 title: Generated workflows are split by trigger family, not by target or ecosystem
 status: accepted
 created_date: '2026-10-30'
-updated_date: '2026-10-30'
+updated_date: '2026-10-31'
 ---
 
 ## Context
@@ -90,6 +90,18 @@ rejected is size and privilege spread, both of which grew after the original req
   declared capability has no file or an undeclared one has a file.
 - `doc-2`'s `init --sync-workflows` and `lint --check-workflows` give way to `ci render` and
   `ci check`, because a discoverable verb beats a flag buried on another command.
-- The first `universe-release.yml` is hand-written, because a generator cannot exist before
-  its own output does. The renderer's first golden test is that it reproduces the
-  hand-written file byte-for-byte.
+- ~~The first `universe-release.yml` is hand-written, because a generator cannot exist
+  before its own output does.~~ **Reversed the same day.** The premise was false: the
+  generator is built by `cargo` inside the Pixi environment and does not depend on the
+  release pipeline it describes. `pixi run ci-render` builds the workspace and runs
+  `universe ci render` to write the file, so the first release workflow is generated like
+  every later one, and no hand-written artifact has to be reproduced byte-for-byte. The
+  golden test reverses direction with it: the committed file *is* the rendered output, and
+  `ci check` in the gates proves the template has not drifted since.
+- Two conditions make the reversal sound rather than merely convenient. The reviewable
+  artifact is the rendered YAML, not the template, so rendering must be deterministic and
+  its diff reviewable — `ci render --stdout` and `ci check` are what carry that. And this
+  repository's own jobs reference the setup action by local path
+  (`./.github/actions/setup-dev`), which needs no commit SHA; only a consumer workflow
+  references the action remotely and by SHA, so that constraint chains on the first
+  *release*, not on the first render.

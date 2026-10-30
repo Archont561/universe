@@ -39,9 +39,12 @@ Implement consumer repository scaffolding and recipe onboarding (`universe-kit i
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every workflow variant rendered by `universe-kit init` (prefix.dev-only, github-pages-only, multi-target, watch-enabled/disabled) passes `actionlint` and `universe-kit lint --check-workflows`.
+- [ ] #1 Every workflow variant `universe ci render` can emit (prefix.dev-only, github-pages-only, multi-target, watch-enabled/disabled) passes `actionlint`, and `universe ci check` accepts the result against the same manifest.
 - [ ] #2 Consumer `pixi.toml` places `conda-forge` first and pins `universe-kit` explicitly to `https://prefix.dev/archont561/archont561` (`decision-1`).
 - [ ] #3 `universe-kit add --from-github` / `--from-pypi` / `--from-crates` scaffolds a recipe that immediately passes `universe-kit lint` (verified against `wiremock` fixtures).
+- [ ] #4 Templates live in `crates/universe-assets` and are embedded at compile time, so rendering needs no template checkout and no network; minijinja uses the `<<`/`>>` delimiters with `auto_escape = none` so GitHub expressions survive, and a fixture asserts a rendered file contains `${{ }}` untouched.
+- [ ] #5 Pixi is the invocation surface for rendering, because a workflow cannot generate the workflow it runs under: `ci-render = { cmd = "cargo run --frozen -p universe-kit -- ci render", description = "Render the committed workflow set from universe.toml" }` and `ci-check` for the gates. The task names the component binary rather than the facade so that rendering does not depend on `universe` sibling resolution landing first; `cargo run` builds before running, so the task cannot silently use a stale binary.
+- [ ] #6 This repository's own first `universe-release.yml` is produced by `pixi run ci-render`, committed, and then held by `ci check` in the gates; no workflow in `.github/workflows/` is hand-written once the release file is rendered (`decision-124` §Consequences, reversal).
 <!-- AC:END -->
 
 ## Definition of Done

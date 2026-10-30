@@ -259,3 +259,16 @@ where
     eprint!("{}", output.stderr());
     ExitCode::from(output.exit_code())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::VERSION;
+
+    // The workspace version is the single release identity: `VERSIONS` files, recipes, and
+    // the changelog heading are all checked against it, so this crate must not shadow it.
+    #[test]
+    fn version_is_taken_from_the_package_manifest() {
+        assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
+        assert!(!VERSION.is_empty());
+    }
+}
