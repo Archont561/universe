@@ -1,6 +1,6 @@
 use universe_core::{
     CliError, EntryKind, FIRST_CLASS_ADAPTER_BUDGET, Product, STDOUT_SCHEMA_VERSION, VERSION,
-    execute_version, parse_version_args, render_version, run_main,
+    execute_version, parse_version_args, render_version, render_version_as, run_main,
 };
 
 #[test]
@@ -16,6 +16,8 @@ fn product_names_cover_all_artifacts() {
         })
         .collect();
 
+    // Two editions, not three: the bootstrapper is an Airlock phase (`decision-122`) and
+    // names itself through `render_version_as` instead of adding a product variant.
     assert_eq!(
         actual,
         vec![
@@ -24,11 +26,6 @@ fn product_names_cover_all_artifacts() {
                 "Universe Airlock",
                 "universe-airlock",
                 "Universe Airlock".to_owned()
-            ),
-            (
-                "Universe Airlock Bootstrap",
-                "universe-airlock-bootstrap",
-                "Universe Airlock Bootstrap".to_owned()
             ),
         ]
     );
@@ -93,14 +90,16 @@ fn renders_plain_and_json_versions() {
     );
     assert_eq!(plain, format!("universe-airlock {VERSION}"));
 
-    let json = render_version(
-        Product::Bootstrap,
+    // The bootstrapper reports the Airlock edition and its own binary name.
+    let json = render_version_as(
+        Product::Airlock,
+        "universe-airlock-bootstrap",
         parse_version_args(["--json"]).expect("JSON options"),
     );
     assert_eq!(
         json,
         format!(
-            "{{\"schema_version\":2,\"command\":\"version\",\"ok\":true,\"result\":{{\"product\":\"Universe Airlock Bootstrap\",\"binary\":\"universe-airlock-bootstrap\",\"version\":\"{VERSION}\"}},\"diagnostics\":[],\"artifacts\":[]}}"
+            "{{\"schema_version\":2,\"command\":\"version\",\"ok\":true,\"result\":{{\"product\":\"Universe Airlock\",\"binary\":\"universe-airlock-bootstrap\",\"version\":\"{VERSION}\"}},\"diagnostics\":[],\"artifacts\":[]}}"
         )
     );
 }

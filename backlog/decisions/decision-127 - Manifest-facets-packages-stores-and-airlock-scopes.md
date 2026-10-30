@@ -145,11 +145,35 @@ Scopes, tag pattern, changelog path, promotion policy.
 
 Merging them would let a restore mix a local compiler with a foreign package set.
 
+The keys, recorded because the documentation had been ahead of this section:
+
+| Key | Scope | Meaning |
+| --- | --- | --- |
+| `adapters` | both | lock formats this scope can replay, one or more of `pixi`, `bun`, `cargo` |
+| `mirror` | `developer` | the branch prefix the mirror transport writes to |
+| `catalog` | `delivery` | `github:<owner>/<repo>@<commit>` — a pinned remote catalog, never a tag or a branch head |
+
+`mirror` belongs to `developer` and `catalog` to `delivery` rather than to both, because they
+answer different questions: where *my* artifacts are stored, and whose *foreign* snapshot I am
+consuming. A scope that declared both would be the merge this section exists to refuse.
+
 ### `[workflow]` — the bounded surface
 
 `checks` names a fixed list of commands permitted inside the validation job. `verify_artifact`
 and `verify_published` switch the two verification ranges. There is no field that emits an
 arbitrary step, and none that changes the file layout.
+
+### Mirror branches are ordinary public branches
+
+The mirror transport writes to `<prefix>/<ecosystem>` branches in this repository. They are
+public, unprotected branches: no ruleset matches them, so the `GITHUB_TOKEN` of a job holding
+`contents: write` is sufficient and no bypass actor is required. The one consequence worth
+knowing before someone adds a ruleset for hygiene: a rule that matches these branches will fail
+the mirror job with a rule-violation error at the push, not at the configuration, so any future
+ruleset must exempt the publishing actor by name.
+
+Reads from these branches are anonymous, which is what makes them usable as a restore source on
+a host where the only reachable thing is Git.
 
 ### Mode separation
 

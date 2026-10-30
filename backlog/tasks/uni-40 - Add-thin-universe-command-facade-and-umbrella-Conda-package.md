@@ -41,7 +41,7 @@ metadata, release versioning, clean-channel installation, and conformance behavi
 - [ ] #3 Conda package `universe` installs the facade and pulls the component packages as runtime dependencies with a bounded pre-1.0 range of the same minor (`>=0.1,<0.2`); all components remain independently installable but share one version.
 - [ ] #4 Fresh environment tests verify the umbrella command dispatches after install and that bootstrap is not accidentally bundled as producer/consumer implementation.
 - [ ] #5 Component resolution order is explicit and tested: an override directory, then the directory of the running executable, then `PATH`, then a diagnostic that names the missing component and a remediation command. Resolving from `PATH` alone is the defect this criterion exists to prevent, because it lets a stray component shadow the installed one.
-- [ ] #6 `Product` in `universe-core` reduces to the two editions, and the bootstrap is reachable only as an Airlock phase (`decision-122` §Consequences). A conformance test asserts no third product value can be constructed.
+- [x] #6 `Product` in `universe-core` reduces to the two editions, and the bootstrap is reachable only as an Airlock phase (`decision-122` §Consequences). A conformance test asserts no third product value can be constructed. — 2026-10-31: enum is `Kit | Airlock`; the bootstrapper passes its own binary name through `render_version_as`.
 - [ ] #7 Recipe and workspace version metadata are synchronized at release, and the package installs from the project's static channel.
 <!-- AC:END -->
 

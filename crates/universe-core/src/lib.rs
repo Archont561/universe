@@ -39,38 +39,41 @@ pub const STDOUT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::V2;
 /// Maximum number of first-class ecosystem adapters maintained in this repo.
 pub const FIRST_CLASS_ADAPTER_BUDGET: usize = 5;
 
-/// A distributable Universe product sharing this workspace.
+/// A Universe edition: the unit that carries a trust posture (`decision-122`).
+///
+/// The bootstrap is a phase of [`Product::Airlock`] rather than an edition of its own, so it
+/// reports this edition while naming its own binary. A third variant would say the workspace
+/// ships three products, which is the claim `decision-122` rejects.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Product {
     /// Connected owner/producer CLI.
     Kit,
     /// Finite offline snapshot consumer.
     Airlock,
-    /// Thin standalone bootstrapper used before Pixi is available.
-    Bootstrap,
 }
 
 impl Product {
-    /// Every product in release/declaration order.
-    pub const ALL: [Self; 3] = [Self::Kit, Self::Airlock, Self::Bootstrap];
+    /// Every edition in release/declaration order.
+    pub const ALL: [Self; 2] = [Self::Kit, Self::Airlock];
 
-    /// Human-facing product name.
+    /// Human-facing edition name.
     #[must_use]
     pub const fn display_name(self) -> &'static str {
         match self {
             Self::Kit => "Universe Kit",
             Self::Airlock => "Universe Airlock",
-            Self::Bootstrap => "Universe Airlock Bootstrap",
         }
     }
 
-    /// Executable name without any platform suffix.
+    /// Canonical executable name of the edition, without any platform suffix.
+    ///
+    /// A binary that is not the edition's own executable — the bootstrapper — passes its own
+    /// name to [`render_version_as`] instead of this value.
     #[must_use]
     pub const fn binary_name(self) -> &'static str {
         match self {
             Self::Kit => "universe-kit",
             Self::Airlock => "universe-airlock",
-            Self::Bootstrap => "universe-airlock-bootstrap",
         }
     }
 }
@@ -166,9 +169,22 @@ where
     Ok(options)
 }
 
-/// Render one product version as plain text or the versioned JSON envelope.
+/// Render one edition version as plain text or the versioned JSON envelope.
 #[must_use]
 pub fn render_version(product: Product, options: VersionOptions) -> String {
+    render_version_as(product, product.binary_name(), options)
+}
+
+/// Render one edition version, naming a binary that is not the edition's own executable.
+///
+/// The bootstrapper uses this: it is an Airlock phase, so the envelope reports the Airlock
+/// edition while the `binary` field names `universe-airlock-bootstrap`.
+#[must_use]
+pub fn render_version_as(
+    product: Product,
+    binary: &'static str,
+    options: VersionOptions,
+) -> String {
     if options.json() {
         #[derive(serde::Serialize)]
         struct ResultValue {
@@ -183,7 +199,7 @@ pub fn render_version(product: Product, options: VersionOptions) -> String {
             true,
             ResultValue {
                 product: product.display_name(),
-                binary: product.binary_name(),
+                binary,
                 version: VERSION,
             },
             Vec::new(),
@@ -193,7 +209,7 @@ pub fn render_version(product: Product, options: VersionOptions) -> String {
             .to_json()
             .expect("serializing the version envelope cannot fail")
     } else {
-        format!("{} {VERSION}", product.binary_name())
+        format!("{binary} {VERSION}")
     }
 }
 
@@ -231,18 +247,24 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
+    execute_version_as(product, product.binary_name(), args)
+}
+
+/// Execute the version command for a binary that is not the edition's own executable.
+pub fn execute_version_as<I, S>(product: Product, binary: &'static str, args: I) -> CommandOutput
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
     match parse_version_args(args) {
         Ok(options) => CommandOutput {
-            stdout: format!("{}\n", render_version(product, options)),
+            stdout: format!("{}\n", render_version_as(product, binary, options)),
             stderr: String::new(),
             exit_code: 0,
         },
         Err(error) => CommandOutput {
             stdout: String::new(),
-            stderr: format!(
-                "error: {error}\nusage: {} [version] [--json]\n",
-                product.binary_name()
-            ),
+            stderr: format!("error: {error}\nusage: {binary} [version] [--json]\n"),
             exit_code: 2,
         },
     }
@@ -254,7 +276,16 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let output = execute_version(product, args);
+    run_main_as(product, product.binary_name(), args)
+}
+
+/// Execute and print the version command for a binary that is not the edition's executable.
+pub fn run_main_as<I, S>(product: Product, binary: &'static str, args: I) -> ExitCode
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let output = execute_version_as(product, binary, args);
     print!("{}", output.stdout());
     eprint!("{}", output.stderr());
     ExitCode::from(output.exit_code())
