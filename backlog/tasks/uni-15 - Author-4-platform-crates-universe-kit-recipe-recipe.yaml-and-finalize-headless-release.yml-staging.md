@@ -4,7 +4,7 @@ title: Finalize component Conda recipes and four-platform release packaging
 status: To Do
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-27'
+updated_date: '2026-10-31'
 labels:
   - release
   - ci
@@ -32,7 +32,10 @@ Finalize independently installable Conda component recipes and their four-platfo
 packaging/release workflow. Build jobs invoke `rattler-build` as a CI/build tool; it must not
 be a runtime dependency of `universe-kit` merely because Kit orchestrates artifacts. Keep the
 `universe-kit`, `universe-airlock`, and thin `universe` facade recipes separate. The facade
-package depends on the component packages; Airlock bootstrap remains separate.
+package depends on the component packages, with a pre-1.0 upper bound of the next minor
+(`>=0.1,<0.2`, `decision-126`) rather than `<1`, so the solver cannot pair the umbrella with an
+incompatible component. Airlock bootstrap remains a separate artifact of the consumer edition
+(`decision-122`) and is packaged by UNI-55.
 
 Release packaging validates binary/license/manifest evidence and records checksums. The
 integrated v1 workflow requires the real generated portal bundle and protocol artifacts from
@@ -46,6 +49,7 @@ cut either a Conda-only `v0.1.0` or a portal-only `v0.2.0` release.
 - [ ] #2 Recipes pass package self-audit and clean install/functional smoke tests; the umbrella package installs the facade and resolves component runtime dependencies.
 - [ ] #3 Release packaging includes the verified manifest, checksums, and portal/catalog snapshot identity; missing or placeholder release assets fail closed.
 - [ ] #4 `pixi run repo-check` enforces recipe/workspace version synchronization and release workflow action pinning.
+- [ ] #5 Every recipe's runtime bounds express the pre-1.0 compatibility boundary of `decision-126` (same minor), and a fixture proves the solver rejects a mismatched pair.
 <!-- AC:END -->
 
 ## Definition of Done
