@@ -3,6 +3,10 @@
 use std::process::ExitCode;
 use universe_core::{CommandOutput, Product};
 
+/// Version of this component, equal to the workspace version the whole artifact set
+/// is released under (`decision-122`: one tag, one version train).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Execute the current scaffold command for Universe Airlock.
 pub fn run<I, S>(args: I) -> CommandOutput
 where
@@ -19,4 +23,17 @@ where
     S: AsRef<str>,
 {
     universe_core::run_main(Product::Airlock, args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VERSION;
+
+    // A component that declares its own `version` instead of inheriting the workspace's
+    // would split the release train silently, so both sources are asserted here.
+    #[test]
+    fn version_matches_the_workspace_version() {
+        assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
+        assert_eq!(VERSION, universe_core::VERSION);
+    }
 }
