@@ -4,7 +4,17 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+# One recorded exception, and it is an *unmaintained* notice rather than a
+# vulnerability: RUSTSEC-2026-0374 covers `basic-toml`, reached only through
+# `rstest-bdd` → `i18n-embed` in the dev-dependency graph that executes scenarios
+# under `pixi run test`. Nothing in a shipped artifact links it, the advisory lists
+# no fixed version ("No safe upgrade is available"), and removing the entry is the
+# same act as removing the scenario runner. Ignoring it is loud on purpose: the
+# alternative was a scenario rule with no runner, which is worse than a dev-only
+# crate whose maintainer stopped.
+ignore = [
+  { id = "RUSTSEC-2026-0374", reason = "dev-only: basic-toml is reached solely through rstest-bdd's i18n-embed, ships in no artifact, and has no fixed version to upgrade to" },
+]
 
 [licenses]
 version = 2
