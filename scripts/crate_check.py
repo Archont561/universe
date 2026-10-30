@@ -28,6 +28,14 @@ NEUTRAL_PACKAGE = "universe-core"
 #: ecosystem-specific parsing: those are the jobs of adapter and binary crates.
 ALLOWED_DEPENDENCIES = frozenset(
     {
+        # TOML parsing, for `universe.toml`. The manifest contract is core's, and the
+        # neutral vocabulary is what every store and adapter is described in; the parser
+        # reads text and performs no I/O. `toml_edit` and its parser closure come with
+        # `parse` only — no `display`, no `serde` feature — so the dependency stays a
+        # reader and never becomes a writer of project files.
+        "equivalent",
+        "hashbrown",
+        "indexmap",
         "itoa",
         "memchr",
         "proc-macro2",
@@ -39,7 +47,11 @@ ALLOWED_DEPENDENCIES = frozenset(
         "syn",
         "thiserror",
         "thiserror-impl",
+        "toml_datetime",
+        "toml_edit",
+        "toml_parser",
         "unicode-ident",
+        "winnow",
         "zmij",
     }
 )
