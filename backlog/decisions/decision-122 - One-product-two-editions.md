@@ -74,8 +74,12 @@ None of these hold. Absent one, a split buys nothing and costs a shared schema.
   `execute_version_as` / `run_main_as`. The bootstrapper therefore reports the Airlock edition
   with `binary: "universe-airlock-bootstrap"`, which is the honest answer to "what is this".
 - Naming hazard, recorded rather than solved: the word "universe" is generic and taken on
-  PyPI and npm, while "Airlock" is the distinctive mark. Documentation leads with Airlock
-  where disambiguation matters, and always distinguishes "the Universe channel" from "your
-  universe".
+  PyPI, npm, and crates.io. **Corrected 2026-10-31:** "Airlock" is the distinctive mark for
+  disambiguation, but it is not an available package name either — `airlock` is taken on PyPI —
+  so the mark buys clarity, not a registration. The only free lever is the prefix
+  (`universe-core`, `universe-kit`, `universe-airlock`, `universe-cli` are free everywhere),
+  and `decision-129` decides whether the tool registers anywhere at all. Documentation leads
+  with Airlock where disambiguation matters, and always distinguishes "the Universe channel"
+  from "your universe".
 - Documentation must not introduce Universe Cloud, Universe Enterprise, or Universe Hub.
   Each would be a product split this decision exists to avoid.
