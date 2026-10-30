@@ -35,6 +35,7 @@ These remain planned responsibilities. A future application release design may u
 - Implement and test release workflows with exact tag/revision checks, artifact provenance and digest verification, least-privilege credentials, and failure/retry behavior.
 - Decide the canonical prefix.dev channel and configure its trusted-publishing permissions only after the repository workflow and GitHub environment names are settled.
 - Confirm root and package licensing and third-party notice handling before distributing artifacts.
+- Hold the release signing key only in the release lane, in a job that runs no untrusted code, and rehearse its rotation — a bootstrap signed by both keys — before it is needed (`decision-131`).
 
 ## Interim developer transport
 

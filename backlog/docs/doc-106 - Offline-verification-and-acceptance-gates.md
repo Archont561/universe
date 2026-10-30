@@ -17,8 +17,10 @@ updated_date: '2026-10-27T09:20:00Z'
 | Inventory verified | Listed bytes, integrity/trust policy, object/view references, and selected graph coverage validate |
 | Install verified | Named native-client scenarios materialize packages under the recorded script and isolation policy |
 | Build verified | Named approved builds/tests, including required tools/assets/system dependencies, pass under that policy |
+| Authenticity verified | The release manifest carries a valid signature from the pinned key, so origin is established separately from correspondence (`decision-131`) |
 
-Report the exact bundle/snapshot ID, target/system profile, input/lock hashes, client/helper fingerprints, transport, commands/exits, script policy, isolation mechanism, graph comparison, and descendant network attempts. A signed bundle is not a vulnerability-free or arbitrary-compatibility claim.
+Report the exact bundle/snapshot ID, target/system profile, input/lock hashes, client/helper fingerprints, transport, commands/exits, script policy, isolation mechanism, graph comparison, and descendant network attempts. A signed bundle is not a vulnerability-free or arbitrary-compatibility claim, and a digest match is not an
+authenticity claim: the first three levels can all hold for a bundle somebody rewrote.
 
 ## Isolation and clean-state rules
 

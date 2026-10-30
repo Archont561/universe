@@ -55,6 +55,7 @@ literals automatically.
 - [ ] #4 Promotion asserts the attempt's digests, publishes the draft, and completes without rebuilding any artifact.
 - [ ] #5 Declared scopes are parsed by longest prefix, an unmatched tag is a lint error, and a scoped release narrows both the package set and the destination set.
 - [ ] #6 Version parity is enforced across `Cargo.toml`, `universe.toml`, every recipe's `context.version`, and the changelog section for the version.
+- [ ] #7 Signing runs after promotion and `promote` refuses an artifact set it cannot sign, so nothing reaches the draft stage unsigned and the signing job never runs alongside untrusted build code (`decision-131`).
 <!-- AC.END -->
 
 ## Definition of Done

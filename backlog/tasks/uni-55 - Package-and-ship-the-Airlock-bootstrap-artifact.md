@@ -46,6 +46,7 @@ release assets and the umbrella package's runtime requirements.
 - [ ] #2 The artifact is smoke-tested in a clean environment and its version contract matches the workspace version.
 - [ ] #3 The release lane publishes it alongside the consumer artifact with checksums, and the version policy in `decision-126` applies to it as part of the same train.
 - [ ] #4 Whatever the packaging decision is, the consumer edition's documentation and the release asset list agree with it.
+- [ ] #5 The public verification key is compiled into the bootstrap artifact and its rotation procedure — a bootstrap signed by both the old and the new key — is written down and exercised on a fixture (`decision-131`).
 <!-- AC.END -->
 
 ## Definition of Done
