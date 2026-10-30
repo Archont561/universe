@@ -12,24 +12,53 @@ yanked = "deny"
 # same act as removing the scenario runner. Ignoring it is loud on purpose: the
 # alternative was a scenario rule with no runner, which is worse than a dev-only
 # crate whose maintainer stopped.
+# The second is worse than the first and is recorded as such. `unsafe-libyaml` is an
+# archived machine translation of libyaml, reached only through `serde_yaml` (itself
+# deprecated) under `rattler_conda_types`. Nothing in this repository hands it a YAML
+# document: the adapter reads the archive's JSON records. But it is linked into
+# `universe-kit`, so the exception is a real one, and its removal condition is real
+# too — it goes when `rattler_conda_types` drops `serde_yaml`, or when the adapter
+# stops depending on the rattler stack.
 ignore = [
   { id = "RUSTSEC-2026-0374", reason = "dev-only: basic-toml is reached solely through rstest-bdd's i18n-embed, ships in no artifact, and has no fixed version to upgrade to" },
+  { id = "RUSTSEC-2024-0449", reason = "unmaintained, not vulnerable: unsafe-libyaml is reached only through the deprecated serde_yaml under rattler_conda_types, which this repository never hands a YAML document; no fixed version exists" },
 ]
 
 [licenses]
 version = 2
 confidence-threshold = 0.95
 unused-allowed-license = "allow"
-# Two dev-only additions, each named rather than folded into "any OSI licence":
+# Every entry is named and each one says who needs it. A licence that is not on this
+# list is a review decision, which is the point of an allowlist.
+#
+# Dev-only, added with the scenario runner (they ship in nothing):
 #
 # - `ISC` for `rstest-bdd` and its sibling crates, which execute the scenarios under
-#   `pixi run test` and are never linked into a shipped binary.
+#   `pixi run test`.
 # - `Zlib` for `foldhash`, reached through `hashbrown` in the same dev graph.
 #
-# Neither arrives in a released artifact: the audit gate checks the whole workspace,
-# including dev-dependencies, which is why dev-only licences have to be named here at
-# all. If the scenario runner is ever reconsidered, these two lines go with it.
-allow = ["Apache-2.0", "ISC", "MIT", "Unicode-3.0", "Zlib"]
+# Linked into `universe-kit`, added with the Conda adapter (`UNI-10`):
+#
+# - `BSD-3-Clause` for the `rattler_*` family, `zstd`/`zstd-safe`/`zstd-sys`, and
+#   `file_url`. Permissive and attributive; no copyleft and no extra obligation
+#   beyond keeping the notice.
+# - `bzip2-1.0.6` for `libbz2-rs-sys` alone. Conda has a legacy `.tar.bz2` archive
+#   variant and this repository reads `.conda` only, but `bzip2` is a hard dependency
+#   of `rattler_package_streaming`, so the licence arrives with the reader.
+# - `MPL-2.0` for `option-ext` alone, reached through `dirs` under
+#   `rattler_networking`. MPL is file-level copyleft: it binds changes to that
+#   crate's own files, and nothing here modifies a vendored dependency. If that ever
+#   changes, this entry has to be revisited before the change, not after.
+allow = [
+  "Apache-2.0",
+  "BSD-3-Clause",
+  "ISC",
+  "MIT",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Zlib",
+  "bzip2-1.0.6",
+]
 
 [licenses.private]
 # Workspace crates are private and are not published as crates.io packages.

@@ -1,0 +1,25 @@
+[package]
+name = "universe-conda"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Conda adapter: archive inspection, artifact auditing, and channel metadata for Universe"
+
+[lints]
+workspace = true
+
+[dependencies]
+goblin = { workspace = true }
+rattler_digest = { workspace = true }
+rattler_package_streaming = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+spdx = { workspace = true }
+tar = { workspace = true }
+thiserror = { workspace = true }
+universe-core = { workspace = true }
