@@ -18,7 +18,7 @@ docs, hooks, or CI.
 
 There is no root TypeScript configuration and no TypeScript repository
 automation. Repository checks are Python modules in `scripts/`, with pytest
-suites in `tests/scripts/`.
+suites in `TESTS/`.
 
 ## Commands
 

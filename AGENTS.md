@@ -29,7 +29,7 @@ product scope and status.
 
 This is a basic scaffold. The three binaries report version only and share a
 tested plain/JSON stdout contract. Repository automation is Python under
-`scripts/`, tested by pytest under `tests/scripts/`. The repository uses Python for repository automation and a Bun/Turbo workspace for the
+`scripts/`, tested by pytest under `TESTS/`. The repository uses Python for repository automation and a Bun/Turbo workspace for the
 `packages/*` portal, schema, and shared configuration packages. Root TypeScript tooling must
 not replace the Python repository scripts.
 
@@ -66,7 +66,7 @@ not replace the Python repository scripts.
    alternate sources of truth.
 9. **Standalone history.** Do not add references to other Universe-adjacent
    repositories, import maps, upstream notices, or placeholder `.gitkeep` files.
-   Retain required third-party license texts only under `third_party/licenses/`.
+   Nothing is vendored: the repository `LICENSE` is the only license text, and a copied third-party license file is a lint error.
 10. **Workflow discipline.** A GitHub Actions step is a full-SHA pinned
    `uses:`, one `pixi run <task>`, or a one-line host bootstrap Pixi cannot
    provide. Anything longer belongs in `pixi.toml` or `scripts/`.
@@ -99,7 +99,7 @@ pixi run gates
 
 Focused Rust or Python work also goes through Pixi's environment, for example
 `pixi run --locked cargo test -p universe-core` or
-`pixi run --locked pytest tests/scripts/test_repo_check.py`.
+`pixi run --locked pytest TESTS/test_repo_check.py`.
 
 ## Skills
 

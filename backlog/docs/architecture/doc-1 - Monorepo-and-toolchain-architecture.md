@@ -140,10 +140,10 @@ build         = { cmd = "cargo build --workspace --all-features --locked" }
 test          = { cmd = "cargo nextest run --workspace --all-features --locked && cargo test --workspace --locked --doc && pytest" }
 test-e2e      = { cmd = "future portal package task (M7; no root TypeScript workspace)" }
 coverage      = { cmd = "cargo llvm-cov ... && pytest --cov=scripts ..." }
-lint          = { cmd = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && ruff check scripts tests/scripts" }
-typecheck     = { cmd = "cargo check --workspace --all-targets --all-features --locked && mypy scripts tests/scripts" }
-fmt           = { cmd = "cargo fmt --all && taplo fmt && ruff format scripts tests/scripts" }
-fmt-check     = { cmd = "cargo fmt --all --check && taplo fmt --check && ruff format --check scripts tests/scripts" }
+lint          = { cmd = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && ruff check scripts TESTS" }
+typecheck     = { cmd = "cargo check --workspace --all-targets --all-features --locked && mypy scripts TESTS" }
+fmt           = { cmd = "cargo fmt --all && taplo fmt && ruff format scripts TESTS" }
+fmt-check     = { cmd = "cargo fmt --all --check && taplo fmt --check && ruff format --check scripts TESTS" }
 repo-check    = { cmd = "pixi run repo-check", depends-on = ["bun-install"] }
 skills-check  = { cmd = "python -m scripts.skills_check" }
 audit         = { cmd = "cargo deny check && cargo audit --deny warnings" }

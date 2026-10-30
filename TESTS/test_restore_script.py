@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 RESTORE_SCRIPT = REPO_ROOT / "scripts" / "restore.sh"
 REVIEWED_CONFIG = REPO_ROOT / ".pixi-sandbox.toml"
 

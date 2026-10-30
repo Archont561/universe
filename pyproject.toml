@@ -4,7 +4,7 @@ skip_covered = false
 
 [tool.coverage.run]
 branch = true
-omit = ["tests/*"]
+omit = ["TESTS/*"]
 source = ["scripts"]
 
 [tool.mypy]
@@ -15,7 +15,7 @@ strict = true
 [tool.pytest.ini_options]
 addopts = "-q"
 pythonpath = ["."]
-testpaths = ["tests/scripts"]
+testpaths = ["TESTS"]
 
 [tool.ruff]
 line-length = 100

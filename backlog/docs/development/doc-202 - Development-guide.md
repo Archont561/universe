@@ -18,7 +18,7 @@ rules are in `AGENTS.md`.
 | Environment | Pixi 0.83+ with the committed `pixi.lock` |
 | Product language | Rust 2024 workspace under `crates/` |
 | Repository scripts | Python 3.13 modules under `scripts/` |
-| Python tests | pytest suites under `tests/scripts/` |
+| Python tests | pytest suites under `TESTS/` |
 | Python format/lint/types | Ruff formatter, Ruff lint, strict mypy |
 | Rust tests | External `tests/`, nextest, and doc tests |
 | Coverage | `cargo llvm-cov` LCOV for Rust; pytest-cov LCOV for Python scripts |
