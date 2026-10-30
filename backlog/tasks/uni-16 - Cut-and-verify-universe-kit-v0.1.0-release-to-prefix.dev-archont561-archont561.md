@@ -44,7 +44,7 @@ portal `v0.2.0` release tasks; it does not merely rename either staged release.
 - [ ] #3 Airlock consumes pinned catalog snapshots for all four protocols and fails closed for missing/corrupt artifacts and unsupported requests, with sealed tests denying external egress.
 - [ ] #4 Portal is generated from the exact pinned catalog/release snapshot and displays supported package metadata; it is not treated as the registry endpoint.
 - [ ] #5 Independent evidence review, clean-install checks, release checksums, provenance/attestations, and connected publication evidence are attached to the release record.
-- [ ] #6 The release workflow used for this release is the committed rendered file, `pixi run ci-check` passes at the released commit, and the workflow's setup step references `./.github/actions/setup-dev` by local path rather than by SHA.
+- [ ] #6 The release workflow used for this release is the committed rendered file, `pixi run ci-check` passes at the released commit, and the workflow's setup step references `./setup-dev` by local path rather than by SHA.
 - [ ] #7 The release record names the controller identity (`mode: dev` with commit, or `mode: release` with version and asset digest), and re-running the failed publish jobs completes the release without republishing any destination.
 <!-- AC:END -->
 

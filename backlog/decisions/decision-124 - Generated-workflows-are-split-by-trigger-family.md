@@ -102,6 +102,6 @@ rejected is size and privilege spread, both of which grew after the original req
   artifact is the rendered YAML, not the template, so rendering must be deterministic and
   its diff reviewable — `ci render --stdout` and `ci check` are what carry that. And this
   repository's own jobs reference the setup action by local path
-  (`./.github/actions/setup-dev`), which needs no commit SHA; only a consumer workflow
+  (`./setup-dev`, a repository-root action), which needs no commit SHA; only a consumer workflow
   references the action remotely and by SHA, so that constraint chains on the first
   *release*, not on the first render.
