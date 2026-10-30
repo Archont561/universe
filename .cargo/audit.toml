@@ -1,10 +1,23 @@
 # Do not inherit ecosystem-specific advisory exceptions. Every locked crate is audited
 # against the current RustSec database; review any future ignore with a removal condition.
 #
+# `cargo audit` is the second of the two database passes the audit gate runs, and it
+# reads its ignores from here, not from `deny.toml`. The two lists must be kept in step
+# by hand; a discrepancy shows up as the same advisory passing one pass and failing the
+# other.
+#
 # RUSTSEC-2026-0374 — `basic-toml` is unmaintained, reached only through
 # `rstest-bdd` → `i18n-embed` in the dev-dependency graph that runs the scenario suite
 # under `pixi run test`. It is in no shipped artifact and the advisory names no fixed
 # version, so there is nothing to upgrade to. Removal condition: drop this entry in the
 # same change that drops `rstest-bdd`, or sooner if a fixed version appears.
+#
+# RUSTSEC-2024-0449 — `unsafe-libyaml` is unmaintained (its repository is archived and
+# read-only), reached only through the deprecated `serde_yaml` under
+# `rattler_conda_types`. Unlike the entry above this one is linked into `universe-kit`,
+# which is why it matters more: the exception is real, not a dev-graph formality.
+# Nothing here hands it a YAML document — the Conda adapter reads the archive's JSON
+# records — and no fixed version exists. Removal condition: when `rattler_conda_types`
+# drops `serde_yaml`, or when the adapter stops depending on the rattler stack.
 [advisories]
-ignore = ["RUSTSEC-2026-0374"]
+ignore = ["RUSTSEC-2024-0449", "RUSTSEC-2026-0374"]
