@@ -30,6 +30,12 @@ python = ">=3.13,<3.14"
 ruff = ">=0.11,<1"
 rust = ">=1.99.0,<2"
 rattler-build = ">=0.77.0,<0.78"
+# `actionlint` shells out to `shellcheck` when it finds one, and `ubuntu-latest`
+# ships it while this environment did not. An uninstalled checker therefore turned
+# `pixi run lint-actions` into a weaker gate than CI: workflows whose `run:` blocks
+# only fail shellcheck passed locally and failed on the runner. Pinning it here makes
+# the local task and the CI task lint the same surface.
+shellcheck = "*"
 taplo = ">=0.10.0,<0.11"
 
 [feature.dev.dependencies]
@@ -51,6 +57,7 @@ pytest-cov = { workspace = true }
 python = { workspace = true }
 ruff = { workspace = true }
 rust = { workspace = true }
+shellcheck = { workspace = true }
 taplo = { workspace = true }
 
 [feature.dev.pypi-dependencies]
