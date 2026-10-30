@@ -13,6 +13,13 @@ related_tasks:
   - UNI-56
 ---
 
+## Resolution
+
+**Option D was adopted**, by `decision-128` §5 on 2026-10-31: publish jobs verify their own
+destination where reads are credentialed, and `verify-index` stays credential-free and covers
+only the anonymous stores. The comparison below is kept as the rationale, not as an open
+question.
+
 ## Origin
 
 Open question in `decision-128` §5: `verify-index` must read every destination back, and

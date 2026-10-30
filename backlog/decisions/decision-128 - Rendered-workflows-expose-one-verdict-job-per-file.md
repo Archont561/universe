@@ -1,7 +1,7 @@
 ---
 id: DECISION-128
 title: Rendered workflows expose one verdict job per file
-status: proposed
+status: accepted
 created_date: '2026-10-31'
 updated_date: '2026-10-31'
 ---
@@ -120,13 +120,23 @@ What differs between a store that needs an index and one that does not:
 | Verification | read the index back and assert every declared package sits at the built digest — the `file` verifier | read the store's own record back, e.g. `npm view` — the `registry` verifier |
 | Failure that exists only here | bytes uploaded while the index was never updated | the store accepted the publish and mutated it later |
 
-Verification stays in the single `verify-index` job that `decision-124` already lists, after
-every publish job, rather than inside each one. That job therefore holds the read secrets for
-every destination — including stores where `read_auth: token` makes reads credentialed — and
-still holds no write scope, so §2 continues to hold. `read_auth` never changes a publish job:
-it changes what the consumer lane and `verify-index` must present. *(`draft-7` lays out the four
-ways to place this read-back and what each costs; the placement is the one question in this
-record still open.)*
+**Verification is placed by whether the read is credentialed.** A publish job verifies its own
+destination immediately after writing it, and `verify-index` — the job `decision-124` already
+lists — re-reads only the destinations whose reads are anonymous, holding no secret and no write
+scope.
+
+The reason is that independence is only real when the reader differs. For a store declaring
+`read_auth: token`, a separate verification job must present the token that just published, so
+it doubles the jobs without doubling the assurance. For a store declaring `read_auth: none`, a
+job with no secrets at all is a genuinely different reader — the one a consumer will be — and
+that check is kept. `read_auth` therefore never changes a publish job; it decides which job
+verifies.
+
+One case is structural rather than a preference: a `kind = "command"` store is always verified
+in `verify-index`, whatever it declares, because self-verification there means trusting the exit
+code of the thing that published.
+
+The four placements and what each costs are worked through in `draft-7`; this is its option D.
 
 **Every destination is mandatory, so publication is all-or-nothing.** One failed destination
 fails the file: no destination's success is announced as a release until all of them have
@@ -212,3 +222,6 @@ reviewed artifact — the YAML — the same bytes CI runs.
   template-level impossibility rather than a runtime surprise.
 - `universe ci check` failures become attributable to a file and a job, because the name a
   reviewer sees in the Actions tab is the name the contract defines.
+- `verify-index` holds no secrets at all, which makes it the one job in the publish file whose
+  permissions are the workflow default — and the one whose result a consumer can reproduce
+  locally with the same command the tool gives them.
