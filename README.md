@@ -148,7 +148,8 @@ name = "pypi"
 kind = "pypi"
 writable = true
 verifier = "registry"
-secrets = ["PYPI_TOKEN"]
+auth = "oidc"                        # trusted publishing: no secret held at all
+                                     # the first publish of a new name needs auth = "token"
 
 [[stores]]
 name = "pypi-static"                 # PEP 503 simple/ index, no server process
@@ -176,7 +177,7 @@ name = "crates-io"
 kind = "crates-io"
 writable = true
 verifier = "registry"
-secrets = ["CARGO_REGISTRY_TOKEN"]
+auth = "oidc"                        # same shape via rust-lang/crates-io-auth-action
 ```
 
 ### What that manifest becomes
@@ -198,6 +199,9 @@ Two things are worth noticing, because they are the design:
 - **Publishing is split by destination, not by ecosystem.** Each job holds exactly one write
   scope and one secret. Within a destination, packages publish serially — two writers racing on
   one `repodata.json` produce an index that silently omits a package.
+- **Jobs run in order of how reversible their destination is.** Releases, static channels and
+  mirrors first, npm and PyPI next, crates.io last — because a crates.io version can only be
+  yanked, never deleted, and a release that fails late has already written the earlier ones.
 - **A file is generated only if you declared the capability.** No stores, no publish file; no
   lock adapters, no airlock file. A consumer repository gets one file.
 

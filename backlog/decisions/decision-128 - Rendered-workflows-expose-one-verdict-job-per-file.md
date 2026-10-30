@@ -154,6 +154,29 @@ cross-run memory is a thing to authenticate, expire, and audit, and the failure 
 — a lost artifact — is rarer than the failure it would create, a stale journal that claims a
 destination succeeded.
 
+**Publish jobs run in order of how reversible their destination is.** Immutability is what makes
+this necessary: a version published to crates.io cannot be deleted, only yanked, and a release
+that fails at the eighth destination has already written bytes to the first seven that its
+version will never retract. So the fan-out is ordered by what undoing it costs, cheapest first:
+
+| Tier | Stores | Undoing a publish |
+| --- | --- | --- |
+| 1 | `releases`, `static`, `branch`, `s3`, `filesystem`, `prefix-dev`, `anaconda` | delete the asset or the commit — we own it |
+| 2 | `npmjs`, `pypi` | removal is time-boxed (npm allows unpublishing a version for a short window) or burns the version, since a file cannot be re-uploaded under the same name |
+| 3 | `crates-io` | cannot be removed at all; a yank hides it from new resolutions and nothing more |
+
+The ordering is derived from `kind`, not configured, because a manifest that let a consumer put
+`crates-io` first would be a manifest that let them burn versions cheaply. `needs` in the
+generated file follows the tiers, and a store's tier is printed by `ci render` next to the job
+it produces, so the ordering is visible rather than a property of a YAML file nobody reads.
+
+**A resumed publish is idempotent only when the bytes match.** A destination that already holds
+`name@version` is not an error on resume *if* the digest it holds equals the digest being
+published — that is the completion of an interrupted run. If the digests differ it is a hard
+failure, because the alternatives are overwriting someone's immutable artifact or silently
+shipping a version whose content is not the one that was verified. This is why the journal
+records the digest and not merely "done".
+
 ### 6. Rendering owns the set of files, and deletion is part of rendering
 
 The file set is derived from declared capabilities (`decision-124`), so a file whose capability
