@@ -77,8 +77,7 @@ universe-kit/
 │       └── SKILL.md
 ├── tests/
 │   └── scripts/                      # pytest suites for scripts/*.py
-├── .config/
-│   └── convco.yml                    # Explicit anchored Convco policy (commit-msg + PR ranges)
+├── .versionrc                        # Convco policy at the path the tool discovers
 ├── .gitignore
 ├── Cargo.toml
 ├── Cargo.lock
