@@ -1,0 +1,253 @@
+# TEMPORARY probe workflow — delete once the lockfile question is answered.
+#
+# crates.io is unreachable from the offline sandbox, so `cargo add` cannot run
+# there. This hosted runner resolves the dependency and pushes the result back to
+# this branch.
+#
+# Evidence is published two ways, because job logs are not reachable over the API:
+#   * a check run named "cargo add probe", whose `output.summary` holds the whole
+#     report and is readable with `GET /repos/{owner}/{repo}/check-runs/{id}`;
+#   * workflow-command annotations, for the short version.
+#
+# It answers two questions:
+#   1. Does `cargo-npm` produce any Cargo.lock entry as a dependency? (Expected:
+#      no. It is a binary-only crate with no lib target, so Cargo ignores it.)
+#   2. What exactly does `minijinja` resolve to, so the renderer crate can depend
+#      on it offline once the transport republishes the vendored tree?
+#
+# This is a one-shot diagnostic, not a gate: it deliberately runs bare `cargo`
+# through `pixi run --` instead of a named Pixi task, and it is removed after use.
+
+name: cargo add probe
+
+on:
+  push:
+    branches: [arena/37fee954-universe]
+    paths:
+      - ".github/workflows/cargo-add-probe.yml"
+
+permissions:
+  contents: write
+  checks: write
+
+concurrency:
+  group: cargo-add-probe-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROBE_CRATE: crates/universe-workflow
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: arena/37fee954-universe
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.83.0
+          cache: true
+
+      - name: Resolve dependencies and collect the evidence
+        shell: bash
+        run: |
+          set -uo pipefail
+          PROBE_CRATE="${PROBE_CRATE:-crates/universe-workflow}"
+          out="$RUNNER_TEMP/probe"
+          mkdir -p "$out"
+          : >"$out/summary.md"
+          : >"$out/cargo.log"
+
+          cargo_rc() { pixi run -- cargo "$@" >>"$out/cargo.log" 2>&1; echo $?; }
+
+          {
+            echo "## cargo add probe"
+            echo
+            echo '```'
+            echo "pixi:  $(pixi --version 2>&1 | head -1)"
+            echo "cargo: $(pixi run -- cargo --version 2>&1 | tail -1)"
+            echo "rustc: $(pixi run -- rustc --version 2>&1 | tail -1)"
+            echo '```'
+            echo
+          } >>"$out/summary.md"
+
+          # A workspace `[workspace.dependencies]` entry resolves to nothing on its
+          # own: a member has to depend on it for Cargo.lock to grow.
+          mkdir -p "$PROBE_CRATE/src"
+          cat >"$PROBE_CRATE/Cargo.toml" <<'TOML'
+          [package]
+          name = "universe-workflow"
+          version.workspace = true
+          edition.workspace = true
+          rust-version.workspace = true
+          authors.workspace = true
+          license.workspace = true
+          homepage.workspace = true
+          repository.workspace = true
+          publish.workspace = true
+          description = "Deterministic manifest-to-workflow renderer for Universe"
+
+          [lints]
+          workspace = true
+
+          [dependencies]
+          TOML
+          printf '%s\n' \
+            '//! Deterministic manifest-to-workflow renderer for Universe.' \
+            '' \
+            '// The renderer implementation lands separately. This crate exists so the' \
+            '// dependency graph and `Cargo.lock` carry the rendering stack.' >"$PROBE_CRATE/src/lib.rs"
+
+          python3 - <<'PY'
+          import pathlib
+          root = pathlib.Path("Cargo.toml")
+          text = root.read_text(encoding="utf-8")
+          member = '  "crates/universe-kit",\n'
+          if '"crates/universe-workflow",' not in text:
+              text = text.replace(member, member + '  "crates/universe-workflow",\n', 1)
+          if "minijinja" not in text:
+              anchor = 'include_dir = "0.7.4"\n'
+              text = text.replace(anchor, anchor + 'minijinja = "3"\n', 1)
+          root.write_text(text, encoding="utf-8")
+          PY
+
+          # Probe 1 — cargo-npm as a dependency, then revert.
+          cp Cargo.lock "$out/lock.before"
+          cp "$PROBE_CRATE/Cargo.toml" "$out/crate.before"
+
+          npm_add=$(cargo_rc add --manifest-path "$PROBE_CRATE/Cargo.toml" cargo-npm@0.1)
+          npm_fetch=$(cargo_rc fetch)
+          npm_entries=$(grep -c '^name = "cargo-npm"$' Cargo.lock || true)
+
+          {
+            echo "### Probe 1 — cargo-npm as a dependency"
+            echo
+            echo "| step | exit code |"
+            echo "| --- | --- |"
+            echo "| cargo add cargo-npm@0.1 | $npm_add |"
+            echo "| cargo fetch | $npm_fetch |"
+            echo
+            echo "Cargo.lock entries named \`cargo-npm\`: **${npm_entries:-0}**"
+            echo
+            echo '```'
+            grep -iE "invalid dependency|cargo-npm|lib target" "$out/cargo.log" | tail -5
+            echo '```'
+            echo
+          } >>"$out/summary.md"
+
+          cp "$out/crate.before" "$PROBE_CRATE/Cargo.toml"
+          cp "$out/lock.before" Cargo.lock
+
+          # Probe 2 — minijinja with default features, the shape the renderer wants.
+          mini_add=$(cargo_rc add --manifest-path "$PROBE_CRATE/Cargo.toml" minijinja)
+
+          # Normalise to the repository convention: version in the workspace table,
+          # `{ workspace = true }` in the member.
+          python3 - <<'PY'
+          import pathlib, re
+          path = pathlib.Path("crates/universe-workflow/Cargo.toml")
+          text = path.read_text(encoding="utf-8")
+          text = re.sub(r'^minijinja = "[^"]*"$', 'minijinja = { workspace = true }', text, flags=re.M)
+          path.write_text(text, encoding="utf-8")
+          PY
+          mini_fetch=$(cargo_rc fetch)
+
+          mini_version=$(grep -A1 '^name = "minijinja"$' Cargo.lock | grep '^version' | head -1 | cut -d'"' -f2)
+          mini_tree=$(pixi run -- cargo tree --manifest-path "$PROBE_CRATE/Cargo.toml" --depth 1 2>&1 | head -20)
+
+          {
+            echo "### Probe 2 — minijinja (default features)"
+            echo
+            echo "| step | exit code |"
+            echo "| --- | --- |"
+            echo "| cargo add minijinja | $mini_add |"
+            echo "| cargo fetch (after workspace normalisation) | $mini_fetch |"
+            echo
+            echo "Resolved: **${mini_version:-unresolved}**"
+            echo
+            echo "#### cargo tree (depth 1)"
+            echo
+            echo '```'
+            echo "$mini_tree"
+            echo '```'
+            echo
+          } >>"$out/summary.md"
+
+          {
+            echo "### git status"
+            echo
+            echo '```'
+            git status --short
+            echo '```'
+            echo
+            echo "### crate manifest"
+            echo
+            echo '```toml'
+            cat "$PROBE_CRATE/Cargo.toml"
+            echo '```'
+            echo
+            echo "### git diff (tracked files, truncated to 40000 bytes)"
+            echo
+            echo '```diff'
+            git -c core.pager=cat diff -- Cargo.toml Cargo.lock "$PROBE_CRATE" | head -c 40000
+            echo '```'
+            echo
+            echo "### new files"
+            echo
+            echo '```'
+            find "$PROBE_CRATE" -type f | sort
+            echo '```'
+          } >>"$out/summary.md"
+
+          head -c 60000 "$out/summary.md" >"$out/summary.bounded.md"
+
+          # Short version for annotations. Newlines are escaped as %0A.
+          escape() { sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}' | head -c 3000; }
+
+          echo "::warning title=cargo-npm probe::exit add=$npm_add fetch=$npm_fetch; Cargo.lock entries for cargo-npm=${npm_entries:-0}; binary-only crates are ignored by Cargo"
+          echo "::notice title=minijinja probe::resolved=${mini_version:-unresolved}; add exit=$mini_add fetch exit=$mini_fetch"
+
+          for file in Cargo.toml "$PROBE_CRATE/Cargo.toml"; do
+            chunk=$(git -c core.pager=cat diff -- "$file" | head -20 | escape)
+            if [ -n "$chunk" ]; then
+              echo "::warning file=${file},title=probe diff ${file}::${chunk}"
+            fi
+          done
+
+      - name: Publish the probe report as a check run
+        if: always()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const file = `${process.env.RUNNER_TEMP}/probe/summary.bounded.md`;
+            let summary = 'The probe produced no summary file.';
+            try {
+              summary = fs.readFileSync(file, 'utf8') || summary;
+            } catch (error) {
+              summary = `The probe produced no summary file: ${error.message}`;
+            }
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'cargo add probe',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: 'success',
+              output: { title: 'cargo add probe', summary: summary.slice(0, 65535) },
+            });
+
+      - name: Commit the resolved lockfile
+        id: commit
+        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
+        with:
+          commit_message: "chore(lock): resolve minijinja for the workflow renderer probe"
+          commit_user_name: universe-probe[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_author: universe-probe[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          file_pattern: "Cargo.toml Cargo.lock crates/universe-workflow"
