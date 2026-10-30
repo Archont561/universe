@@ -3,8 +3,14 @@ schema_version: 1
 
 context:
   version: "0.1.0"
+  # Pre-1.0 the compatibility boundary is the minor version (`decision-126`), so
+  # `>=0.1.0,<0.2` is the conda spelling of Cargo's `^0.1.0`. A `<1` upper bound was wrong:
+  # it would let the solver pair this umbrella package with a 0.9 component that the version
+  # policy explicitly allows to be incompatible. Move both bounds together.
   kit_min_version: "0.1.0"
+  kit_max_version: "0.2"
   airlock_min_version: "0.1.0"
+  airlock_max_version: "0.2"
 
 package:
   name: universe
@@ -35,8 +41,8 @@ requirements:
     - ${{ compiler('c') }}
     - ${{ stdlib('c') }}
   run:
-    - universe-kit >=${{ kit_min_version }},<1
-    - universe-airlock >=${{ airlock_min_version }},<1
+    - universe-kit >=${{ kit_min_version }},<${{ kit_max_version }}
+    - universe-airlock >=${{ airlock_min_version }},<${{ airlock_max_version }}
 
 tests:
   - script:

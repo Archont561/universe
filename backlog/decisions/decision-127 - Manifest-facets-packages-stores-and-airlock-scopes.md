@@ -1,9 +1,9 @@
 ---
 id: DECISION-127
 title: Manifest facets for packages, stores, and airlock scopes
-status: proposed
+status: accepted
 created_date: '2026-10-30'
-updated_date: '2026-10-30'
+updated_date: '2026-10-31'
 ---
 
 ## Context
@@ -98,14 +98,43 @@ The rule is whether a documented static index format exists that a client can be
 | PyPI | PEP 503 `simple/` | static |
 | cargo | sparse index | static |
 | R | `PACKAGES` | static, source tarballs only; no binary builds |
-| npm | no official static format | **hosted**: `npmjs` or `github-packages`; a pointer from the portal, never a byte server |
+| npm | no official static format | **hosted**: `npmjs` or `github-packages`; see §npm below |
 | containers | OCI is an API, not a layout | **hosted** only |
 
-This partially conflicts with `decision-119` §4, which names an npm-compatible registry
-surface. Either the conflict is resolved in favour of a self-hosted surface with a documented
-client-support matrix, or `decision-119` is formally amended to permit a hosted npm
-destination. **It is not resolved by quietly preferring one**, which is why this record is
-`proposed`.
+### npm: hosted, and here is what that does and does not change
+
+`decision-119` §4 asks for "npm packages through an npm-compatible registry surface". That
+phrase is a statement about **client compatibility** — npm clients must be able to resolve the
+packages — and not a requirement that Universe generate registry metadata itself. This record
+reads it that way, and amends §4 with a clarifying note so the narrower reading is on the
+record rather than in a reader's head.
+
+Why a generated npm surface was rejected:
+
+- **There is no official static-registry format.** Clients fetch a full packument per package
+  and expect tarball URLs, so any generated surface is a de-facto protocol that npm does not
+  specify and does not promise to keep working.
+- **Silent degradation.** `npm audit`, provenance, and dist-tag semantics either fail or
+  quietly return less. A user who points a client at the surface discovers this after wiring
+  it, which is the worst moment.
+- **Client divergence.** npm and bun differ in tolerance for an incomplete packument, so
+  "works for me" would be tool-specific.
+
+**What does not change: npm mirroring stays in scope.** Reading `package-lock.json`, fetching
+each entry's `resolved` URL, verifying its `integrity` hash, and storing the tarballs on a
+mirror branch is core to the offline-replay promise in `doc-113`, and it is independent of
+where packages are published. Only *publishing* is delegated to a registry.
+
+Two store kinds, and **no default between them** — the declaration decides:
+
+| Kind | Use | Auth | Consequence |
+| --- | --- | --- | --- |
+| `npmjs` | public packages | publish token | anonymous reads; provenance attestations available |
+| `github-packages` | private or team packages | token, **including for reads** | `read_auth: token`, so consumers need credentials to restore |
+
+The portal lists npm packages as pointers to these registries; it never serves npm bytes.
+`verify-index` uses the `registry` verifier (`npm view` read-back) rather than comparing a
+digest of a file Universe did not host.
 
 ## Consequences
 
