@@ -180,6 +180,24 @@ verifier = "registry"
 auth = "oidc"                        # same shape via rust-lang/crates-io-auth-action
 ```
 
+### How a package finds its stores
+
+There is no autodetection and no "publish everywhere" switch: a package names its destinations by
+**store name**, and everything else is validation.
+
+- `publish` lists names, never kinds — two `npmjs` stores (a company scope, a public scope) are
+  distinguishable in the manifest and indistinguishable by kind.
+- **`releases` is the only implicit destination.** It is added to every package, and opting out
+  is `release = false`.
+- **Kind compatibility is a lint error, not a publish-time surprise.** `conda` may name
+  `static`/`prefix-dev`/`anaconda`; a crate may name `crates-io` and an npm store, but only if it
+  also declares the npm output — a wrapper that was never built cannot be uploaded.
+- **The reverse is checked too.** A writable store that no package names is a half-applied
+  rename, and it warns.
+
+`ci render` prints both derived views — the job each store produces, and the packages that land
+in it — so the mapping is inspectable instead of inferred from a YAML file.
+
 ### What that manifest becomes
 
 ```text
