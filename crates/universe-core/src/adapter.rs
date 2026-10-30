@@ -578,6 +578,119 @@ mod tests {
         );
     }
 
+    fn codes(diagnostics: &[Diagnostic]) -> Vec<&str> {
+        diagnostics.iter().map(Diagnostic::code).collect()
+    }
+
+    #[test]
+    fn capabilities_reject_every_empty_field() {
+        let capabilities = Capabilities {
+            adapter: "  ".to_owned(),
+            operations: Vec::new(),
+            platforms: vec![String::new()],
+        };
+        assert_eq!(
+            codes(&capabilities.validate()),
+            vec![
+                "adapter.capabilities.adapter.empty",
+                "adapter.capabilities.operations.empty",
+                "adapter.capabilities.platforms.empty",
+            ]
+        );
+    }
+
+    #[test]
+    fn a_request_context_rejects_an_empty_adapter_and_platform() {
+        let mut request = super::RequestContext {
+            adapter: String::new(),
+            package: ArtifactId::new("pkg", "1.0.0").expect("identity"),
+            platform: " ".to_owned(),
+            workdir: "packages/pkg".to_owned(),
+        };
+        assert_eq!(
+            codes(&request.validate()),
+            vec![
+                "adapter.request.adapter.empty",
+                "adapter.request.platform.empty",
+            ]
+        );
+
+        request.workdir = "  ".to_owned();
+        assert_eq!(
+            codes(&request.validate()),
+            vec![
+                "adapter.request.adapter.empty",
+                "adapter.request.platform.empty",
+                "adapter.request.workdir.invalid",
+            ]
+        );
+    }
+
+    #[test]
+    fn a_produced_artifact_must_name_a_relative_path() {
+        let produced = super::ProducedArtifact {
+            artifact: artifact(),
+            path: "/tmp/pkg.tar.zst".to_owned(),
+        };
+        assert_eq!(
+            codes(&produced.validate()),
+            vec!["adapter.artifact.path.invalid"]
+        );
+    }
+
+    #[test]
+    fn a_failure_may_not_carry_artifacts() {
+        let mut failure = outcome(OutcomeKind::UserFailure);
+        failure.artifacts.push(super::ProducedArtifact {
+            artifact: artifact(),
+            path: "output/pkg.tar.zst".to_owned(),
+        });
+        assert!(codes(&failure.validate()).contains(&"adapter.outcome.artifacts.not_applicable"));
+    }
+
+    #[test]
+    fn only_a_mismatch_may_carry_a_comparison() {
+        let mut success = outcome(OutcomeKind::Success);
+        success.artifacts.push(super::ProducedArtifact {
+            artifact: artifact(),
+            path: "output/pkg.tar.zst".to_owned(),
+        });
+        success.mismatch = Some(DigestMismatch {
+            artifact: artifact().id,
+            expected: artifact().digest,
+            found: Sha256Digest::parse(&"b".repeat(64)).expect("digest"),
+        });
+        assert!(codes(&success.validate()).contains(&"adapter.outcome.mismatch.not_applicable"));
+    }
+
+    #[test]
+    fn accessors_report_the_answer_the_outcome_carries() {
+        let success = Outcome {
+            outcome: OutcomeKind::Success,
+            artifacts: vec![super::ProducedArtifact {
+                artifact: artifact(),
+                path: "output/pkg.tar.zst".to_owned(),
+            }],
+            diagnostics: vec![Diagnostic::new(Severity::Info, "x", "y")],
+            mismatch: None,
+            path: None,
+        };
+        assert_eq!(success.kind(), OutcomeKind::Success);
+        assert!(success.is_success());
+        assert!(!success.is_failure());
+        assert_eq!(success.artifacts().len(), 1);
+        assert_eq!(success.diagnostics().len(), 1);
+
+        let failure = outcome(OutcomeKind::UsageFailure);
+        assert_eq!(failure.kind(), OutcomeKind::UsageFailure);
+        assert!(!failure.is_success());
+        assert!(failure.is_failure());
+        assert!(failure.artifacts().is_empty());
+        assert!(OutcomeKind::UsageFailure.is_failure());
+        assert!(!OutcomeKind::DigestMismatch.is_failure());
+        assert!(!OutcomeKind::UnknownEvidence.is_failure());
+    }
+
     #[test]
     fn a_digest_mismatch_without_its_comparison_is_rejected() {
         let mismatch = outcome(OutcomeKind::DigestMismatch);
