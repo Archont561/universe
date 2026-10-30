@@ -23,3 +23,12 @@ spdx = { workspace = true }
 tar = { workspace = true }
 thiserror = { workspace = true }
 universe-core = { workspace = true }
+
+[dev-dependencies]
+# Fixtures are built, not downloaded: a `.conda` is a zip of two zstd tars, and a
+# fixture builder that spells that out is a specification of the format the reader
+# has to satisfy. Neither crate needs a compression feature: the outer zip stores
+# its members uncompressed, and only the inner tars are zstd.
+tempfile = { workspace = true }
+zstd = { version = "0.14", default-features = false }
+zip = { version = "9", default-features = false }
