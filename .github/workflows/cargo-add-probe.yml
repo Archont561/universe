@@ -27,8 +27,7 @@ on:
       - ".github/workflows/cargo-add-probe.yml"
 
 permissions:
-  contents: write
-  checks: write
+  contents: read
 
 concurrency:
   group: cargo-add-probe-${{ github.repository }}
@@ -39,6 +38,11 @@ jobs:
     name: probe
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Write access is scoped to this job, never the workflow: alint's
+    # `gha-workflow-contents-read` rule fails a workflow-level write grant.
+    permissions:
+      contents: write
+      checks: write
     env:
       PROBE_CRATE: crates/universe-workflow
     steps:
