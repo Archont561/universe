@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write  # TEMPORARY: publish the failing gate's log to a branch
+  contents: read
   pull-requests: read
 
 jobs:
@@ -39,92 +39,8 @@ jobs:
           cache: true
           locked: true
 
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate fmt-check
-        shell: bash
-        run: pixi run fmt-check 2>&1 | tee "/tmp/fmt-check.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate lint
-        shell: bash
-        run: pixi run lint 2>&1 | tee "/tmp/lint.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate typecheck
-        shell: bash
-        run: pixi run typecheck 2>&1 | tee "/tmp/typecheck.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate test
-        shell: bash
-        run: pixi run test 2>&1 | tee "/tmp/test.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate backlog-check
-        shell: bash
-        run: pixi run backlog-check 2>&1 | tee "/tmp/backlog-check.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate repo-check
-        shell: bash
-        run: pixi run repo-check 2>&1 | tee "/tmp/repo-check.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate skills-check
-        shell: bash
-        run: pixi run skills-check 2>&1 | tee "/tmp/skills-check.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate alint-check
-        shell: bash
-        run: pixi run alint-check 2>&1 | tee "/tmp/alint-check.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate crate-check
-        shell: bash
-        run: pixi run crate-check 2>&1 | tee "/tmp/crate-check.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate web-check
-        shell: bash
-        run: pixi run web-check 2>&1 | tee "/tmp/web-check.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate coverage
-        shell: bash
-        run: pixi run coverage 2>&1 | tee "/tmp/coverage.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate lint-actions
-        shell: bash
-        run: pixi run lint-actions 2>&1 | tee "/tmp/lint-actions.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate audit
-        shell: bash
-        run: pixi run audit 2>&1 | tee "/tmp/audit.log"
-      # TEMPORARY, reverted before merge: one step per gate, because the aggregate task
-      # reports only "exit code 1" and the run log is unreadable from outside the runner.
-      - name: gate build
-        shell: bash
-        run: pixi run build 2>&1 | tee "/tmp/build.log"
-      # TEMPORARY, reverted before merge: push the gate logs to a throwaway branch, the only
-      # output channel from this runner that is readable from outside it.
-      - name: Publish the gate logs to a branch
-        if: failure()
-        shell: bash
-        run: |
-          mkdir -p ci-logs
-          for log in /tmp/*.log; do
-            sed 's/\x1b\[[0-9;]*m//g' "$log" > "ci-logs/$(basename "$log")"
-          done
-          git config user.name "ci-logs"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -q -B ci-logs
-          git add -f ci-logs
-          git commit -q -m "ci: gate logs for ${GITHUB_RUN_ID}" || true
-          git push -q -f origin ci-logs
+      - name: Run gates
+        run: pixi run gates
 
       - name: Validate pull-request commits
         if: github.event_name == 'pull_request'
