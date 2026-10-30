@@ -114,6 +114,8 @@ skills-check-write = { cmd = "python -m scripts.skills_check --write", descripti
 lint-actions = { cmd = "actionlint .github/workflows/*.yml", description = "Lint GitHub Actions workflows" }
 lint-commit = { cmd = "convco check --config .versionrc --from-stdin", description = "Validate one conventional commit message" }
 lint-commits = { cmd = "convco check --config .versionrc", description = "Validate a conventional commit range" }
+ci-render = { cmd = "cargo run --quiet --locked -p universe-kit -- ci render", description = "Regenerate the GitHub workflows from universe.toml (the manifest is the only source of truth)" }
+ci-check = { cmd = "cargo run --quiet --locked -p universe-kit -- ci check", description = "Fail when a committed workflow no longer matches what universe.toml renders" }
 audit = { cmd = "python -m scripts.audit check", description = "Audit locked Rust dependencies and supply-chain policy offline when the advisory cache exists" }
 audit-sync = { cmd = "python -m scripts.audit sync", description = "Refresh the RustSec advisory and crates.io index caches (needs network)" }
 alint-check = { cmd = "alint check", description = "Validate repository structure, naming, and cross-file rules from .alint.yml" }
@@ -129,7 +131,8 @@ check = { depends-on = [
   "skills-check",
   "alint-check",
   "crate-check",
-], description = "Run format, lint, type, test, backlog, repository, skill, and crate-boundary checks" }
+  "ci-check",
+], description = "Run format, lint, type, test, backlog, repository, skill, crate-boundary, and workflow-drift checks" }
 offline-gates = { depends-on = [
   "check",
   "coverage",

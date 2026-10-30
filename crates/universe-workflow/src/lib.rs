@@ -138,6 +138,9 @@ enum Step {
 struct Job {
     id: String,
     name: String,
+    /// The runner label. Every job in this repository's set runs on the same image; a
+    /// per-job override is a manifest facet nothing has asked for yet.
+    runs_on: String,
     needs: Vec<String>,
     always: bool,
     permissions: Vec<(String, String)>,
@@ -153,6 +156,7 @@ impl Job {
         Self {
             id: to_identifier(id),
             name: format!("{file_name} / {id}"),
+            runs_on: "ubuntu-latest".to_owned(),
             needs,
             always: false,
             permissions: Vec::new(),
@@ -245,6 +249,7 @@ impl Job {
         json!({
             "id": self.id,
             "name": self.name,
+            "runs_on": self.runs_on,
             "needs": self.needs,
             "always": self.always,
             "permissions": permissions,
@@ -282,13 +287,22 @@ fn to_identifier(text: &str) -> String {
         .collect()
 }
 
+/// Put the checkout and the Pixi setup in front of whatever the job already declares.
+///
+/// Order is the difference between a job that runs and one that does not: a step needs the
+/// work tree before it can read the manifest, and needs Pixi before it can run a task. The
+/// two are prepended rather than appended so the call site reads in execution order.
 fn checkout_and_pixi(job: Job) -> Job {
-    job.with_step(Step::Uses {
-        reference: universe_assets::CHECKOUT.to_owned(),
-    })
-    .with_step(Step::Uses {
-        reference: universe_assets::SETUP_PIXI.to_owned(),
-    })
+    let mut steps = vec![
+        Step::Uses {
+            reference: universe_assets::CHECKOUT.to_owned(),
+        },
+        Step::Uses {
+            reference: universe_assets::SETUP_PIXI.to_owned(),
+        },
+    ];
+    steps.extend(job.steps);
+    Job { steps, ..job }
 }
 
 /// The file names this manifest calls for, in render order.
@@ -587,7 +601,7 @@ pub fn render(manifest: &Manifest, manifest_text: &str) -> Result<RenderOutput, 
             required_checks.extend(jobs.iter().map(|job| job.name.clone()));
         }
 
-        let rendered = template
+        let mut rendered = template
             .render(minijinja::value::Serde(json!({
                 "generator": VERSION,
                 "manifest_digest": manifest_digest,
@@ -599,6 +613,11 @@ pub fn render(manifest: &Manifest, manifest_text: &str) -> Result<RenderOutput, 
                     .collect::<Vec<_>>(),
             })))
             .map_err(|error| RenderError::Template(error.to_string()))?;
+        // The template's last line has no newline of its own; a text file that does not
+        // end with one shows up as a spurious final-line diff in every hand-edit.
+        if !rendered.ends_with('\n') {
+            rendered.push('\n');
+        }
 
         files.push(RenderedFile {
             path: file.to_owned(),
@@ -770,6 +789,18 @@ format = "cargo fmt --check"
         let first = render(&manifest, MANIFEST).expect("renders");
         let second = render(&manifest, MANIFEST).expect("renders");
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn every_rendered_file_ends_with_a_newline() {
+        let output = render(&manifest(), MANIFEST).expect("renders");
+        for file in &output.files {
+            assert!(
+                file.content.ends_with('\n'),
+                "{} does not end with a newline, which every editor and diff tool expects",
+                file.path
+            );
+        }
     }
 
     #[test]

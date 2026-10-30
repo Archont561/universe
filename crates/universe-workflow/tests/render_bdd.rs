@@ -256,6 +256,116 @@ fn only_the_main_file(project: &Project) {
     );
 }
 
+/// Every generated file, read back as text — the unit for the two shape assertions below.
+fn rendered_files(project: &Project) -> Vec<String> {
+    project
+        .rendered()
+        .files
+        .iter()
+        .map(|file| project.workflow(&file.path))
+        .collect()
+}
+
+/// The jobs of one rendered file as `(name, body)`, split on the two-space indent that
+/// marks a key directly under `jobs:`.
+fn job_blocks(text: &str) -> Vec<(String, String)> {
+    let mut blocks: Vec<(String, String)> = Vec::new();
+    let mut in_jobs = false;
+    for line in text.lines() {
+        if line.trim_end() == "jobs:" {
+            in_jobs = true;
+            continue;
+        }
+        if !in_jobs {
+            continue;
+        }
+        let starts_job = line.starts_with("  ")
+            && !line.starts_with("   ")
+            && !line.trim_start().starts_with('-')
+            && line.trim_end().ends_with(':');
+        if starts_job {
+            blocks.push((line.trim().trim_end_matches(':').to_owned(), String::new()));
+            continue;
+        }
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Some((_, body)) = blocks.last_mut() {
+            body.push_str(line);
+            body.push('\n');
+        }
+    }
+    blocks
+}
+
+#[then("every job names the runner it runs on")]
+fn every_job_names_its_runner(project: &Project) {
+    for text in rendered_files(project) {
+        let blocks = job_blocks(&text);
+        assert!(!blocks.is_empty(), "a rendered file has no jobs:\n{text}");
+        for (name, body) in blocks {
+            let runner = body
+                .lines()
+                .find_map(|line| line.trim().strip_prefix("runs-on:"))
+                .unwrap_or_default()
+                .trim()
+                .to_owned();
+            assert!(
+                !runner.is_empty(),
+                "job {name} renders without a runner, so it schedules nowhere:\n{text}"
+            );
+        }
+    }
+}
+
+#[then("every job that runs a project command checks the project out and sets up Pixi first")]
+fn every_job_checks_out_first(project: &Project) {
+    let mut checked = 0;
+    for text in rendered_files(project) {
+        for (name, body) in job_blocks(&text) {
+            // Job names read `universe / <id>`, so the search has to skip them: only a
+            // command that runs the project's tooling needs the work tree.
+            let needs_the_tree = body
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("name:"))
+                .any(|line| line.contains("universe ") || line.contains("pixi run"));
+            if !needs_the_tree {
+                // A job that only reads its predecessors' results has nothing to check out,
+                // and must not gain a failure mode that could outrank their success.
+                continue;
+            }
+            checked += 1;
+            // Step boundaries are the six-space `- ` lines inside `steps:`. Reading the
+            // whole sequence, rather than just its `uses:` members, is what makes the
+            // order assertion mean something: a `run:` step placed first is invisible to a
+            // filter that only looks at action references.
+            let steps: Vec<&str> = body
+                .lines()
+                .filter(|line| line.starts_with("      - "))
+                .map(str::trim)
+                .collect();
+            assert!(
+                steps.len() >= 2,
+                "job {name} runs a project command without checking out:\n{text}"
+            );
+            assert!(
+                steps[0].contains("actions/checkout@"),
+                "job {name}: the first step must check the project out, found {}:\n{text}",
+                steps[0]
+            );
+            assert!(
+                steps[1].contains("prefix-dev/setup-pixi@"),
+                "job {name}: the second step must set Pixi up, found {}:\n{text}",
+                steps[1]
+            );
+        }
+    }
+    assert!(
+        checked > 0,
+        "no job ran a project command, so this scenario asserted nothing"
+    );
+}
+
 #[then("the drift check names the main workflow file")]
 fn drift_names_the_main_file(project: &Project) {
     let diagnostics = universe_workflow::check(&project.directories(), project.rendered());
@@ -344,5 +454,13 @@ fn an_incompatible_store_is_refused(project: Project) {
     name = "Rendering the same manifest twice produces the same bytes"
 )]
 fn rendering_is_repeatable(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "tests/features/render.feature",
+    name = "Every job gets a runner, and one that runs a project command checks out first"
+)]
+fn every_job_runs_somewhere_and_checks_out_first(project: Project) {
     let _ = project;
 }

@@ -1,0 +1,103 @@
+# The owner-lane manifest for Universe itself.
+#
+# This file is the first consumer of its own schema: the release workflow in
+# `.github/workflows/universe.yml` is rendered from it, so a facet that does not fit this
+# repository is a facet that does not fit a real project. `UNI-41` #7 says the same thing
+# as a criterion, and `crates/universe-kit/tests/manifest.rs` fails if this file does not
+# parse cleanly or lints with any finding.
+#
+# Scope is `decision-132`: `v0.1.0` publishes `universe-airlock` for `linux-64` only. The
+# package list, the platform list, and the store list are the whole of it — a second
+# package or platform is a change to this file, not to the workflow.
+
+schema = 1
+
+[project]
+name = "universe"
+description = "Self-hosted universes of software, data, models, and skills, with sealed offline delivery"
+repository = "https://github.com/Archont561/universe"
+# One platform, deliberately. A second entry here renders a second build matrix row and a
+# second subdir in the channel, neither of which `v0.1.0` proves.
+platforms = ["linux-64"]
+
+[build]
+# Consulted by `plan`, `build`, and `test` in that order.
+channels = ["conda-forge"]
+skip_existing = "all"
+
+# Every flag is the strict value. A package that needs an exception declares it here in a
+# later change, with the reason, rather than the default being lenient for everyone.
+[audit]
+enforce_license_file = true
+require_valid_spdx = true
+forbid_build_path_leak = true
+verify_arch_headers = true
+
+[[packages]]
+name = "universe-airlock"
+kind = "conda"
+# The recipe owns the build; this command only invokes it. `--frozen` keeps the build
+# toolchain to the locked environment, which is what makes the artifact reproducible from
+# a commit rather than from whatever the runner had installed.
+command = ["pixi", "run", "--frozen", "package-airlock"]
+platforms = ["linux-64"]
+outputs = ["output/universe-airlock/linux-64/*.conda"]
+# Mandatory because the package publishes: a package with no smoke command is a package
+# whose installability nobody checked.
+smoke = ["universe-airlock --version"]
+# Publication order: the hosted channel first, then the branch that restores from Git.
+publish = ["prefix-dev", "branch"]
+release = true
+
+# Discovery metadata authored here rather than fetched, so a catalog can be built with
+# no network lookup.
+[packages.catalog]
+title = "Universe Airlock"
+summary = "Finite offline consumer for verified sealed snapshots"
+license = "MIT"
+
+# The hosted channel. `prefix.dev` exchanges the workflow identity for a short-lived
+# token, so no long-lived credential exists to leak (`decision-127`; `decision-8`).
+[[stores]]
+name = "prefix-dev"
+kind = "prefix-dev"
+channel = "archont561/archont561"
+writable = true
+needs_index = false
+read_auth = "none"
+auth = "oidc"
+verifier = "registry"
+
+# Universe's own static channel, served from a git branch: metadata and package bytes in
+# one tree, restored by a host whose only reachable transport is Git (`UNI-58`).
+[[stores]]
+name = "branch"
+kind = "branch"
+writable = true
+needs_index = true
+read_auth = "none"
+auth = "token"
+# Names only, never values. The renderer emits `${{ secrets.<name> }}`.
+secrets = ["UNIVERSE_CHANNEL_TOKEN"]
+verifier = "file"
+
+[release]
+tag_pattern = "v*"
+changelog = "CHANGELOG.md"
+
+[[release.scope]]
+name = "pre-release"
+stores = ["prefix-dev", "branch"]
+
+[workflow]
+# Both verification ranges stay on: the built artifact has to prove it installs, and the
+# published copy has to prove it arrived.
+verify_artifact = true
+verify_published = true
+
+# The closed three-slot vocabulary. Each command is one Pixi task, which is what keeps the
+# rendered `validate` job free of ad-hoc shell (house rule 10).
+[workflow.checks]
+format = "pixi run fmt-check"
+lint = "pixi run lint"
+typecheck = "pixi run typecheck"
