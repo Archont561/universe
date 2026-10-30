@@ -133,6 +133,91 @@ def validate_offline_cargo_transport(
     return errors
 
 
+PUSH_ENTRY = re.compile(r'^\s+- "(?P<path>[^"]+)"\s*$')
+
+
+def declared_workflow_push_paths(workflow: str) -> list[str] | None:
+    """Extract ``on.push.paths`` from a workflow file without a YAML parser.
+
+    The repository has no YAML dependency and this is one block of one file, so
+    the reader is deliberately narrow: it looks for a two-space ``push:`` key, then
+    a four-space ``paths:`` beneath it, then the ``- "..."`` entries at deeper
+    indentation. A quoting style other than plain double quotes is out of scope and
+    shows up as a missing entry rather than as a silent pass.
+
+    Returns ``None`` when the workflow has no push trigger at all, and an empty list
+    when it has one without a ``paths`` filter — those are different facts, and only
+    the first is a stale transport.
+    """
+    lines = workflow.splitlines()
+    for index, line in enumerate(lines):
+        if line.rstrip() != "  push:":
+            continue
+        for inner, candidate in enumerate(lines[index + 1 :], start=index + 1):
+            stripped = candidate.strip()
+            if candidate and not candidate.startswith("    "):
+                break
+            if stripped == "paths:":
+                return _push_entries(lines[inner + 1 :])
+        return []
+    return None
+
+
+def _push_entries(lines: list[str]) -> list[str]:
+    """The quoted entries of a ``paths:`` block, stopping at the next key."""
+    entries: list[str] = []
+    for line in lines:
+        match = PUSH_ENTRY.match(line)
+        if match is not None:
+            entries.append(match.group("path"))
+            continue
+        if line.strip() and not line.strip().startswith("-"):
+            break
+    return entries
+
+
+def validate_workflow_push_paths(sandbox_config: str, workflow: str) -> list[str]:
+    """Require the publish workflow to trigger on exactly the declared republish inputs.
+
+    ``[workflow] push_paths`` in the sandbox config is the policy; the workflow's
+    ``on.push.paths`` is a copy of it. When the copy is short, a change to a trigger
+    that really does change the packed payload repacks the environment and never
+    publishes it, and nothing fails — the branch simply serves an older tree. That is
+    the staleness this check exists to make loud, in both directions: an entry the
+    config declares and the workflow omits, and an entry the workflow carries that the
+    config does not own.
+    """
+    try:
+        workflow_table = tomllib.loads(sandbox_config).get("workflow", {})
+    except tomllib.TOMLDecodeError as exc:
+        return [f"cannot parse the sandbox config's workflow table: {exc}"]
+    declared = (
+        list(workflow_table.get("push_paths", [])) if isinstance(workflow_table, dict) else []
+    )
+    if not declared:
+        return []
+
+    present = declared_workflow_push_paths(workflow)
+    if present is None:
+        return [
+            "the publish workflow has no push trigger, so the declared push_paths "
+            "never fire; add an on.push.paths block"
+        ]
+
+    errors = [
+        f"publish workflow is missing declared republish trigger {path!r}; "
+        "the transport will not republish when it changes"
+        for path in declared
+        if path not in present
+    ]
+    errors.extend(
+        f"publish workflow triggers on {path!r}, which the sandbox config does not declare"
+        for path in present
+        if path not in declared
+    )
+    return errors
+
+
 AUDIT_TASK_COMMAND = "python -m scripts.audit check"
 
 
@@ -467,6 +552,12 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
             )
         )
         errors.extend(validate_audit_gate(pixi_config.read_text(encoding="utf-8")))
+        errors.extend(
+            validate_workflow_push_paths(
+                sandbox_config.read_text(encoding="utf-8"),
+                publisher_workflow.read_text(encoding="utf-8"),
+            )
+        )
 
     return errors
 
