@@ -1,9 +1,9 @@
 ---
 id: DECISION-126
 title: Release control lives in Universe, with attempts, promotion, and a resumable journal
-status: proposed
+status: accepted
 created_date: '2026-10-30'
-updated_date: '2026-10-30'
+updated_date: '2026-10-31'
 ---
 
 ## Context
@@ -22,9 +22,8 @@ behaviour that was learned by failing in production:
 - proof that the artifact works, not that the build shell worked,
 - and a rule that every declared destination is mandatory.
 
-Those become requirements of this decision. The record is `proposed` rather than `accepted`
-for one reason, stated under §Open parameter: the version-computation policy cannot be
-invented, it has to be chosen.
+Those become requirements of this decision, together with the version policy in
+§Version policy: a minor bump is breaking before 1.0.
 
 ## Decision
 
@@ -129,18 +128,50 @@ immutable copy; they cannot be the channel by themselves.
 A submission to an upstream review queue is separate again: that queue rebuilds from source
 and cannot consume your artifacts, so it is a declaration, not a destination.
 
-## Open parameter
+## Version policy: a minor bump is breaking before 1.0
 
-**The version-computation policy for the 0.y.z series.** Consuming conventional commits
-requires answering what a breaking change means before 1.0: either a minor bump is breaking,
-or the series is treated strictly. Tools differ silently on this point, and the first 0.2.0
-release depends on the answer. Until it is chosen, `release plan` requires an explicit
-version and refuses to compute one; that is the safe default and needs no decision.
+**Chosen: `minor-is-breaking`.** While the major version is zero, the compatibility boundary is
+the *minor* version. In Cargo terms a release is compatible with `^0.Y.Z`, and in conda terms
+with `>=0.Y.Z,<0.(Y+1)`.
 
-Two related parameters are chosen here and recorded because they are often left implicit:
-unparseable commits are ignored unless they would have changed the version, in which case the
-plan fails; and the commit range is everything since the last reachable tag, with an explicit
-`--from` for attempts.
+| Change class | Pre-1.0 bump | Post-1.0 bump |
+| --- | --- | --- |
+| Breaking | minor (`0.3.1` -> `0.4.0`) | major |
+| Feature | minor | minor |
+| Fix, performance | patch | patch |
+| Documentation, build, CI, chore | none | none |
+
+This is not a new convention imposed on the design; it is the convention the existing records
+already assume. `decision-1` §3 scaffolds consumer manifests with
+`universe-kit = { version = ">=0.1,<0.2" }`, which is `minor-is-breaking` written as a range.
+The alternative — treating a pre-1.0 breaking change as a major bump, so that the first one
+produces `1.0.0` — was rejected because it would force a 1.0 the product has not earned and
+would contradict that pin.
+
+**`1.0.0` is a human decision**, not derived from a diff. This policy governs bumps *within*
+the `0.y.z` series; it never promotes the project to 1.0 on its own.
+
+### What counts as breaking
+
+Detection is mechanical (`!` in the type, or a `BREAKING CHANGE` footer), but the mechanical
+signal is not sufficient on its own. These listed changes are breaking even when the commit
+message does not say so, and a release that contains one requires a minor bump:
+
+- removing or renaming a CLI verb, flag, or positional argument;
+- changing an exit code that is part of the documented contract;
+- removing or renaming a `universe.toml` key, or changing a key's accepted values;
+- bumping `STDOUT_SCHEMA_VERSION` in `universe-core`, because the JSON envelope is a
+  documented interface;
+- changing a default that alters published artifact bytes.
+
+The last two are the ones a commit message will never mark correctly, which is why they are
+enumerated rather than inferred.
+
+### Two related parameters
+
+Chosen here because both are usually left implicit: unparseable commits are ignored unless
+they would have changed the version, in which case the plan fails; and the commit range is
+everything since the last reachable tag, with an explicit `--from` for attempts.
 
 ## Consequences
 

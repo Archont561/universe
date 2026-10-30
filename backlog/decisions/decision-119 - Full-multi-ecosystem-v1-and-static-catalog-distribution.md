@@ -3,7 +3,7 @@ id: DECISION-119
 title: Full multi-ecosystem v1 with a thin Universe facade and static catalog distribution
 status: accepted
 created_date: '2026-10-27'
-updated_date: '2026-10-27'
+updated_date: '2026-10-31'
 ---
 
 ## Context
@@ -17,7 +17,11 @@ The first stable product release is an integrated v1 comprising all of the follo
 1. Conda packages and a standards-compliant static Conda channel.
 2. Rust crates through a Cargo-compatible sparse index and crate archives.
 3. Python wheels through a Python-compatible package index. The initial scope is wheels; source distributions/building arbitrary Python projects are not implied.
-4. npm packages through an npm-compatible registry surface.
+4. npm packages through an npm-compatible registry surface. **Clarified by
+   `decision-127`:** "npm-compatible" describes client compatibility, not a registry
+   Universe generates. npm packages are published to a hosted npm-compatible registry
+   (`npmjs` or `github-packages`), because no official static npm registry format exists;
+   npm *mirroring* for offline replay remains in scope and is unaffected.
 5. Universe Airlock consumption across the supported ecosystems.
 6. A browsable static portal generated from a pinned catalog snapshot and verified GitHub Release metadata/assets.
 

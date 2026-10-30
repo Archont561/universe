@@ -3,7 +3,7 @@ id: DOC-111
 title: V1 package layout, release artifacts, and offline readiness
 status: Accepted target architecture
 created_date: '2026-10-27'
-updated_date: '2026-10-27'
+updated_date: '2026-10-31'
 ---
 
 ## Purpose and scope
@@ -21,7 +21,8 @@ crates/
     conda/                       Conda metadata, channel paths, repodata and package view
     cargo/                       sparse index and .crate protocol surface
     python/                      wheel metadata and simple-index surface
-    npm/                         npm metadata and tarball protocol surface
+    npm/                         npm client adapter: lockfile mirroring and hosted-registry
+                                 publication; it generates no registry of its own (decision-127)
   universe-kit/                  producer orchestration; existing Conda component recipe
   universe-airlock/              consumer/runtime; existing independent component recipe
   universe-airlock-bootstrap/    separate init/restore bootstrap artifact
@@ -52,7 +53,7 @@ Every package keeps its own recipe near its implementation and its own version p
 1. The existing versioned `universe.toml` project manifest (with per-package `package.toml`) declares package identity, native source/build/test commands, artifact collection rules, target platforms, and registry metadata. Commands invoke external native builders; Kit does not compile Conda packages, wheels, crates, or npm tarballs itself.
 2. CI or the owner release workflow runs the declared commands in a controlled job, records their exact commands/tool versions, and attaches artifacts plus a machine-readable release manifest and checksums to an immutable GitHub Release.
 3. Kit verifies the pinned repository/tag/release identity, manifest schema, asset names, sizes, and digests before importing artifacts. It never substitutes a moving `latest` URL for a pinned release.
-4. Native ecosystem adapters generate the protocol-specific indexes and static views. Conda output is published in standard channel `/<subdir>/repodata.json` and package paths, including `noarch` as appropriate. Cargo receives a sparse index and `.crate` archives; Python receives a Simple API index and wheel files; npm receives registry metadata and tarballs.
+4. Native ecosystem adapters generate the protocol-specific indexes and static views. Conda output is published in standard channel `/<subdir>/repodata.json` and package paths, including `noarch` as appropriate. Cargo receives a sparse index and `.crate` archives; Python receives a Simple API index and wheel files. npm is the exception: there is no official static registry format, so npm packages are published to a hosted npm-compatible registry (`npmjs` or `github-packages`) and the portal links to it rather than serving the metadata. npm lockfile mirroring for offline replay is still produced (`decision-127`).
 5. A catalog snapshot records the verified release identity and content digests. The static portal is built from that snapshot and verified release data. Binary artifacts are stored in static hosting/object storage or immutable release assets, never committed into Git history.
 6. Publication has a connected acquisition/publish phase and a deterministic local build/validation phase. A portal page or GitHub Release download link alone is not a native package registry.
 
