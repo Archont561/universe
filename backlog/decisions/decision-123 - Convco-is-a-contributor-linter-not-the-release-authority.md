@@ -3,7 +3,7 @@ id: DECISION-123
 title: Convco is a contributor linter, not the release authority
 status: accepted
 created_date: '2026-10-30'
-updated_date: '2026-10-30'
+updated_date: '2026-10-31'
 ---
 
 ## Context
@@ -26,6 +26,13 @@ That description entangles a development tool with the product in three ways:
 
 Three documents disagree with each other about the mechanism, and one has a plain error:
 `doc-107` says convco reads `.versionrc`, while the configuration is `.config/convco.yml`.
+
+**That disagreement was then resolved in the wrong direction, and reversed on 2026-10-31.**
+This record originally fixed `doc-107` to match the custom path. The custom path was the
+error: `.versionrc` is what convco discovers without a flag, and what every editor plugin
+written against the conventional-changelog spec looks for. The configuration moved to
+`.versionrc` at the repository root, `.config/convco.yml` is gone, and `doc-107` was right
+the first time.
 
 ## Decision
 
@@ -59,9 +66,10 @@ a lint for consumer repositories instead of a repository-specific script.
 | --- | --- |
 | `decision-8` | Remove the observe-mode version computation and the literal-rewrite list. The lane validates and tags what a promotion commit declared. |
 | `doc-1` | Same correction in the release-lane description, plus the changelog named as a curated input. |
-| `doc-107` | Fix the configuration path; state convco's scope as commit lint and changelog drafting, explicitly not release automation. |
+| `doc-107` | State convco's scope as commit lint and changelog drafting, explicitly not release automation. Its `.versionrc` path was correct: see the reversal above. |
 | `decision-2` | Keep convco in the tool list; scope it "commit message lint". |
 | `.config/convco.yml` | Drop the `header:` block, which frames the configuration file as the owner of the changelog. |
+| `.versionrc` | The same policy at the path convco discovers, still without `header:` and now also without `increment:` — a bump rule there would be the second version authority this record exists to prevent. |
 
 ## Consequences
 

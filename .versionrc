@@ -1,0 +1,69 @@
+# Convco configuration (https://convco.github.io/configuration/).
+#
+# Convco looks for `.versionrc` at the repository root. It lived at `.config/convco.yml`
+# until now, which meant every invocation had to pass `--config` and every editor plugin
+# that expects the conventional-changelog path found nothing. `decision-123` recorded the
+# opposite fix — changing `doc-107` to match the custom path — and this record change
+# reverses it: the file moved to the name the tool discovers.
+#
+# Scope, unchanged (`decision-123`): validating commit messages, and drafting changelog
+# sections when asked. Convco is not the release authority.
+
+# No `header:` block, deliberately. It declares a changelog preamble, and a preamble here
+# reads as "this file generates CHANGELOG.md". Nothing does: the changelog is curated by
+# hand and merely checked against the workspace version (`decision-126`).
+#
+# No `increment:` field on any type, deliberately. `increment` is what `convco version`
+# uses to compute a bump; `decision-123` keeps convco off the release path and
+# `decision-126` makes the version a declared literal that a human promotes. Encoding a
+# bump rule here would be a second, silent authority — and the one it would encode
+# (feat -> minor, fix -> patch before 1.0) is already written where it belongs.
+
+types:
+  - type: feat
+    section: Features
+    hidden: false
+  - type: fix
+    section: Bug Fixes
+    hidden: false
+  - type: perf
+    section: Performance
+    hidden: false
+  - type: refactor
+    section: Refactoring
+    hidden: true
+  - type: docs
+    section: Documentation
+    hidden: true
+  - type: test
+    section: Testing
+    hidden: true
+  - type: build
+    section: Build System
+    hidden: true
+  - type: ci
+    section: Continuous Integration
+    hidden: true
+  - type: chore
+    section: Miscellaneous
+    hidden: true
+
+issuePrefixes: ["#"]
+host: https://github.com
+owner: Archont561
+repository: universe
+
+# Anchored at both ends so a malformed scope cannot pass through a valid substring. It is
+# intentionally not an enumerated list: this repository uses crate names (`core`, `kit`,
+# `airlock`, `bootstrap`, `workflow`, `assets`, `cli`), areas (`backlog`, `decisions`,
+# `roadmap`, `docs`, `ci`, `deps`, `lock`, `release`, `gates`, `scripts`, `tests`,
+# `tooling`) and record identifiers (`doc-1`). An enumeration would reject the fourth
+# category and every scope that arrives with a new area.
+scopeRegex: "^[[:alnum:]]+(?:[-_/][[:alnum:]]+)*$"
+
+lineLength: 100
+wrapDisabled: false
+linkCompare: true
+linkReferences: true
+merges: false
+firstParent: false
