@@ -4,7 +4,7 @@ title: Implement streaming .conda and pure-Rust goblin binary/license auditor + 
 status: In Progress
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-31 22:40'
+updated_date: '2026-11-01 09:20'
 labels:
   - audit
   - channel
@@ -51,8 +51,14 @@ policy records it forced (`BSD-3-Clause`, `bzip2-1.0.6`, `MPL-2.0`,
 `RUSTSEC-2024-0449`) landed separately in #45 so that this slice could be written
 test-first against a compilable API rather than from memory.
 
-Not yet done: md5 and `info/paths.json` verification, the SPDX and licence-file
-checks, the goblin binary audit, `audit.expected_binaries`, and `--emit-fragment`.
+`audit_licence` now checks the two claims an archive can be held to before a binary
+is inspected: the `about.json` expression parses as SPDX, and every licence file the
+record names is present and non-empty. `CondaPackage` gained `read_info_member` and
+`info_member_names` so a rule can ask "is this record here?" without a second reader.
+
+Not yet done: md5 and `info/paths.json` verification, the goblin binary audit
+(ELF/PE/Mach-O arch, RPATH leak, `DT_NEEDED`), `audit.expected_binaries`, and
+`--emit-fragment`.
 
 
 ## Acceptance Criteria
