@@ -87,6 +87,51 @@ declared command with declared environment and declared secrets, and it requires
 step. It is not an alternative to the supported paths and is deliberately scheduled after
 them.
 
+### Which store a package goes to
+
+There is no autodetection and no "publish everywhere" switch. A package names the stores it
+publishes to, by **store name**, and everything else is validation:
+
+```toml
+[[packages]]
+name = "universe-kit"
+kind = "conda"
+publish = ["conda-static", "conda-prefix", "conda-anaconda"]
+```
+
+Four rules decide the mapping:
+
+1. **`publish` lists names, never kinds.** A store is a destination with its own credentials and
+   its own failure, so naming it is an act, not a lookup. Two `npmjs` stores — one for a company
+   scope, one for a public scope — are distinguishable in the manifest and indistinguishable by
+   kind alone.
+2. **`releases` is implicit for every package.** GitHub Releases is the one destination that
+   always works and always holds the same bytes, so it is added unless the package declares
+   `release = false`. It is the only default; every other destination must be named.
+3. **Kind compatibility is checked at lint time, not at publish time.** A package may only name a
+   store whose kind accepts its kind. `static` is only listed for kinds that have a documented
+   static index format, which is the same rule this record already applies to npm:
+
+   | Package kind | May publish to |
+   | --- | --- |
+   | `conda` | `static`, `prefix-dev`, `anaconda`, `quetz`, `artifactory`, `s3`, `filesystem`, `branch`, `releases` |
+   | `pypi` | `pypi`, `static`, `artifactory`, `s3`, `filesystem`, `branch`, `releases` |
+   | `npm` | `npmjs`, `github-packages`, `releases` |
+   | `cargo` | `crates-io`, `npm`, `releases` |
+   | `r` | `static`, `artifactory`, `s3`, `filesystem`, `branch`, `releases` |
+
+   A `cargo` package may name an npm store because a crate can be shipped to npm as a wrapper —
+   but only if it also declares the npm output, since a wrapper that was never built cannot be
+   uploaded. Without that output the combination is a lint error rather than a publish failure.
+4. **The reverse direction is also checked.** A writable store that no package names is a dead
+   destination: a warning, because it is almost always a rename that was half-applied. A package
+   naming a store that does not exist, or that declares `writable = false`, is an error.
+
+Two derived views follow, and both are printed by `universe ci render` rather than left to be
+inferred: the job each store produces, and the packages that land in it. `[[release.scope]]`
+narrows the destination set for a scoped release, so a scope that names a store no package in
+that scope publishes to is a lint error for the same reason as rule 4.
+
 ### `[release]` — see `decision-126`
 
 Scopes, tag pattern, changelog path, promotion policy.
