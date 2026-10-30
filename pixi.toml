@@ -57,6 +57,11 @@ taplo = { workspace = true }
 # Static repository linter; the wheel embeds the binary, so no toolchain is needed.
 # Decision-121 owns what .alint.yml checks and what stays in scripts/.
 alint = "==0.20.1"
+# Builds the PyPI wheels for the Universe CLIs from the same crates Conda packages.
+# Pinned to the release verified on PyPI; the wheel ships the binary, so no extra
+# toolchain is needed. The packaging task and per-crate pyproject.toml land with
+# the distribution slice, not here.
+maturin = "==1.16.0"
 
 [feature.dev.activation.env]
 LLVM_COV = "$CONDA_PREFIX/bin/llvm-cov"
