@@ -5,12 +5,15 @@ from pathlib import Path
 import pytest
 
 from scripts.repo_check import (
+    ROADMAP_DOCUMENTS,
     extract_recipe_context_version,
     extract_recipe_package_name,
+    extract_task_ids,
     main,
     validate_audit_gate,
     validate_offline_cargo_transport,
     validate_repo,
+    validate_roadmap_coverage,
 )
 
 
@@ -187,3 +190,48 @@ def test_offline_transport_requires_every_republish_trigger() -> None:
     )
 
     assert any("Cargo.lock" in error and "push_paths" in error for error in errors)
+
+
+def _write_task(root: Path, number: int) -> None:
+    tasks = root / "backlog" / "tasks"
+    tasks.mkdir(parents=True, exist_ok=True)
+    (tasks / f"uni-{number} - A-task.md").write_text(
+        f"---\nid: UNI-{number}\ntitle: A task\n---\n", encoding="utf-8"
+    )
+
+
+def _write_roadmap(root: Path, document: str, body: str) -> None:
+    path = root / document
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+
+
+def test_roadmap_coverage_accepts_a_document_that_names_every_task(tmp_path: Path) -> None:
+    _write_task(tmp_path, 1)
+    _write_task(tmp_path, 2)
+    for document in ROADMAP_DOCUMENTS:
+        _write_roadmap(tmp_path, document, "| M | `UNI-1`, `UNI-2` |\n")
+
+    assert extract_task_ids(tmp_path) == {"UNI-1", "UNI-2"}
+    assert validate_roadmap_coverage(tmp_path) == []
+
+
+def test_roadmap_coverage_reports_a_task_the_roadmap_forgot(tmp_path: Path) -> None:
+    _write_task(tmp_path, 1)
+    _write_task(tmp_path, 7)
+    _write_roadmap(tmp_path, ROADMAP_DOCUMENTS[0], "| M | `UNI-1` |\n")
+
+    errors = validate_roadmap_coverage(tmp_path)
+
+    assert len(errors) == 1
+    assert "UNI-7 is missing from the roadmap" in errors[0]
+
+
+def test_roadmap_coverage_reports_an_identifier_without_a_task(tmp_path: Path) -> None:
+    _write_task(tmp_path, 1)
+    _write_roadmap(tmp_path, ROADMAP_DOCUMENTS[1], "`UNI-1` then `UNI-9`\n")
+
+    errors = validate_roadmap_coverage(tmp_path)
+
+    assert len(errors) == 1
+    assert "UNI-9 is referenced but has no task record" in errors[0]

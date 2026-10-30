@@ -48,12 +48,19 @@ ecosystems:
 
 | Field | Values |
 | --- | --- |
-| `kind` | `static`, `releases`, `branch`, `prefix-dev`, `anaconda`, `quetz`, `artifactory`, `s3`, `filesystem`, `npmjs`, `github-packages`, `ghcr`, `command` |
+| `kind` | `static`, `releases`, `branch`, `prefix-dev`, `anaconda`, `quetz`, `artifactory`, `s3`, `filesystem`, `npmjs`, `github-packages`, `pypi`, `crates-io`, `ghcr`, `command` |
 | `writable` | whether the lane publishes here |
 | `needs_index` | whether an index must be generated for this destination |
 | `read_auth` | `none` or `token` — decides whether the *consumer* needs credentials |
 | `verifier` | `file` (read the artifact back) or `registry` (read the registry back) |
 | `secrets` | names only; the renderer emits the reference and never a value |
+
+`pypi` and `crates-io` are kinds in their own right rather than `command` invocations. Both are
+hosted registries with a documented upload client, no index for us to generate, anonymous reads,
+and a `registry`-verified read-back — the same shape as `npmjs`, which is already a kind. Leaving
+them to the escape hatch would have made the two oldest package registries the two most awkward
+destinations in the manifest, and a README could not honestly show one file publishing to all
+four ecosystems.
 
 `kind = "command"` is the escape hatch for a registry with no shipped client. It runs a
 declared command with declared environment and declared secrets, and it requires a verify

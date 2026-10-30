@@ -185,6 +185,36 @@ absolute path, no hostname, and no values read from the environment that rendere
 renders of one manifest are byte-identical, which is what makes `ci check` meaningful and the
 reviewed artifact — the YAML — the same bytes CI runs.
 
+### 9. `workflow_dispatch` is a closed input schema, and every write has a dry run
+
+Generated files answer `workflow_dispatch` with a fixed set of inputs, derived from the manifest
+at render time. There is no free-text input, because free text is an unparameterised step
+wearing a prompt.
+
+| Input | Type | Default | Derived from |
+| --- | --- | --- | --- |
+| `dry_run` | boolean | `false` | always present, in every file |
+| `scope` | choice | the first declared scope | `[[release.scope]]` |
+| `package` | choice | `all` | `[[packages]].name`, with `all` |
+| `platform` | choice | `all` | the declared platforms, with `all` |
+| `store` | choice | `all` | `[[stores]]` where `writable`, with `all` |
+
+Choices are enumerated when the file is rendered, because GitHub requires a static list — a name
+that does not exist at render time cannot be selected at run time, which is the property that
+keeps a dispatch from expressing something the manifest did not declare.
+
+**A dry run skips the write and keeps the verification.** Every job that writes a destination
+checks `inputs.dry_run`, omits the step that writes, and still runs the read-back in predict
+mode, so a dry run is not a no-op: it proves the plan resolved, the credentials are addressed,
+and the artifact it would have written matches the digest it would have been verified against.
+Two runs of the same input produce identical non-write output, which is what makes dry-run
+parity (`decision-126`) a testable claim rather than an intention.
+
+The same schema is exposed over `workflow_call`, so an organisation can compose the generated
+files without re-deriving them; secrets are declared `required: false` and inherited by the
+caller, because a reusable workflow that demands secrets cannot be called from a repository that
+has none.
+
 ## Conditions that would change this decision
 
 - **GitHub's required-check matching stops being name-based**, or gains per-workflow aggregates.

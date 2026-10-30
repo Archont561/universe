@@ -54,6 +54,16 @@ Four schema-versioned artifacts, each digest-stamped: `evidence.json`, `plan.jso
 `report.json`, `journal.json`. The journal is append-only and keyed by
 `(release-id, target)`; `resume` runs exactly the targets without a `published` record.
 
+**The journal is scoped to one attempt, and resuming is scoped with it.** An attempt's journal
+lives with the run that produced it — per store, as a run artifact in the workflow
+(`decision-128` §5) and as `journal.json` beside the plan in a manual invocation. `resume`
+therefore repairs an attempt by re-running its failed targets; it does not remember a publish
+that happened in an earlier attempt. A fresh attempt starts empty, and because an attempt is
+numbered and tagged, an empty journal is not ambiguous: the release either has its tag or it
+does not. What this gives up is cross-attempt memory, deliberately — a store of "what was
+published last time" is a thing to authenticate, expire, and audit, and a stale record that
+claims a destination succeeded is worse than the publish it would have skipped.
+
 ### Invariants
 
 1. **The release rests on recorded evidence.** `plan` reads the conclusion the gate workflow
