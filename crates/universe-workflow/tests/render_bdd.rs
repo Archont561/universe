@@ -45,7 +45,9 @@ impl Project {
     }
 
     fn rendered(&self) -> &RenderOutput {
-        self.rendered.as_ref().expect("the workflow set was rendered")
+        self.rendered
+            .as_ref()
+            .expect("the workflow set was rendered")
     }
 }
 
@@ -140,14 +142,24 @@ fn load(project: &mut Project, source: &str) {
 #[given("a project that publishes its Airlock package to a hosted channel and to a static channel")]
 fn project_with_two_stores(project: &mut Project) {
     load(project, TWO_STORES);
-    assert!(project.manifest.is_some(), "the two-store manifest is valid");
+    assert!(
+        project.manifest.is_some(),
+        "the two-store manifest is valid"
+    );
 }
 
 #[given("a project that publishes nothing")]
 fn project_publishing_nothing(project: &mut Project) {
     load(project, NO_STORES);
     assert!(project.manifest.is_some());
-    assert!(project.manifest.as_ref().expect("manifest").stores.is_empty());
+    assert!(
+        project
+            .manifest
+            .as_ref()
+            .expect("manifest")
+            .stores
+            .is_empty()
+    );
 }
 
 #[given("a project whose Conda package publishes to an npm store")]
@@ -174,9 +186,8 @@ fn render_the_workflow_set(project: &mut Project) {
 #[when("the same manifest is rendered again")]
 fn render_again(project: &mut Project) {
     let manifest = project.manifest.as_ref().expect("a valid manifest");
-    project.rerendered = Some(
-        universe_workflow::render(manifest, &project.source).expect("the set renders again"),
-    );
+    project.rerendered =
+        Some(universe_workflow::render(manifest, &project.source).expect("the set renders again"));
 }
 
 #[when("the main workflow file is edited by hand")]
@@ -207,18 +218,27 @@ fn publish_job_for_static_channel(project: &Project) {
 fn publish_file_prints_mapping(project: &Project) {
     // The mapping is a derived view: the renderer reports it, so a mapping error is
     // visible rather than inferred by reading YAML.
-    let mapping = RenderOutput::store_mapping(
-        project.manifest.as_ref().expect("a valid manifest"),
-    );
+    let mapping = RenderOutput::store_mapping(project.manifest.as_ref().expect("a valid manifest"));
     let rendered = project.rendered();
     assert_eq!(
         mapping,
         [
-            ("conda-prefix".to_owned(), vec!["universe-airlock".to_owned()]),
-            ("conda-static".to_owned(), vec!["universe-airlock".to_owned()]),
+            (
+                "conda-prefix".to_owned(),
+                vec!["universe-airlock".to_owned()]
+            ),
+            (
+                "conda-static".to_owned(),
+                vec!["universe-airlock".to_owned()]
+            ),
         ]
     );
-    assert!(rendered.required_checks.iter().all(|check| check.starts_with("universe / ")));
+    assert!(
+        rendered
+            .required_checks
+            .iter()
+            .all(|check| check.starts_with("universe / "))
+    );
 }
 
 #[then("the rendered file set is the main workflow file alone")]
