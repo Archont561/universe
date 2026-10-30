@@ -3,7 +3,7 @@ id: doc-1
 title: Monorepo and toolchain architecture
 type: specification
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-26 20:15'
+updated_date: '2026-10-30'
 tags:
   - architecture
   - monorepo
@@ -234,16 +234,16 @@ packager of our own.
    - Triggered on `pull_request` and `push: branches: [main]` (ignoring `backlog/**`, `docs/**`, `README.md`; watching `CHANGELOG.md`).
    - Job `gates`: restores Pixi/sandbox environment, runs `pixi run ci` (`fmt-check`, `repo-check`, `schema-check`, `lint`, `typecheck`, `coverage`, `audit`) and `pixi run --environment browser test-e2e`, uploads `target/coverage/lcov.info`.
    - Job `package`: builds the portal and independent component/facade Conda recipes with external build tooling, then smoke-tests each installed executable. The integrated v1 release requires portal output from the exact pinned catalog snapshot and native registry/static-channel artifacts; local placeholder fallback is never accepted as release output (decision-119, UNI-15/26/46).
-2. **`autorelease.yml`**:
-   - On `main` push: **observe** mode (`convco version --bump`) written to `$GITHUB_STEP_SUMMARY`; zero commits/tags.
-   - On `milestone-v*` / `m-v*` tag push or `workflow_dispatch`: runs full quality + packaging gates, computes/validates SemVer bump with `convco`, rewrites version literals across `Cargo.toml`, `package.json`, `crates/package.json`, `packages/*/package.json`, `crates/universe-kit/recipe/recipe.yaml`, `crates/universe-airlock/recipe/recipe.yaml`, `crates/universe-cli/recipe/recipe.yaml`, `skills/universe-kit/SKILL.md` (when present), and `CHANGELOG.md`, validates with `pixi run repo-check`, commits `chore(release): vX.Y.Z`, creates annotated tag `vX.Y.Z`, and dispatches `release.yml`.
-3. **`release.yml`**:
-   - Triggered on `v*` tag push or `workflow_dispatch` (with `tag` and optional `existing_run_id` inputs):
-     - `verify`: `pixi run repo-check`.
-     - `portal-bundle`: required for integrated v1. Build `packages/portal/build/` once from the verified local catalog snapshot, record/check its digest, upload it as a workflow artifact, and provide identical bytes to package and static-site jobs through `UNIVERSE_KIT_PORTAL_DIST`. Release jobs fail closed if the build is missing or mismatched; a local placeholder is not release output.
-     - `build`: 4-platform matrix (`linux-64` on `ubuntu-latest`, `win-64` on `windows-latest`, `osx-64` on `macos-15-intel`, `osx-arm64` on `macos-latest`) building `.conda` packages via `rattler-build` + standalone `.tar.gz`/`.zip` archives.
-     - `publish-prefix`: runs in `environment: prefix` (`id-token: write`, `contents: read`), publishing all 4 `.conda` packages via `rattler-build upload prefix -c archont561 "$pkg" --generate-attestation`.
-     - `publish-github`: attaches `.conda` files, standalone archives, and `SHA256SUMS` to the GitHub Release (`contents: write`).
+2. **`release.yml`** (generated, `decision-124`; semantics per `decision-126`):
+   - Triggered on a `v*` tag push, on `workflow_dispatch` for a prerelease attempt (`version`, `bump`, `dry_run` inputs), and on a published Release.
+   - **Version authority is not convco** (`decision-123`). The version is a declared literal promoted by a human in a reviewable commit; the lane asserts parity across `Cargo.toml`, `universe.toml`, each `recipe.yaml` `context.version`, and the `CHANGELOG.md` section, and refuses to publish when any of them disagrees or when the section is missing. Convco remains a contributor-side commit linter and changelog drafter; no generated workflow invokes it.
+   - `plan` reads the conclusion the gate workflow already recorded for the commit being released and refuses without it. It does not re-run the suite.
+   - An **attempt** creates a draft Release and uploads assets, which creates no tag; promotion publishes the draft, which is the moment the tag exists, then fans out to stable destinations. Promotion never rebuilds (`decision-126`).
+   - `build`: 4-platform matrix (`linux-64` on `ubuntu-latest`, `win-64` on `windows-latest`, `osx-64` on `macos-15-intel`, `osx-arm64` on `macos-latest`) building `.conda` packages via `rattler-build` plus standalone `.tar.gz`/`.zip` archives.
+   - `publish-prefix`: runs in `environment: prefix` (`id-token: write`, `contents: read`), publishing all 4 `.conda` packages via `rattler-build upload prefix -c archont561 "$pkg" --generate-attestation`.
+   - `publish-github`: attaches `.conda` files, standalone archives, and `SHA256SUMS` to the GitHub Release (`contents: write`). This release is the **origin** every other destination fetches from.
+   - Every destination is mandatory, publication is journaled and resumable, and a repeated publish of the same destination is an error rather than an overwrite (`decision-126`).
+   - `verify-artifact` proves each built artifact installs and passes its smoke commands in a clean environment; `verify-index` proves the published copy matches the built digest.
 
 ## Planned release-governance and supply-chain hardening (`decision-10`)
 

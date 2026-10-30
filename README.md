@@ -14,15 +14,25 @@ channels, publish them, or restore sealed snapshots; that work is tracked in `ba
 This repository is MIT-licensed. Imported package and asset components retain their
 upstream MIT OR Apache-2.0 license texts under `third_party/licenses/`.
 
-## Products
+## Editions
 
-| Artifact | Role | Current scaffold behaviour |
+Universe is one product in two editions, which differ in trust posture rather than in brand
+or data format (`decision-122`).
+
+| Edition | Artefacts | Role |
 | --- | --- | --- |
-| `universe-kit` | Connected owner/producer CLI | `version`, `--version`, `-V`, optional `--json` |
-| `universe-airlock` | Finite offline snapshot consumer | Same version contract |
-| `universe-airlock-bootstrap` | Thin standalone restore/bootstrap executable | Same version contract |
-| `universe-core` | Ecosystem-neutral shared Rust library | Product identity, version-command parsing, stdout envelope |
-| `universe-assets` | Embedded static portal assets | Placeholder-aware `include_dir` bundle; M6 build integration remains pending |
+| **Universe** | `universe-kit`, `universe` (umbrella) | Connected owner and producer: validate, build, verify, publish |
+| **Universe Airlock** | `universe-airlock` | Finite offline consumer: restore and verify a pinned snapshot |
+
+`universe-airlock-bootstrap` is a phase of the Airlock edition rather than an edition of its
+own: it is a separate artifact because bootstrap readiness and sealed offline readiness are
+different promises (`decision-115`), not because it is a separate product.
+
+| Behaviour today | Note |
+| --- | --- |
+| `version`, `--version`, `-V`, optional `--json` on every binary | Verified by tests |
+| `universe-core` | Ecosystem-neutral shared library: product identity, version-command parsing, stdout envelope |
+| `universe-assets` | Placeholder-aware `include_dir` bundle; M6 build integration remains pending |
 
 ## Repository map
 

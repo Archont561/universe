@@ -3,7 +3,7 @@ id: doc-107
 title: Rust workspace and development tooling
 type: guide
 created_date: '2026-10-25T23:49:00Z'
-updated_date: '2026-10-27T09:36:00Z'
+updated_date: '2026-10-30'
 ---
 
 # Rust workspace and development tooling
@@ -45,7 +45,7 @@ If Pixi is absent, host Python 3.11+ can run `python scripts/run.py bootstrap-pi
 
 ## Git hooks
 
-All active workflow run steps and Lefthook commands invoke named Pixi tasks. Convco reads `.versionrc`; changelog/version calculation is not automatic Cargo manifest editing.
+All active workflow run steps and Lefthook commands invoke named Pixi tasks. Convco reads `.config/convco.yml` and is scoped to commit-message linting and changelog drafting; it is **not** the release authority and computes no version that ships (`decision-123`). Version literals are declared and asserted for parity, never rewritten by a tool.
 
 - **commit-msg:** check the message for that commit.
 - **pre-commit:** format staged Rust via stdin and staged configuration; avoid recursive edits of unstaged modules. Auto-update only fully staged blobs/modes. If a partially staged file needs formatting, fail without changing earlier files. Clippy reads an exported Git-index snapshot, not dirty worktree source.

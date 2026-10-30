@@ -1,8 +1,9 @@
 # Explicit Convco 0.7.x policy. Both lint tasks pass this path explicitly.
-header: |
-  # Changelog
-
-  All notable changes to `universe` are documented in this file.
+#
+# Scope: validating commit messages, and drafting changelog sections when asked. The
+# `header:` block was removed deliberately (`decision-123`): it declared a changelog preamble,
+# which reads as "this file generates CHANGELOG.md". Nothing does — the changelog is curated
+# by hand and only checked, so the preamble had no owner and no effect.
 
 types:
   - type: feat

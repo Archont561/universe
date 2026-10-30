@@ -5,6 +5,12 @@ date: '2026-10-26 20:15'
 status: accepted
 ---
 
+> **Amended by `decision-123`, `decision-124`, `decision-125`, and `decision-126`.**
+> The two-lane split and the zero-checkout publishing principle below still hold. Three
+> specifics do not: version computation via convco, the generated file layout, and the
+> hand-written owner lanes. Read "Convco-authoritative" as historical — the version is now a
+> declared literal asserted for parity, and no generated workflow invokes convco.
+
 ## Context
 
 `universe-kit` requires two distinct workflow families:
@@ -17,9 +23,11 @@ In both lanes, untrusted build execution (compiling upstream C++/Rust/Python sou
 
 1. **Owner-lane workflows (`Archont561/universe/.github/workflows/`)**:
    - `ci.yml`: Runs on PRs and `main` pushes (`paths-ignore` for `backlog/**`, `docs/**`, `README.md`, while keeping `CHANGELOG.md` watched). Executes `gates` (`pixi run ci` + `pixi run test-e2e` + `skills-ref validate`) and `package` (`rattler-build build --recipe crates/universe-kit/recipe/recipe.yaml` + `universe-kit --help` smoke test) in parallel.
-   - `autorelease.yml`: Implements the Convco-authoritative decision half:
-     - On `push: branches: [main]`: runs in **observe** mode (`convco version --bump`), reporting the next calculated version in `$GITHUB_STEP_SUMMARY` without creating commits or tags.
-     - On `push: tags: ['milestone-v*', 'm-v*']` or `workflow_dispatch`: runs full quality + packaging gates, computes/validates version via `convco`, updates `Cargo.toml`, `package.json` workspaces, `crates/universe-kit/recipe/recipe.yaml`, `skills/universe-kit/SKILL.md`, and `CHANGELOG.md`, verifies consistency via `pixi run repo-check`, pushes `chore(release): vX.Y.Z` + annotated tag `vX.Y.Z`, and dispatches `release.yml`.
+   - `autorelease.yml`: **superseded** by `decision-123` and `decision-126`. There is no
+     observe-mode version computation and no literal rewriting: the version is promoted by a
+     human in a reviewable commit, and parity across `Cargo.toml`, `universe.toml`, the
+     recipes, and the `CHANGELOG.md` section is asserted rather than produced. A milestone tag
+     asks for a release; it does not calculate one.
    - `release.yml`: Triggered by `v*` tag push or `workflow_dispatch` (supporting `tag` + optional `existing_run_id` artifact reuse for failure recovery without rebuilding):
      - `verify`: runs `pixi run repo-check` so every manifest matches the tag.
      - `portal-bundle`: builds `@universe/portal` once on `ubuntu-latest` and uploads the deterministic static `packages/portal/build` artifact so non-Linux build runners (`win-64`, `osx-64`, `osx-arm64`) do not need Bun/Node during `rattler-build` compilation.
