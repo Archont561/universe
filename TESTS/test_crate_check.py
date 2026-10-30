@@ -113,6 +113,14 @@ def test_reports_a_package_missing_from_the_graph() -> None:
     assert errors == ["universe-core: package is not part of the resolved workspace"]
 
 
+def test_allowlist_admits_the_map_backing_closure() -> None:
+    # `toml_edit`'s parser keeps its tables in `indexmap`, and `hashbrown` 0.17 draws
+    # its hasher and allocator shims in with it. Both only compute: no file, socket,
+    # terminal, or package-resolution call exists in either, so they belong beside
+    # `hashbrown` rather than forcing the TOML reader out of the neutral core.
+    assert {"allocator-api2", "foldhash", "hashbrown"} <= ALLOWED_DEPENDENCIES
+
+
 def test_allowlist_names_no_runtime_machinery() -> None:
     for forbidden in ("reqwest", "tokio", "ratatui", "rattler", "clap"):
         assert forbidden not in ALLOWED_DEPENDENCIES

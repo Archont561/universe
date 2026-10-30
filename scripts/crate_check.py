@@ -33,7 +33,14 @@ ALLOWED_DEPENDENCIES = frozenset(
         # reads text and performs no I/O. `toml_edit` and its parser closure come with
         # `parse` only — no `display`, no `serde` feature — so the dependency stays a
         # reader and never becomes a writer of project files.
+        "allocator-api2",
         "equivalent",
+        # `hashbrown` 0.17 backs `indexmap`, and draws its default hasher and its
+        # allocator shim in alongside it. `foldhash` is a hash function and
+        # `allocator-api2` is an interface, not an allocator: neither opens a file,
+        # a socket, a terminal, or a package index. They are listed because they are
+        # in the closure, and the allowlist names the closure rather than guessing.
+        "foldhash",
         "hashbrown",
         "indexmap",
         "itoa",
