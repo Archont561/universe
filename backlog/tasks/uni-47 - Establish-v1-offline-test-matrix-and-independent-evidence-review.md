@@ -4,7 +4,7 @@ title: Establish the v1 offline test matrix and independently review release evi
 status: To Do
 assignee: []
 created_date: '2026-10-27'
-updated_date: '2026-10-27'
+updated_date: '2026-10-31'
 labels:
   - offline
   - testing
@@ -33,6 +33,12 @@ dependencies:
   - UNI-44
   - UNI-45
   - UNI-46
+  - UNI-51
+  - UNI-52
+  - UNI-53
+  - UNI-54
+  - UNI-55
+  - UNI-56
 documentation:
   - backlog/docs/development/doc-202 - Development-guide.md
   - backlog/docs/development/doc-204 - Testing-and-regression-artifacts.md

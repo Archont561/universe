@@ -3,7 +3,7 @@ id: doc-4
 title: Ordered milestone roadmap and skills.sh rollout
 type: roadmap
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-27'
+updated_date: '2026-10-31'
 tags:
   - roadmap
   - milestones
@@ -36,8 +36,8 @@ not a new Backlog record type or date commitment.
 | **M1** | Neutral schemas and adapter contracts | `UNI-30`, `UNI-31`, `UNI-41` | Neutral schemas, adapter contract, project and pinned release manifests tested. |
 | **M2** | Kit commands, artifact orchestration, and audit | `UNI-7`–`UNI-10`, `UNI-21`, `UNI-22` | External command orchestration and deterministic artifact checks pass; no embedded builder. |
 | **M3** | Conda static channel and consumer initialization | `UNI-11`–`UNI-13` | Real native client resolves/downloads package bytes from standard static channel paths. |
-| **M4** | Trusted producer and release lanes | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34` | Pinned release intake, independent package lanes, installed-prefix evidence, isolated publishing. |
-| **M5** | Airlock snapshot/bootstrap foundation | `UNI-32`, `UNI-33`, `UNI-38` | Verified transactional restore and separate bootstrap/component packages. |
+| **M4** | Trusted producer and release lanes | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34`, `UNI-54`, `UNI-56` | Pinned release intake, independent package lanes, installed-prefix evidence, isolated publishing. |
+| **M5** | Airlock snapshot/bootstrap foundation | `UNI-32`, `UNI-33`, `UNI-38`, `UNI-51`, `UNI-52`, `UNI-53`, `UNI-55` | Verified transactional restore, a lock-verified mirror, generated entrypoints, and separate bootstrap/component packages. |
 | **M6** | Native Cargo, Python-wheel, and npm adapters | `UNI-42`–`UNI-44` | Protocol fixtures and native clients pass without external egress. |
 | **M7** | Portal from pinned catalog snapshots | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-46` | Deterministic portal from the verified snapshot; browser tests pass; portal remains distinct from registries. |
 | **M8** | Unified command facade and umbrella install | `UNI-40` | Thin `universe` dispatches to independently installable Kit and Airlock packages. |
@@ -59,8 +59,8 @@ an execution proposal, not a task hierarchy:
 | S0 | Close foundation/transport | `UNI-36`, `UNI-49`, `UNI-50` |
 | S1 | Contracts | `UNI-30`, `UNI-31`, `UNI-41` |
 | S2 | Kit core and artifact safety | `UNI-7`, `UNI-8`, `UNI-9`, `UNI-10`, `UNI-21`, `UNI-22` |
-| S3 | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38` |
-| S4 | Trusted releases and native registries | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34`, `UNI-42`, `UNI-43`, `UNI-44` |
+| S3 | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38`, `UNI-51`, `UNI-52`, `UNI-53` |
+| S4 | Trusted releases and native registries | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34`, `UNI-42`, `UNI-43`, `UNI-44`, `UNI-54`, `UNI-55`, `UNI-56` |
 | S5 | Portal and command facade | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-40`, `UNI-46` |
 | S6 | Airlock integration and evidence review | `UNI-45`, `UNI-47` |
 | S7 | Integrated v1 release | `UNI-16` |
