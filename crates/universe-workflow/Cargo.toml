@@ -1,0 +1,17 @@
+[package]
+name = "universe-workflow"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Deterministic manifest-to-workflow renderer for Universe"
+
+[lints]
+workspace = true
+
+[dependencies]
+minijinja.workspace = true

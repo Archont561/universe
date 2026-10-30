@@ -7,6 +7,7 @@ members = [
   "crates/universe-core",
   "crates/universe-assets",
   "crates/universe-kit",
+  "crates/universe-workflow",
 ]
 
 [workspace.package]
@@ -24,6 +25,7 @@ universe-core = { path = "crates/universe-core", version = "=0.1.0" }
 universe-assets = { path = "crates/universe-assets", version = "=0.1.0" }
 assert_cmd = "2.0"
 include_dir = "0.7.4"
+minijinja = "3"
 predicates = "3.1"
 proptest = "1.12"
 rstest = "0.27"

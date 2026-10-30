@@ -95,6 +95,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tomli-2.5.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026e-h5d301ff_0.conda
+      - pypi: https://files.pythonhosted.org/packages/0a/dc/e77f490557cb5e045a75c3d18a7965425ac576235c970dfff4d903eb2c74/maturin-1.16.0-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.musllinux_1_1_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/5d/dd/34e863a6082a3af3cf2e5db46d4164f0051c46f5bfe1a11c69c41ad0c969/alint-0.20.1-py3-none-manylinux_2_17_x86_64.musllinux_1_2_x86_64.whl
   packaging:
     channels:
@@ -186,6 +187,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tomli-2.5.0-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026e-h5d301ff_0.conda
+      - pypi: https://files.pythonhosted.org/packages/0a/dc/e77f490557cb5e045a75c3d18a7965425ac576235c970dfff4d903eb2c74/maturin-1.16.0-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.musllinux_1_1_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/5d/dd/34e863a6082a3af3cf2e5db46d4164f0051c46f5bfe1a11c69c41ad0c969/alint-0.20.1-py3-none-manylinux_2_17_x86_64.musllinux_1_2_x86_64.whl
 packages:
 - conda: https://conda.anaconda.org/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
@@ -1389,6 +1391,15 @@ packages:
   run_exports: {}
   size: 119208
   timestamp: 1792758382821
+- pypi: https://files.pythonhosted.org/packages/0a/dc/e77f490557cb5e045a75c3d18a7965425ac576235c970dfff4d903eb2c74/maturin-1.16.0-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.musllinux_1_1_x86_64.whl
+  name: maturin
+  version: 1.16.0
+  sha256: 837db2f4d93d4899c3ac393fb3cc9eebf35b6002336e5d574f4a4fb6c49fe283
+  requires_dist:
+  - tomli>=1.1.0 ; python_full_version < '3.11'
+  - patchelf ; extra == 'patchelf'
+  - ziglang>=0.10.0 ; extra == 'zig'
+  requires_python: '>=3.7'
 - pypi: https://files.pythonhosted.org/packages/5d/dd/34e863a6082a3af3cf2e5db46d4164f0051c46f5bfe1a11c69c41ad0c969/alint-0.20.1-py3-none-manylinux_2_17_x86_64.musllinux_1_2_x86_64.whl
   name: alint
   version: 0.20.1
