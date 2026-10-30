@@ -40,9 +40,36 @@ if ! command -v pixi >/dev/null 2>&1; then
 fi
 pixi --version
 pixi install --locked
-pixi run setup
+pixi run setup          # hooks first: they are the fast feedback loop
 pixi run test
 ```
+
+### Install the hooks before the first commit
+
+`pixi run setup` runs `hooks-install`, which wires Lefthook into `.git/hooks`.
+Do this at the start of the session, not when a gate first fails: the hooks are
+the whole difference between a mistake that costs a second and the same mistake
+costing a push, a CI run, and a force-push. What each one catches:
+
+| Hook | Catches | Cost when it is missing |
+| --- | --- | --- |
+| `commit-msg` | a type or scope `.versionrc` does not allow — `style:` is rejected, the allowed set is nine types | the pull-request commit check fails after the push, and the fix is a rewrite of published history |
+| `pre-commit` | unformatted Rust, a stale skill hash, an invalid Backlog record, a broken workflow ref | the same failure arrives from CI minutes later, mixed in with everything else |
+| `pre-push` | anything `offline-gates` proves without the network | the push succeeds and the failure belongs to the next person who runs CI |
+| `post-checkout` | nothing: it re-runs `pixi run setup`, so a checkout self-heals an environment whose hooks went missing | a stale clone keeps passing checks that the repository no longer accepts |
+
+Verify rather than assume, because a restore can leave `.git/hooks` untouched:
+
+```bash
+for hook in commit-msg pre-commit pre-push; do
+  test -x ".git/hooks/$hook" || echo "missing hook: $hook"
+done
+```
+
+If one is missing, run `pixi run hooks-install`; it writes a shim for all four
+hooks in one pass. Lefthook replaces an existing hook of the same name, so check
+what is already in `.git/hooks` before installing over one that does something
+else, and restore it afterwards if it did.
 
 If Pixi is missing, try the repository's checked-in `scripts/restore.sh` before
 reporting an environment blocker. The first sandbox publication must already
