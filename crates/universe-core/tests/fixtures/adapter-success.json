@@ -1,0 +1,24 @@
+{
+  "outcome": "success",
+  "artifacts": [
+    {
+      "artifact": {
+        "id": {
+          "name": "pkg",
+          "version": "0.1.0"
+        },
+        "digest": "9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c9f2c",
+        "size_bytes": 4096,
+        "media_type": "application/octet-stream"
+      },
+      "path": "output/pkg-0.1.0.tar.zst"
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "adapter.build.cached",
+      "message": "reused a cached build tree"
+    }
+  ]
+}

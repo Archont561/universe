@@ -27,8 +27,8 @@ ships in this task.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Adapter capabilities, plan/build/audit requests, diagnostics, and artifact references are serializable.
-- [ ] #2 Conformance fixtures cover success, user failure, usage failure, infrastructure failure, digest mismatch, and unknown evidence.
+- [x] #1 Adapter capabilities, plan/build/audit requests, diagnostics, and artifact references are serializable. — 2026-10-31: `adapter.rs` in `universe-core`, round-tripped through JSON by `crates/universe-core/tests/adapter.rs`.
+- [x] #2 Conformance fixtures cover success, user failure, usage failure, infrastructure failure, digest mismatch, and unknown evidence. — 2026-10-31: six fixtures in `crates/universe-core/tests/fixtures/adapter-*.json`, each asserted to satisfy the conformance rules and to round-trip unchanged.
 - [ ] #3 Core retains indexing, publication authority, content addressing, and generation assembly.
 <!-- AC:END -->
 

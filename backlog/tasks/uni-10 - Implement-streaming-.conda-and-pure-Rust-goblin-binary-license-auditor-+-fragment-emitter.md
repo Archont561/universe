@@ -36,6 +36,10 @@ Replace `CloudCompare-conda/scripts/audit_package.py` entirely in pure Rust via 
   - `noarch`: forbid compiled ELF/PE/Mach-O native binaries inside `noarch` packages.
 - Verify `package.toml` `audit.expected_binaries` existence.
 - Implement `--emit-fragment <dir>` writing deterministic ~1 KB `<subdir>/<filename>.conda.json` (`FragmentJson`) files for `pages build`.
+
+The adapter request/result boundary — capabilities, the plan/build/audit requests, the six
+outcomes, and produced artifacts — lives in `crates/universe-core/src/adapter.rs` (`UNI-31`).
+This task consumes those records instead of defining a per-command shape of its own.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
