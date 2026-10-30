@@ -42,10 +42,52 @@ not replace the Python repository scripts.
 2. **Backlog before scope.** Every product change belongs to a Backlog task.
    Preserve task IDs. If scope or status changes, update the task in the same
    change as the implementation.
-3. **TDD at the boundaries.** Write failing tests first for parsers, planners,
-   adapters, auditors, CAS/store logic, CLI output, and restore/verify flows.
-   Tests target fixtures and temporary directories, never the live repository
-   or a developer's real `HOME`.
+3. **Test first, and read the two skills before you do.** Before writing any
+   feature, parser, planner, adapter, auditor, store, CLI verb, or restore/verify
+   flow, read `.agents/skills/tdd/SKILL.md` and `.agents/skills/bdd/SKILL.md`.
+   Together with `.agents/skills/clean-code-principles/SKILL.md` they are the
+   standard here, not a suggestion, and they are read *before* the first line of
+   implementation, not after it.
+
+   **TDD.** Red before green, one vertical slice at a time: one test, then only
+   enough code to pass it, then the next. Never write a batch of tests for
+   behaviour you have not built yet — that tests the shape you imagined. Tests
+   observe public seams and their expected values come from an independent
+   source: a published test vector, a worked example, the specification. An
+   assertion that recomputes the answer the way the implementation does is not a
+   test. `pixi run test` must show the new test failing before it passes, and a
+   slice that was never red is a slice whose test may simply agree with the bug.
+
+   **BDD.** For behaviour a user or a consuming repository can observe, establish
+   the scenario in domain language first: who acts, what happens, what is
+   observable afterwards. Then let it drive the implementation through
+   `rstest-bdd`, which is how the Rust crates in this repository express
+   scenarios. The BDD skill's preflight still applies and is not a formality:
+   not every change earns a `.feature` file, and one written after the code is
+   acceptance automation, so record it as that rather than calling it BDD.
+   Scenarios use concrete data (a real package name, a real digest), not `foo`
+   and `user1`, and they state what, never how.
+
+   **Clean code.** Read `.agents/skills/clean-code-principles/SKILL.md` before
+   implementing, and apply it *while* writing the slice rather than cleaning up
+   afterwards. The parts that decide whether this codebase stays reviewable:
+
+   - one reason to change per module — the renderer decides what a job is, the
+     template decides how it looks, and neither knows the other's rules;
+   - names say what a thing is, not how it is built (`store_write_scope`, not
+     `get_perm_2`);
+   - fail fast at the boundary: an invalid manifest is refused by the validator,
+     not discovered halfway through a publish;
+   - no speculative generality — a field, trait, or flag that nothing consumes
+     yet is scope the next reader has to carry;
+   - duplication is removed at the second occurrence, not the third, but only
+     when the two things change together; a shared helper for two coincidences
+     is worse than the duplication it replaced.
+
+   The loop continues for the rest of the work, including the parts added after
+   the first green: every later behaviour change starts from a test or a
+   scenario, not from an edit. Tests target fixtures and temporary directories,
+   never the live repository or a developer's real `HOME`.
 4. **Core stays neutral.** `universe-core` must not gain Conda/Rattler, npm,
    Python, STAC, portal, Clap, Inquire, Ratatui, HTTP-server, or publication
    dependencies. Official adapters are feature-gated Rust crates compiled into

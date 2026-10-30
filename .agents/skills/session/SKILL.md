@@ -113,8 +113,16 @@ a ceremonial confirmation round-trip; state the plan and work.
 ## 4. Work the stages
 
 - Start with the unknown that could invalidate the sprint.
-- Use TDD at parser, planner, adapter, CAS, auditor, restore, and stdout
-  boundaries.
+- Before the first line of implementation, read the three skills that govern it:
+  `tdd` (red before green, one vertical slice at a time),
+  `bdd` (scenario in domain language before the code, `.feature` files through
+  `rstest-bdd` where a user or a consuming repository can observe the behaviour),
+  and `clean-code-principles` (one reason to change per module, intention-revealing
+  names, fail fast at the boundary, no speculative generality).
+  These are not a review checklist to run afterwards; they are how the slice is
+  written. A slice that was never red, or whose module took on a second reason to
+  change, gets fixed now rather than in a later session.
+- A behaviour added after the first green still starts from a test or a scenario.
 - Keep commits focused and conventional.
 - Update the Backlog task in the same change as the implementation.
 - Run the cheapest relevant gate during development, then `pixi run gates`
