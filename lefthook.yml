@@ -11,6 +11,8 @@ pre-commit:
       run: pixi run backlog-check
     repo-check:
       run: pixi run repo-check
+    alint-check:
+      run: pixi run alint-check
     skills-check:
       glob: ".agents/skills/**"
       run: pixi run skills-check

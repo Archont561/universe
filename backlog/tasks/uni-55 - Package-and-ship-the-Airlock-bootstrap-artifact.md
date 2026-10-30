@@ -42,7 +42,7 @@ release assets and the umbrella package's runtime requirements.
 
 ## Acceptance Criteria
 <!-- AC.BEGIN -->
-- [ ] #1 A recipe builds the bootstrap executable for every supported target and installs only that executable; its runtime requirements add no producer, registry, or network tooling.
+- [x] #1 A recipe builds the bootstrap executable for every supported target and installs only that executable; its runtime requirements add no producer, registry, or network tooling. — 2026-10-31: `crates/universe-airlock-bootstrap/recipe/` plus `pixi run package-airlock-bootstrap`; `repo_check` now enforces its version parity.
 - [ ] #2 The artifact is smoke-tested in a clean environment and its version contract matches the workspace version.
 - [ ] #3 The release lane publishes it alongside the consumer artifact with checksums, and the version policy in `decision-126` applies to it as part of the same train.
 - [ ] #4 Whatever the packaging decision is, the consumer edition's documentation and the release asset list agree with it.
