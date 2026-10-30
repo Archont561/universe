@@ -199,19 +199,22 @@ Note (`decision-15`): repository automation remains Python (`python -m scripts.<
 
 ### Tool crates are not dependencies
 
-A crate that ships only `[[bin]]` targets cannot be pulled in through
-`[workspace.dependencies]`: cargo resolves dependencies through a library target,
-so a bin-only entry is silently ignored ("missing a lib target") and adds nothing
-to `Cargo.lock` or the vendor tree. Cargo's artifact dependencies
-(`artifact = "bin"`) are the feature that would express this, and they are still
-nightly-only.
+A crate that ships only `[[bin]]` targets can be *named* as a dependency, but it
+cannot be *used* as one: `cargo build` warns "ignoring invalid dependency … which
+is missing a lib target" and links nothing. The entry is not inert at resolve
+time — an observed `cargo add cargo-npm` resolved `0.1.4`, wrote it to
+`Cargo.lock`, and fetched its source into the vendor tree — so a bin-only
+dependency buys a pinned download and no callable API. Cargo's artifact
+dependencies (`artifact = "bin"`) are the feature that would express "build this
+tool and use its binary", and they are still nightly-only.
 
 So a tool either comes from a package manager (conda-forge for `cargo-audit`,
 `cargo-deny`, `cargo-nextest`, `actionlint`, `taplo`, `convco`, `lefthook`;
 PyPI for `alint` and `maturin`) or is written as a workspace crate. `cargo-npm`
-is in neither package channel, which is why it is not pinned here — packaging it
-would mean a networked `cargo install` outside the lock, or an npm packager of
-our own.
+is in neither package channel and has no library target, so naming it as a
+dependency would pin a download that nothing links — it is not pinned here.
+Packaging it would mean a networked `cargo install` outside the lock, or an npm
+packager of our own.
 
 ## Offline sandbox (`pixi-sandbox.toml`) & Git hooks (`lefthook.yml`)
 
