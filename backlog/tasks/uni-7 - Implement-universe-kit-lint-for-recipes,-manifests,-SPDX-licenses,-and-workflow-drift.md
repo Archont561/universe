@@ -4,7 +4,7 @@ title: Implement universe-kit lint for recipes, manifests, SPDX licenses, and wo
 status: To Do
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-26 20:15'
+updated_date: '2026-10-31'
 labels:
   - audit
   - architecture
@@ -36,6 +36,8 @@ Port and generalize all static recipe & repository lint rules (`CloudCompare-con
 - [ ] #1 `universe-kit lint` catches missing `sha256`, mutable git `branch`/`tag` without `rev`, invalid SPDX license strings, missing `license_file`, negative `build.number`, and unknown `universe.toml` / `package.toml` keys with line/key locations.
 - [ ] #2 Multi-output `staging` recipes (`outputs:` arrays in `recipe.yaml` v1) are parsed and validated accurately.
 - [ ] #3 `--json` emits deterministic structured diagnostics suitable for CI annotations.
+- [ ] #4 Version parity is enforced across `Cargo.toml`, `universe.toml`, every recipe's `context.version`, and the `CHANGELOG.md` section for the version; a release with no section for its version is refused (`decision-123`).
+- [ ] #5 The workflow drift check covers every rendered file rather than one, and names which file diverged (`decision-124`).
 <!-- AC:END -->
 
 ## Definition of Done

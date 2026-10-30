@@ -4,7 +4,7 @@ title: Define multi-ecosystem project and pinned release manifest contracts
 status: To Do
 assignee: []
 created_date: '2026-10-27'
-updated_date: '2026-10-27'
+updated_date: '2026-10-31'
 labels:
   - architecture
   - schemas
@@ -26,7 +26,17 @@ ordinal: 41000
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Extend the existing `universe.toml` / per-package `package.toml` contract for Conda,
-Cargo, Python wheels, and npm without replacing the established project format. Define a
+Cargo, Python wheels, and npm without replacing the established project format.
+
+Shape is governed by `decision-127`: `[[packages]]` describes what is built (`command`,
+`outputs`, `smoke`, `platforms`, a `catalog` facet, and named destinations) and
+`[[stores]]` describes where bytes go, declaring `writable`, `needs_index`, `read_auth`,
+and `verifier` so the renderer never special-cases an ecosystem. The single
+`[[targets]]` list in `doc-2` cannot express one build publishing to two destinations,
+which is why the split is part of this contract rather than a later refactor. Airlock
+configuration is split into `[airlock.developer]` and `[airlock.delivery]`, because
+restoring my own toolchain and consuming someone else's catalog are different
+provenances that must not be mergeable into one block. Define a
 versioned machine-readable GitHub Release manifest (planned filename `universe-release.json`)
 that binds repository, immutable tag/release identity, catalog snapshot, ecosystem/package
 identity, target/version, asset name, size, and cryptographic digest. Specify signature/
@@ -45,6 +55,8 @@ catalog and integrity fields in core; ecosystem-specific metadata belongs to ada
 - [ ] #3 Manifest validation is deterministic and network-free; GitHub release acquisition is a separate pinned connected operation.
 - [ ] #4 Catalog snapshots preserve exact source/release pins and content digests; portal and adapters consume the same verified snapshot identity.
 - [ ] #5 Document backward compatibility/migration from existing `universe.toml` and `package.toml` without silently changing existing Conda recipe semantics.
+- [ ] #6 A package with a publish destination and no smoke command is rejected at lint level, and a store declaring `read_auth: token` whose secret name is absent is rejected too, so neither fails first at publish time.
+- [ ] #7 `lint --mode restore` refuses a manifest whose fields require network, so a disconnected host cannot be handed a configuration that silently reaches for a registry.
 <!-- AC:END -->
 
 ## Definition of Done
