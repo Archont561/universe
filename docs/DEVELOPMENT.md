@@ -67,7 +67,7 @@ Each recipe builds only its corresponding workspace binary and smoke-tests its v
 
 ## Automation and scripts
 
-The upstream package examples informed the Cargo Turbo facade and package task graph. Their TypeScript CI/audit/coverage/repository scripts are not copied wholesale: this repository already has tested Python equivalents and named Pixi tasks. Add automation in `scripts/` as Python, register it as a Pixi task, and test it under `tests/scripts/`. Shell is reserved for the restore launcher and generated shell-specific templates; small CI helpers should use the Pixi/Python task entrypoint.
+The upstream package examples informed the Cargo Turbo facade and package task graph. Their TypeScript CI/audit/coverage/repository scripts are not copied wholesale: this repository already has tested Python equivalents and named Pixi tasks. Add automation in `scripts/` as Python, register it as a Pixi task, and test it under `TESTS/`. Shell is reserved for the restore launcher and generated shell-specific templates; small CI helpers should use the Pixi/Python task entrypoint.
 
 The sandbox publisher only transports a developer environment. It is separate from the sealed-snapshot format, consumer restore lifecycle, and any future Airlock release pipeline.
 

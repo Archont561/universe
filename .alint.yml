@@ -133,6 +133,7 @@ rules:
     kind: dir_absent
     paths:
       - .agents/licenses
+      - third_party
       - website
       - dist
       - build
@@ -140,7 +141,7 @@ rules:
     level: error
 
   # License/notice placeholders and empty-directory placeholders are forbidden
-  # everywhere except the retained third-party license texts.
+  # everywhere: nothing is vendored here, so nothing needs a copied license text.
   - id: universe-forbidden-basenames
     kind: file_absent
     paths:
@@ -161,7 +162,7 @@ rules:
       - "**/LICENSE.txt"
       - "**/LICENCE"
       - "**/LICENCE.md"
-    message: "Use the retained third_party/licenses/ naming"
+    message: "License texts are not vendored: only the repository LICENSE names the terms"
     level: error
 
   # Repository automation is Python under scripts/; TypeScript must not creep in.
@@ -169,7 +170,7 @@ rules:
     kind: file_absent
     paths:
       - "scripts/**/*.ts"
-      - "tests/scripts/**/*.ts"
+      - "TESTS/**/*.ts"
     message: "Repository automation is Python under scripts/, not TypeScript"
     level: error
 
