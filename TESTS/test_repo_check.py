@@ -11,6 +11,7 @@ from scripts.repo_check import (
     extract_task_ids,
     main,
     validate_audit_gate,
+    validate_documented_pixi_tasks,
     validate_offline_cargo_transport,
     validate_repo,
     validate_roadmap_coverage,
@@ -235,3 +236,61 @@ def test_roadmap_coverage_reports_an_identifier_without_a_task(tmp_path: Path) -
 
     assert len(errors) == 1
     assert "UNI-9 is referenced but has no task record" in errors[0]
+
+
+def _documented_repo(root: Path, readme: str) -> Path:
+    """Write a minimal repository whose Pixi table declares the tasks under test."""
+    (root / "pixi.toml").write_text(
+        '[tasks]\nfmt = { cmd = "cargo fmt" }\ngates = { depends-on = ["fmt"] }\n'
+        'package-kit = { cmd = "rattler-build build" }\n',
+        encoding="utf-8",
+    )
+    (root / "README.md").write_text(readme, encoding="utf-8")
+    return root
+
+
+def test_documented_task_names_must_be_declared(tmp_path: Path) -> None:
+    root = _documented_repo(
+        tmp_path,
+        "```sh\npixi run fmt\npixi run universe -- version\n```\n",
+    )
+
+    errors = validate_documented_pixi_tasks(root)
+
+    assert errors == [
+        "README.md: `pixi run universe` names no declared Pixi task and no known executable"
+    ]
+
+
+def test_documented_executables_and_placeholders_are_not_tasks(tmp_path: Path) -> None:
+    root = _documented_repo(
+        tmp_path,
+        "```sh\n"
+        "pixi run --locked cargo test -p universe-core\n"
+        "pixi run --environment packaging package-kit\n"
+        "pixi run <verb>\n"
+        "pixi run --frozen\n"
+        "```\n",
+    )
+
+    assert validate_documented_pixi_tasks(root) == []
+
+
+def test_documented_tasks_ignore_backlog_promises(tmp_path: Path) -> None:
+    root = _documented_repo(tmp_path, "pixi run fmt\n")
+    task = root / "backlog" / "tasks" / "uni-1 - Planned.md"
+    task.parent.mkdir(parents=True)
+    task.write_text('Add `ci-render = { cmd = "pixi run ci-render" }`.', encoding="utf-8")
+
+    assert validate_documented_pixi_tasks(root) == []
+
+
+def test_documented_tasks_are_checked_in_the_agent_and_contributor_guides(
+    tmp_path: Path,
+) -> None:
+    root = _documented_repo(tmp_path, "pixi run fmt\n")
+    (root / "AGENTS.md").write_text("`pixi run lint`\n", encoding="utf-8")
+
+    assert validate_documented_pixi_tasks(root) == [
+        "AGENTS.md: `pixi run lint` names no declared Pixi task and no known executable"
+    ]

@@ -31,7 +31,12 @@ pixi run web-check
 pixi run web-build
 pixi run audit
 pixi run gates
+pixi run universe -- --version    # the facade this workspace just built
 ```
+
+`pixi run universe` is the dogfooding entrypoint: it builds the workspace, puts the built
+components on `PATH`, and runs the facade, so a verb that only works after installation
+fails here first. Everything after `--` is passed to the binary unchanged.
 
 For focused Rust tests, use the Pixi environment, for example:
 

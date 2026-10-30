@@ -58,7 +58,7 @@ catalog and integrity fields in core; ecosystem-specific metadata belongs to ada
 - [ ] #6 A package with a publish destination and no smoke command is rejected at lint level, and a store declaring `read_auth: token` whose secret name is absent is rejected too, so neither fails first at publish time.
 - [ ] #7 Universe authors its own `universe.toml` and it lints clean, because a facet nobody has written for a real project is a facet that will not fit the first one. It is the parser's first fixture and the only manifest in this repository.
 - [ ] #8 A package naming a store of an incompatible kind, a store that does not exist, or a store declaring `writable = false` fails lint with both names in the message; a writable store no package names is a warning.
-- [ ] #9 `ci render` prints the derived store→package mapping alongside the job it produces, so the mapping is inspectable rather than inferred, and a `[[release.scope]]` that names a store no package in that scope publishes to fails lint.
+- [ ] #9 A `[[release.scope]]` that names a store no package in that scope publishes to fails lint, so a scope promising a destination nothing feeds is rejected before anything renders; what the render prints is `UNI-57`.
 - [ ] #10 `lint --mode restore` refuses a manifest whose fields require network, so a disconnected host cannot be handed a configuration that silently reaches for a registry.
 <!-- AC:END -->
 

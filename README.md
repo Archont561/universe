@@ -63,7 +63,7 @@ bytes — a partial release is not a release.
 git clone https://github.com/Archont561/universe && cd universe
 bash scripts/restore.sh                 # locked Pixi environments, offline-capable
 pixi run check                          # fmt, lint, types, tests, backlog, repository invariants
-pixi run universe -- version            # the binary this repo just built, dogfooded
+pixi run universe -- --version          # the facade this repo just built, dogfooded
 ```
 
 Everything above the "Try it today" heading is the accepted design, not shipped behaviour. The
