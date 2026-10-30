@@ -23,9 +23,10 @@ publish = false
 [workspace.dependencies]
 universe-core = { path = "crates/universe-core", version = "=0.1.0" }
 universe-assets = { path = "crates/universe-assets", version = "=0.1.0" }
+universe-workflow = { path = "crates/universe-workflow", version = "=0.1.0" }
 assert_cmd = "2.0"
 include_dir = "0.7.4"
-minijinja = "3"
+minijinja = { version = "3", features = ["serde"] }
 predicates = "3.1"
 proptest = "1.12"
 rstest = "0.27"
@@ -36,6 +37,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tempfile = "3.19"
 thiserror = "2.0"
+toml_edit = { version = "0.25", default-features = false, features = ["parse"] }
 wiremock = "0.6"
 
 [workspace.lints.rust]

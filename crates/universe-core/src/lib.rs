@@ -13,6 +13,7 @@ pub mod catalog;
 pub mod diagnostic;
 pub mod digest;
 pub mod error;
+pub mod manifest;
 pub mod schema;
 pub mod snapshot;
 
@@ -28,6 +29,9 @@ pub use catalog::{Catalog, CatalogEntry};
 pub use diagnostic::{Diagnostic, Envelope, Severity};
 pub use digest::Sha256Digest;
 pub use error::ModelError;
+pub use manifest::{
+    Destination, LockAdapter, Manifest, Package, PackageKind, ReleaseManifest, Store, StoreKind,
+};
 pub use schema::{CATALOG_SCHEMA_VERSION, SNAPSHOT_SCHEMA_VERSION, SchemaVersion};
 pub use snapshot::Snapshot;
 
@@ -227,6 +231,19 @@ pub struct CommandOutput {
 }
 
 impl CommandOutput {
+    /// Build a fully materialised output.
+    ///
+    /// Commands outside `universe-core` need this: the core owns the *shape* of the
+    /// stdout/stderr/exit-code contract, and each command layer fills it in.
+    #[must_use]
+    pub fn new(stdout: String, stderr: String, exit_code: u8) -> Self {
+        Self {
+            stdout,
+            stderr,
+            exit_code,
+        }
+    }
+
     /// Text destined for stdout.
     #[must_use]
     pub fn stdout(&self) -> &str {

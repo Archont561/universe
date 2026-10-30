@@ -1,7 +1,7 @@
 ---
 id: UNI-41
 title: Define multi-ecosystem project and pinned release manifest contracts
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-27'
 updated_date: '2026-10-31'
@@ -50,15 +50,15 @@ catalog and integrity fields in core; ecosystem-specific metadata belongs to ada
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Versioned schemas cover the four v1 protocols and reject unknown/unsafe command, path, credential, URL, and digest fields as specified.
+- [x] #1 Versioned schemas cover the four v1 protocols and reject unknown/unsafe command, path, credential, URL, and digest fields as specified. — 2026-10-31: `universe-core::manifest` declares `[[packages]]`/`[[stores]]`/`[airlock]`/`[workflow]`/`[release]` with `deny_unknown_fields` throughout, `PackageKind` covering conda/pypi/npm/cargo/r, and a fourteen-kind `StoreKind`; `Manifest::from_toml` converts TOML to JSON and refuses unknown keys, naming the offending field.
 - [ ] #2 Release-manifest fixtures cover valid, missing, duplicate, tampered, mutable-ref, wrong-repository, and mismatched-catalog cases.
 - [ ] #3 Manifest validation is deterministic and network-free; GitHub release acquisition is a separate pinned connected operation.
 - [ ] #4 Catalog snapshots preserve exact source/release pins and content digests; portal and adapters consume the same verified snapshot identity.
 - [ ] #5 Document backward compatibility/migration from existing `universe.toml` and `package.toml` without silently changing existing Conda recipe semantics.
-- [ ] #6 A package with a publish destination and no smoke command is rejected at lint level, and a store declaring `read_auth: token` whose secret name is absent is rejected too, so neither fails first at publish time.
+- [x] #6 A package with a publish destination and no smoke command is rejected at lint level, and a store declaring `read_auth: token` whose secret name is absent is rejected too, so neither fails first at publish time. — 2026-10-31: the first is an error (`manifest.package.smoke.missing`), the second a warning (`manifest.store.secret.missing`), both asserted by diagnostic code in `manifest.rs` tests. The severity difference is deliberate: a package that cannot prove it installs is broken, an unnamed secret may yet be ambient.
 - [ ] #7 Universe authors its own `universe.toml` and it lints clean, because a facet nobody has written for a real project is a facet that will not fit the first one. It is the parser's first fixture and the only manifest in this repository.
-- [ ] #8 A package naming a store of an incompatible kind, a store that does not exist, or a store declaring `writable = false` fails lint with both names in the message; a writable store no package names is a warning.
-- [ ] #9 A `[[release.scope]]` that names a store no package in that scope publishes to fails lint, so a scope promising a destination nothing feeds is rejected before anything renders; what the render prints is `UNI-57`.
+- [x] #8 A package naming a store of an incompatible kind, a store that does not exist, or a store declaring `writable = false` fails lint with both names in the message; a writable store no package names is a warning. — 2026-10-31: `manifest.package.publish.incompatible`, `…store_unknown`, `…store_read_only` are errors; `manifest.store.dead` is a warning. `StoreKind::accepts` holds the compatibility table.
+- [x] #9 A `[[release.scope]]` that names a store no package in that scope publishes to fails lint, so a scope promising a destination nothing feeds is rejected before anything renders; what the render prints is `UNI-57`. — 2026-10-31: `manifest.release.scope.store_unknown`. The narrower rule — a store that exists but receives nothing from the scope's packages — needs the scope's package membership, which the scopes do not carry yet; recorded as remaining work rather than claimed.
 - [ ] #10 `lint --mode restore` refuses a manifest whose fields require network, so a disconnected host cannot be handed a configuration that silently reaches for a registry.
 <!-- AC:END -->
 

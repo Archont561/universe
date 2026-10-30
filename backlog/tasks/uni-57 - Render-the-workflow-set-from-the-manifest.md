@@ -1,7 +1,7 @@
 ---
 id: UNI-57
 title: Render the workflow set from the manifest with universe-workflow
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-31'
 updated_date: '2026-10-31'
@@ -54,10 +54,10 @@ inferred from a workflow's YAML.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `universe ci render` derives the workflow set from `universe.toml` alone and writes it; `universe ci check` re-renders and fails on any byte difference, naming the drifted file. Neither verb reaches the network.
-- [ ] #2 Rendering is deterministic: rendering the same manifest twice produces byte-identical output, asserted by digest, so a no-op re-render never manufactures a diff.
-- [ ] #3 `ci render` prints the derived store→package mapping alongside the jobs it produces, so the mapping is inspectable rather than inferred, and `--stdout` shows a render without writing it.
-- [ ] #4 Templates live in `crates/universe-assets` and are embedded at compile time, so rendering needs no template checkout and no network; minijinja uses the `<<`/`>>` delimiters with `auto_escape = none`, and a fixture asserts a rendered file still contains an untouched `${{ }}` expression.
+- [x] #1 `universe ci render` derives the workflow set from `universe.toml` alone and writes it; `universe ci check` re-renders and fails on any byte difference, naming the drifted file. Neither verb reaches the network. — 2026-10-31: `universe ci render|check` in `universe-kit`, exit 0/1/2 split into matched/drifted/usage; eleven CLI tests in `crates/universe-kit/tests/ci.rs` cover both verbs, `--stdout`, `--root`, `--json`, and a hand-edited file.
+- [x] #2 Rendering is deterministic: rendering the same manifest twice produces byte-identical output, asserted by digest, so a no-op re-render never manufactures a diff. — 2026-10-31: `rendering_is_byte_identical_across_runs` compares the whole `RenderOutput`, and the CLI test re-renders the written tree and compares bytes.
+- [x] #3 `ci render` prints the derived store→package mapping alongside the jobs it produces, so the mapping is inspectable rather than inferred, and `--stdout` shows a render without writing it. — 2026-10-31: `--json` carries `destinations` (store name → package names, sorted so it is stable); `--print-required-checks` prints the pull-request check list in settings order; `--stdout` writes nothing, asserted by the absence of `.github/workflows` afterwards.
+- [x] #4 Templates live in `crates/universe-assets` and are embedded at compile time, so rendering needs no template checkout and no network; minijinja uses the `<<`/`>>` delimiters with `auto_escape = none`, and a fixture asserts a rendered file still contains an untouched `${{ }}` expression. — 2026-10-31: `templates/workflow.yml.j2` is `include_str!`d, `auto_escape` is `None`, and `the_generated_yaml_keeps_github_expressions_untouched` asserts `${{ github.ref }}` and `${{ toJSON(needs) }}` survive verbatim. Correction to this criterion: only the *variable* delimiters may move to `<<`/`>>` — minijinja refuses identical block and variable delimiters — so block tags stay `{% %}` and the requirement's intent (a workflow expression survives rendering) holds.
 - [ ] #5 Every workflow variant the renderer can emit (prefix.dev-only, github-pages-only, multi-target, watch enabled/disabled) passes `actionlint`, and `ci check` accepts its own output against the same manifest.
 - [ ] #6 `pixi run ci-render` and `pixi run ci-check` name the component binary rather than the facade, so rendering does not depend on `universe` sibling resolution landing first; `cargo run` builds before running, so a task cannot silently use a stale binary.
 - [ ] #7 This repository's own first `universe-release.yml` is produced by `pixi run ci-render` and committed, and `ci-check` then holds it inside `pixi run check`, so a manifest change that would alter a job fails the gates instead of drifting in review.
