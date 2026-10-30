@@ -52,6 +52,7 @@ ecosystems:
 | `writable` | whether the lane publishes here |
 | `needs_index` | whether an index must be generated for this destination |
 | `read_auth` | `none` or `token` — decides whether the *consumer* needs credentials |
+| `auth` | `token` (default) or `oidc` — decides whether the *publisher* holds a secret |
 | `verifier` | `file` (read the artifact back) or `registry` (read the registry back) |
 | `secrets` | names only; the renderer emits the reference and never a value |
 
@@ -61,6 +62,25 @@ and a `registry`-verified read-back — the same shape as `npmjs`, which is alre
 them to the escape hatch would have made the two oldest package registries the two most awkward
 destinations in the manifest, and a README could not honestly show one file publishing to all
 four ecosystems.
+
+`auth` names how the publishing job authenticates, separately from `read_auth`, because the two
+questions are independent: GitHub Packages needs a token to *read*, while PyPI and crates.io can
+be *written* with no long-lived secret at all.
+
+`auth = "oidc"` is supported by the two registries that implement trusted publishing — PyPI and
+crates.io — and it removes the secret rather than rotating it: the job declares
+`id-token: write`, exchanges the workflow identity for a short-lived token, and stores nothing.
+Three consequences follow, and the third is the one that surprises people:
+
+1. It is opt-in per store, because a registry without trusted publishing would otherwise fail
+   at publish time with an authorisation error nobody can interpret.
+2. The rendered job changes shape: an exchange step appears between setup and publish, and the
+   secret reference disappears from the job's environment entirely.
+3. **Neither registry lets you configure a trusted publisher before the package exists.** The
+   first publish of a new package must use `auth = "token"`; the publisher configuration and
+   `auth = "oidc"` follow it. The manifest keeps `token` as the default for that reason, and a
+   store declaring `oidc` whose package has never been published is a lint warning rather than a
+   silent first-release failure.
 
 `kind = "command"` is the escape hatch for a registry with no shipped client. It runs a
 declared command with declared environment and declared secrets, and it requires a verify
