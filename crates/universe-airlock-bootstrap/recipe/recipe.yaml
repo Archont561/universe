@@ -1,0 +1,50 @@
+# Co-located Conda package recipe for the thin Airlock bootstrapper.
+#
+# This artifact exists because bootstrap readiness and sealed offline readiness are different
+# promises (`decision-115`, `decision-122`): the bootstrapper runs before anything is restored,
+# so it may not depend on the thing it is about to install. It therefore declares no runtime
+# requirements at all — not on `universe-airlock`, and certainly not on the producer.
+schema_version: 1
+
+context:
+  version: "0.1.0"
+
+package:
+  name: universe-airlock-bootstrap
+  version: ${{ version }}
+
+source:
+  - path: ../../..
+
+build:
+  number: 0
+  script:
+    env:
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+    content:
+      - if: unix
+        then:
+          - cargo build --release --locked --package universe-airlock-bootstrap
+          - mkdir -p "$PREFIX/bin"
+          - install target/release/universe-airlock-bootstrap "$PREFIX/bin/universe-airlock-bootstrap"
+        else:
+          - cargo build --release --locked --package universe-airlock-bootstrap
+          - if not exist "%LIBRARY_BIN%" mkdir "%LIBRARY_BIN%"
+          - copy /Y "target\\release\\universe-airlock-bootstrap.exe" "%LIBRARY_BIN%\\universe-airlock-bootstrap.exe"
+
+requirements:
+  build:
+    - rust >=1.99.0,<2
+    - ${{ compiler('c') }}
+    - ${{ stdlib('c') }}
+
+tests:
+  - script:
+      - universe-airlock-bootstrap --version
+
+about:
+  summary: Thin native bootstrapper that verifies and activates a pinned Airlock restore
+  license: MIT
+  license_file: LICENSE
+  homepage: https://github.com/Archont561/universe
+  repository: https://github.com/Archont561/universe

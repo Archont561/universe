@@ -295,7 +295,7 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
         except (OSError, KeyError, tomllib.TOMLDecodeError) as exc:
             errors.append(f"cannot read workspace package version for recipes: {exc}")
         else:
-            for crate_name in ("universe-kit", "universe-airlock"):
+            for crate_name in ("universe-kit", "universe-airlock", "universe-airlock-bootstrap"):
                 recipe = root / "crates" / crate_name / "recipe" / "recipe.yaml"
                 if not path_exists(recipe):
                     continue
