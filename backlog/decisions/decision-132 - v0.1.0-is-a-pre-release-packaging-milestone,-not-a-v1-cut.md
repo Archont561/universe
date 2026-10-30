@@ -3,7 +3,7 @@ id: DECISION-132
 title: v0.1.0 is a pre-release packaging milestone, not a v1 cut
 status: accepted
 created_date: '2026-10-31'
-updated_date: '2026-10-31'
+updated_date: '2026-11-01'
 ---
 
 ## Context
@@ -52,6 +52,35 @@ Three things keep this honest:
   acceptance gate stands exactly as written.
 - **Nothing already accepted is relaxed.** Static-channel publication, the store/package
   mapping, and the per-store publish jobs all follow `decision-127` and `decision-128`.
+
+## Amendment (2026-11-01): the checkpoint is a closed loop, and its channel rides a branch
+
+The owner restated what they want `v0.1.0` to *do*: render the Airlock release workflow,
+publish its Conda packages to branches, hand a consumer a rendered script that restores
+them, and leave a developer able to build Conda packages locally against that channel.
+That is narrower than "publishes real artifacts to real destinations" and more useful,
+because it names the consumer at the end of the pipeline.
+
+The scope above stands. Three things are now stated rather than implied:
+
+1. **The checkpoint is one loop, not a checklist.** Render → publish → restore → develop,
+   in that order, each beat observable from outside the repository. `m-12` records the
+   four beats and their exit condition; `UNI-59` cuts the tag only after all of them are
+   demonstrated together.
+2. **The static channel for `v0.1.0` is a Git branch.** Item 3 above requires Universe's
+   own static channel; `decision-5` leaves the host open ("static hosting or object
+   storage") and this record picks the one that needs no HTTP endpoint in front of it, so
+   a disconnected host with only Git can restore. `UNI-58` owns the transport. This is a
+   choice of host, not a reversal of `decision-5`, which continues to require standard
+   subdir paths and the package bytes at them.
+3. **The cost of that choice is recorded, not discovered.** A branch is a poor CDN: every
+   build grows the repository and cloners pay for history. The transport is therefore
+   scoped to this checkpoint, to one package, and to a retention rule that is an
+   acceptance criterion rather than a later improvement. When the channel outgrows a
+   branch, `UNI-11`'s hosted publication is already the general path.
+
+Nothing here enlarges the release: the v1 gate in `decision-119` still requires all six
+surfaces, and `UNI-59`'s notes must state the pre-release status rather than borrow them.
 
 ## Consequences
 

@@ -21,3 +21,7 @@ are completed later in M9 after the adapters exist.
 A pinned fixture snapshot verifies and restores transactionally; corruption/missing
 objects fail closed; the bootstrap remains separate from Kit and Airlock runtime
 logic. This foundation is required before full M9 protocol consumption.
+
+The text a consumer actually runs is rendered from the manifest and drift-checked rather
+than hand-written (`UNI-53`), because a restore script that a release edits by hand is a
+script whose correctness is remembered rather than tested.

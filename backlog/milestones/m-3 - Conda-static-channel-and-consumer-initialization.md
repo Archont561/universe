@@ -20,3 +20,7 @@ initialization commands. GitHub Release links or portal pages alone are not a ch
 A real Conda/Pixi client resolves, downloads, and installs fixtures from the generated
 static channel with public egress denied; metadata and package bytes match pinned digests;
 publication credentials remain isolated.
+
+Hosting that tree on a Git branch, so a host with only Git can restore from it, is
+`UNI-58` under M12: a checkpoint transport for the `v0.1.0` channel, not a v1 requirement.
+This milestone owns the tree; M12 owns one place to put it.

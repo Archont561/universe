@@ -44,10 +44,13 @@ not a new Backlog record type or date commitment.
 | **M9** | Airlock native views and integrated v1 evidence | `UNI-45`, `UNI-47` | Four protocols work through scoped Airlock views; independent evidence review passes. |
 | **M10** | Integrated Universe v1 release | `UNI-16` | All required packages, native indexes, portal, and static Conda channel publish together. |
 | **M11** | Post-v1 adoption, extensions, and native developer transport | `UNI-17`, `UNI-18`, `UNI-27`, `UNI-35`, `UNI-37`, `UNI-48` | Post-v1 adoption/optional work is separated; sandbox removal waits for proven native transport. |
+| **M12** | `v0.1.0` Airlock packaging and the local Conda development loop | `UNI-58`, `UNI-59` | A pre-release checkpoint (`decision-132`) that precedes M10 in time but gates nothing: render, publish, restore, develop, then tag. It satisfies no v1 surface. |
 
 M5 and M6 depend on M1 and may progress in parallel with the M2–M4 producer path. The table
 is a topological presentation, not an artificial serial dependency chain. M7 joins those tracks;
-M8–M10 are integration/release gates. M11 is post-v1.
+M8–M10 are integration/release gates. M11 is post-v1. M12 is listed last because it is a
+checkpoint rather than a step: it is scheduled before M10, blocks nothing, and its two tasks
+consume capabilities the other milestones already own. `doc-112` carries the per-beat mapping.
 
 ## Proposed sprints
 
@@ -60,6 +63,7 @@ an execution proposal, not a task hierarchy:
 | S1 | Contracts | `UNI-30`, `UNI-31`, `UNI-41`, `UNI-57` |
 | S2 | Kit core and artifact safety | `UNI-7`, `UNI-8`, `UNI-9`, `UNI-10`, `UNI-21`, `UNI-22` |
 | S3 | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38`, `UNI-51`, `UNI-52`, `UNI-53` |
+| S3.5 | `v0.1.0` pre-release checkpoint | `UNI-58`, `UNI-59` |
 | S4 | Trusted releases and native registries | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34`, `UNI-42`, `UNI-43`, `UNI-44`, `UNI-54`, `UNI-55`, `UNI-56` |
 | S5 | Portal and command facade | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-40`, `UNI-46` |
 | S6 | Airlock integration and evidence review | `UNI-45`, `UNI-47` |
