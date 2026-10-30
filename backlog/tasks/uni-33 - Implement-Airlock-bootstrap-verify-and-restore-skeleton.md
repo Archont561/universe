@@ -33,6 +33,7 @@ consumer restore flow distinct from UNI-36's developer-toolchain transport.
 - [ ] #1 Bootstrap verifies manifest and payload before changing target state.
 - [ ] #2 Restore installs the pinned Pixi-managed `universe-airlock` from local payload and activates transactionally.
 - [ ] #3 Failure leaves the previous active state untouched.
+- [ ] #4 The release signature is verified against the key compiled into the bootstrap, never a fetched key, before any target state changes; the developer lane may restore unsigned only with a diagnostic that names the missing signature (`decision-131`).
 <!-- AC:END -->
 
 ## Definition of Done

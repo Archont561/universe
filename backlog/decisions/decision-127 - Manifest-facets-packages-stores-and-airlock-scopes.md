@@ -48,7 +48,7 @@ ecosystems:
 
 | Field | Values |
 | --- | --- |
-| `kind` | `static`, `releases`, `branch`, `prefix-dev`, `anaconda`, `quetz`, `artifactory`, `s3`, `filesystem`, `npmjs`, `github-packages`, `pypi`, `crates-io`, `ghcr`, `command` |
+| `kind` | `static`, `releases`, `branch`, `prefix-dev`, `anaconda`, `quetz`, `artifactory`, `s3`, `filesystem`, `npmjs`, `github-packages`, `pypi`, `crates-io`, `command` |
 | `writable` | whether the lane publishes here |
 | `needs_index` | whether an index must be generated for this destination |
 | `read_auth` | `none` or `token` — decides whether the *consumer* needs credentials |

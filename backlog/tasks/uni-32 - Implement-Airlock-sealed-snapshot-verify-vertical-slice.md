@@ -34,6 +34,7 @@ publishing capability. Do not reuse placeholder or non-cryptographic CAS code.
 - [ ] #1 A fixture snapshot verifies completely and is consumable through a native client view offline.
 - [ ] #2 Missing, extra, corrupted, and wrong-platform objects fail closed with structured diagnostics.
 - [ ] #3 Tests prove no network is required after import.
+- [ ] #4 A release manifest with an absent, unknown-key, or non-matching signature fails closed before any artifact is verified, and the test proves a structurally valid bundle with correct digests is still rejected (`decision-131`).
 <!-- AC:END -->
 
 ## Definition of Done
