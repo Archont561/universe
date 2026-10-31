@@ -3,7 +3,15 @@
 use std::process::ExitCode;
 use universe_core::{CommandOutput, Product};
 
+mod audit;
+mod build;
 mod ci;
+mod lint;
+mod options;
+mod output;
+mod paths;
+mod plan;
+mod project;
 
 /// Version of this component, equal to the workspace version the whole artifact set
 /// is released under (`decision-122`: one tag, one version train).
@@ -23,10 +31,14 @@ where
         .into_iter()
         .map(|arg| arg.as_ref().to_owned())
         .collect();
-    if args.first().map(String::as_str) == Some("ci") {
-        return ci::run(&args[1..]);
+    match args.first().map(String::as_str) {
+        Some("ci") => ci::run(&args[1..]),
+        Some("plan") => plan::run(&args[1..]),
+        Some("lint") => lint::run(&args[1..]),
+        Some("build") => build::run(&args[1..]),
+        Some("audit") => audit::run(&args[1..]),
+        _ => universe_core::execute_version(Product::Kit, args),
     }
-    universe_core::execute_version(Product::Kit, args)
 }
 
 /// Execute, print, and return the process code for Universe Kit.

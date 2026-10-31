@@ -26,7 +26,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
       - name: View the manifest
         run: |
-          universe plan --json
+          pixi run --frozen universe -- plan --json
   validate:
     name: universe / validate
     runs-on: ubuntu-latest
@@ -36,7 +36,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
       - name: Validate the manifest
         run: |
-          universe lint --json
+          pixi run --frozen universe -- lint --json
       - name: Check format
         run: |
           pixi run fmt-check
@@ -59,7 +59,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
       - name: Build the declared packages
         run: |
-          universe build --json
+          pixi run --frozen universe -- build --json
   audit:
     name: universe / audit
     runs-on: ubuntu-latest
@@ -69,7 +69,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
       - name: Audit the built artifacts
         run: |
-          universe audit --json
+          pixi run --frozen universe -- audit --json
   verify-artifact:
     name: universe / verify-artifact
     runs-on: ubuntu-latest
@@ -83,7 +83,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
       - name: Prove the built artifact installs and runs
         run: |
-          universe verify --artifact --json
+          pixi run --frozen universe -- verify --artifact --json
   verdict:
     name: universe / verdict
     runs-on: ubuntu-latest

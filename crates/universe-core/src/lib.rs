@@ -14,6 +14,7 @@ pub mod diagnostic;
 pub mod digest;
 pub mod error;
 pub mod manifest;
+pub mod planner;
 pub mod schema;
 pub mod snapshot;
 
@@ -32,6 +33,7 @@ pub use error::ModelError;
 pub use manifest::{
     Destination, LockAdapter, Manifest, Package, PackageKind, ReleaseManifest, Store, StoreKind,
 };
+pub use planner::{BuildPlan, PlanError, PlanJob, plan};
 pub use schema::{CATALOG_SCHEMA_VERSION, SNAPSHOT_SCHEMA_VERSION, SchemaVersion};
 pub use snapshot::Snapshot;
 

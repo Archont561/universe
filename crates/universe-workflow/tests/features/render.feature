@@ -38,3 +38,8 @@ Feature: Rendering the workflow set from a project manifest
     When the workflow set is rendered
     Then every job names the runner it runs on
     And every job that runs a project command checks the project out and sets up Pixi first
+
+  Scenario: Every Universe command runs through the Pixi task that built it
+    Given a project that publishes its Airlock package to a hosted channel and to a static channel
+    When the workflow set is rendered
+    Then no step runs a bare universe command

@@ -366,6 +366,27 @@ fn every_job_checks_out_first(project: &Project) {
     );
 }
 
+#[then("no step runs a bare universe command")]
+fn no_bare_universe_command(project: &Project) {
+    let mut reached = 0;
+    for text in rendered_files(project) {
+        for line in text.lines() {
+            let command = line.trim();
+            assert!(
+                !command.starts_with("universe "),
+                "a step runs `{command}`, which no runner has on its PATH:\n{text}"
+            );
+            if command.starts_with("pixi run --frozen universe -- ") {
+                reached += 1;
+            }
+        }
+    }
+    assert!(
+        reached > 0,
+        "the rendered set reaches no Universe verb at all, so this scenario asserted nothing"
+    );
+}
+
 #[then("the drift check names the main workflow file")]
 fn drift_names_the_main_file(project: &Project) {
     let diagnostics = universe_workflow::check(&project.directories(), project.rendered());
@@ -462,5 +483,13 @@ fn rendering_is_repeatable(project: Project) {
     name = "Every job gets a runner, and one that runs a project command checks out first"
 )]
 fn every_job_runs_somewhere_and_checks_out_first(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "tests/features/render.feature",
+    name = "Every Universe command runs through the Pixi task that built it"
+)]
+fn every_command_goes_through_the_pixi_task(project: Project) {
     let _ = project;
 }
