@@ -35,12 +35,13 @@ pub const SETUP_PIXI: &str =
 ///
 /// A build that produces an artifact on one runner and audits it on another needs the bytes
 /// to travel between them; Runner filesystems are not shared.
+/// Pinned to the version the rest of this repository's workflows already use.
 pub const UPLOAD_ARTIFACT: &str =
-    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2";
+    "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2";
 
 /// `actions/download-artifact`, pinned.
 pub const DOWNLOAD_ARTIFACT: &str =
-    "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0";
+    "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2";
 
 #[cfg(test)]
 mod tests {

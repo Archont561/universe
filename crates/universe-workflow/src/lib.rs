@@ -437,7 +437,11 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
         Job::new("audit", "universe", vec!["build".to_owned()])
             .with_step(Step::uses_with(
                 universe_assets::DOWNLOAD_ARTIFACT,
-                &[("pattern", "universe-*"), ("merge-multiple", "true")],
+                &[
+                    ("pattern", "universe-*"),
+                    ("merge-multiple", "true"),
+                    ("path", ARTIFACT_PATH),
+                ],
             ))
             .with_step(Step::Run {
                 label: "Audit the built artifacts".to_owned(),
@@ -453,7 +457,7 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
                 .with_matrix("platform", manifest.project.platforms.clone())
                 .with_step(Step::uses_with(
                     universe_assets::DOWNLOAD_ARTIFACT,
-                    &[("name", ARTIFACT_NAME)],
+                    &[("name", ARTIFACT_NAME), ("path", ARTIFACT_PATH)],
                 ))
                 .with_step(Step::Run {
                     label: "Prove the built artifact installs and runs".to_owned(),
@@ -489,7 +493,11 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         }
         job = checkout_and_pixi(job).with_step(Step::uses_with(
             universe_assets::DOWNLOAD_ARTIFACT,
-            &[("pattern", "universe-*"), ("merge-multiple", "true")],
+            &[
+                ("pattern", "universe-*"),
+                ("merge-multiple", "true"),
+                ("path", ARTIFACT_PATH),
+            ],
         ));
         for package in manifest
             .destinations()
