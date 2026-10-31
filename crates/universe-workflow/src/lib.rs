@@ -347,18 +347,28 @@ fn secret_variable(store_name: &str, secret: &str) -> String {
     )
 }
 
+/// The command line a rendered job uses to reach a Universe verb.
+///
+/// A runner that has just run `setup-pixi` has `pixi` on its `PATH` and nothing else:
+/// `universe-kit` is not published in v0.1.0 (`decision-132`), so a bare `universe` verb
+/// would be a command the job cannot find. The Pixi task builds the workspace and runs the
+/// facade it just built, which is also how a developer dogfoods the same binary.
+fn verb(arguments: &str) -> String {
+    format!("pixi run --frozen universe -- {arguments}")
+}
+
 fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     let checks = manifest.workflow.checks.declared();
     let mut view = Job::new("view", "universe", Vec::new()).with_step(Step::Run {
         label: "View the manifest".to_owned(),
-        command: "universe plan --json".to_owned(),
+        command: verb("plan --json"),
     });
     view = checkout_and_pixi(view);
 
     let mut validate =
         Job::new("validate", "universe", vec!["view".to_owned()]).with_step(Step::Run {
             label: "Validate the manifest".to_owned(),
-            command: "universe lint --json".to_owned(),
+            command: verb("lint --json"),
         });
     for (slot, command) in &checks {
         validate = validate.with_step(Step::Run {
@@ -373,14 +383,14 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
             .with_matrix("platform", manifest.project.platforms.clone())
             .with_step(Step::Run {
                 label: "Build the declared packages".to_owned(),
-                command: "universe build --json".to_owned(),
+                command: verb("build --json"),
             }),
     );
 
     let audit = checkout_and_pixi(
         Job::new("audit", "universe", vec!["build".to_owned()]).with_step(Step::Run {
             label: "Audit the built artifacts".to_owned(),
-            command: "universe audit --json".to_owned(),
+            command: verb("audit --json"),
         }),
     );
 
@@ -392,7 +402,7 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
                 .with_matrix("platform", manifest.project.platforms.clone())
                 .with_step(Step::Run {
                     label: "Prove the built artifact installs and runs".to_owned(),
-                    command: "universe verify --artifact --json".to_owned(),
+                    command: verb("verify --artifact --json"),
                 }),
         ));
     }
@@ -432,10 +442,10 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         {
             job = job.with_step(Step::Run {
                 label: format!("Publish {}", package.name),
-                command: format!(
-                    "universe publish --store {} --package {} --json",
+                command: verb(&format!(
+                    "publish --store {} --package {} --json",
                     store.name, package.name
-                ),
+                )),
             });
         }
         // A credential-free destination is verified by a separate reader; a credentialed
@@ -443,7 +453,7 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         if store.read_auth == ReadAuth::Token {
             job = job.with_step(Step::Run {
                 label: format!("Verify {}", store.name),
-                command: format!("universe verify --published --store {} --json", store.name),
+                command: verb(&format!("verify --published --store {} --json", store.name)),
             });
         } else {
             publishes_anonymously = true;
@@ -456,7 +466,7 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         jobs.push(checkout_and_pixi(
             Job::new("verify-index", "publish", needs).with_step(Step::Run {
                 label: "Re-read every anonymously readable destination".to_owned(),
-                command: "universe verify --index --json".to_owned(),
+                command: verb("verify --index --json"),
             }),
         ));
     }
@@ -478,8 +488,7 @@ fn airlock_jobs(manifest: &Manifest) -> Vec<Job> {
             .with_matrix("adapter", adapters.clone())
             .with_step(Step::Run {
                 label: "Mirror one lock format".to_owned(),
-                command: "universe airlock mirror --adapter ${{ matrix.adapter }} --json"
-                    .to_owned(),
+                command: verb("airlock mirror --adapter ${{ matrix.adapter }} --json"),
             }),
     );
     let mut mirror = mirror;
@@ -489,7 +498,7 @@ fn airlock_jobs(manifest: &Manifest) -> Vec<Job> {
             .with_permissions(&[("contents", "write")])
             .with_step(Step::Run {
                 label: "Render the Airlock restore entrypoints".to_owned(),
-                command: "universe airlock render --json".to_owned(),
+                command: verb("airlock render --json"),
             }),
     );
     let verdict = Job::new(
@@ -891,7 +900,10 @@ format = "cargo fmt --check"
             .content;
         assert!(publish.contains("CONDA_PREFIX_CONDA_TOKEN: ${{ secrets.conda-token }}"));
         // A credentialed destination verifies inside its own job...
-        assert!(publish.contains("universe verify --published --store conda-prefix"));
+        assert!(
+            publish
+                .contains("pixi run --frozen universe -- verify --published --store conda-prefix")
+        );
         // ...while the anonymous one is re-read by `verify-index`.
         assert!(publish.contains("name: publish / verify-index"));
     }

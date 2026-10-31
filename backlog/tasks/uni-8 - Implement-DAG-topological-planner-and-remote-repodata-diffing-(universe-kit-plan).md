@@ -36,7 +36,7 @@ This task consumes those records instead of defining a per-command shape of its 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Cycle detection refuses circular intra-universe recipes (`A -> B -> A`) with a clear cycle path diagnostic.
+- [x] #1 Cycle detection refuses circular intra-universe recipes (`A -> B -> A`) with a clear cycle path diagnostic. — 2026-10-31: `universe-core::planner` produces sorted build levels by Kahn's algorithm and reports `PlanError::Cycle { path }` with the closed path, plus `PlanError::UnknownDependency` for an edge naming no package (a dropped edge would schedule a package before the thing it needs). Both are asserted on manifests built without validation, because a planner that leaned on the validator would be one that trusts every caller. `universe plan --json` emits `has_work`, indexed `levels`, and a flat `jobs` list. Not yet done: the `RattlerBuildPort` render step, `--changed-only`, `--changed-or-missing`, and the `proptest`/wiremock criteria.
 - [ ] #2 `proptest` proves that for arbitrary random DAGs of up to 50 packages, every edge `(u -> v)` satisfies `level(u) < level(v)` and output ordering is 100% deterministic regardless of filesystem discovery order.
 - [ ] #3 `wiremock` + `rstest-bdd` scenarios verify `--changed-or-missing` skips already-published tuples and marks missing `(pkg, subdir)` builds as runnable.
 <!-- AC:END -->

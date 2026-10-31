@@ -10,9 +10,11 @@ fn library_reports_universe_kit_version() {
 
 #[test]
 fn library_rejects_unknown_command() {
-    let output = universe_kit::run(["build"]);
+    // `build` used to stand here as the unknown verb; it is a real one now, so the fixture
+    // names something no verb family will claim.
+    let output = universe_kit::run(["frobnicate"]);
     assert_eq!(output.exit_code(), 2);
-    assert!(output.stderr().contains("unknown argument: build"));
+    assert!(output.stderr().contains("unknown argument: frobnicate"));
 }
 
 #[test]
@@ -22,7 +24,7 @@ fn library_main_returns_process_codes() {
         format!("{:?}", std::process::ExitCode::SUCCESS)
     );
     assert_eq!(
-        format!("{:?}", universe_kit::run_main(["build"])),
+        format!("{:?}", universe_kit::run_main(["frobnicate"])),
         format!("{:?}", std::process::ExitCode::from(2))
     );
 }
@@ -40,10 +42,10 @@ fn binary_reports_version_and_usage_error() {
     assert!(ok.stderr.is_empty());
 
     let error = Command::new(binary)
-        .arg("build")
+        .arg("frobnicate")
         .output()
-        .expect("run universe-kit build");
+        .expect("run universe-kit frobnicate");
     assert_eq!(error.status.code(), Some(2));
     assert!(error.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&error.stderr).contains("unknown argument: build"));
+    assert!(String::from_utf8_lossy(&error.stderr).contains("unknown argument: frobnicate"));
 }

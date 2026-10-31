@@ -27,7 +27,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
       - name: Publish universe-airlock
         run: |
-          universe publish --store prefix-dev --package universe-airlock --json
+          pixi run --frozen universe -- publish --store prefix-dev --package universe-airlock --json
   branch:
     name: publish / branch
     runs-on: ubuntu-latest
@@ -40,7 +40,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
       - name: Publish universe-airlock
         run: |
-          universe publish --store branch --package universe-airlock --json
+          pixi run --frozen universe -- publish --store branch --package universe-airlock --json
   verify-index:
     name: publish / verify-index
     runs-on: ubuntu-latest
@@ -50,7 +50,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
       - name: Re-read every anonymously readable destination
         run: |
-          universe verify --index --json
+          pixi run --frozen universe -- verify --index --json
   verdict:
     name: publish / verdict
     runs-on: ubuntu-latest

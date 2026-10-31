@@ -37,10 +37,10 @@ This task consumes those records instead of defining a per-command shape of its 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `universe-kit lint` catches missing `sha256`, mutable git `branch`/`tag` without `rev`, invalid SPDX license strings, missing `license_file`, negative `build.number`, and unknown `universe.toml` / `package.toml` keys with line/key locations.
+- [ ] #1 `universe-kit lint` catches missing `sha256`, mutable git `branch`/`tag` without `rev`, invalid SPDX license strings, missing `license_file`, negative `build.number`, and unknown `universe.toml` / `package.toml` keys with line/key locations. — 2026-10-31 (partial): `universe-kit lint` reports the manifest's own validation findings (unknown keys included, with the offending key named) and passes on this repository's manifest. The recipe rules — `sha256`, mutable `git` revs, SPDX expressions, `license_file`, `build.number` — need a span-carrying YAML parser that is not in the offline transport yet, so they are not claimed here.
 - [ ] #2 Multi-output `staging` recipes (`outputs:` arrays in `recipe.yaml` v1) are parsed and validated accurately.
 - [ ] #3 `--json` emits deterministic structured diagnostics suitable for CI annotations.
-- [ ] #4 Version parity is enforced across `Cargo.toml`, `universe.toml`, every recipe's `context.version`, and the `CHANGELOG.md` section for the version; a release with no section for its version is refused (`decision-123`).
+- [ ] #4 Version parity is enforced across `Cargo.toml`, `universe.toml`, every recipe's `context.version`, and the `CHANGELOG.md` section for the version; a release with no section for its version is refused (`decision-123`). — 2026-10-31 (partial): parity is enforced between the workspace `Cargo.toml` version and every `crates/*/recipe/recipe.yaml` `context.version` (`lint.version.recipe`), and a changelog that has begun cutting releases must carry a section for the current version (`lint.version.changelog`); a changelog that is still one `Unreleased` block is pre-release and is allowed. `universe.toml` cannot participate because the manifest has no version facet — that gap belongs to `UNI-41`.
 - [ ] #5 The workflow drift check covers every rendered file rather than one, and names which file diverged (`decision-124`).
 <!-- AC:END -->
 
