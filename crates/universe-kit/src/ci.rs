@@ -305,21 +305,7 @@ fn required_checks(rendered: &RenderOutput) -> String {
 }
 
 fn failure(exit_code: u8, diagnostics: Vec<Diagnostic>) -> CommandOutput {
-    let stderr = diagnostics
-        .iter()
-        .map(|diagnostic| {
-            let path = diagnostic
-                .path()
-                .map(|path| format!(" [{path}]"))
-                .unwrap_or_default();
-            format!(
-                "error: {}{path}: {}\n",
-                diagnostic.code(),
-                diagnostic.message()
-            )
-        })
-        .collect::<String>();
-    CommandOutput::new(String::new(), stderr, exit_code)
+    crate::output::failure(exit_code, &diagnostics)
 }
 
 #[cfg(test)]

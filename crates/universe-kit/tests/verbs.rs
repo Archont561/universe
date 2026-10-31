@@ -201,13 +201,14 @@ fn a_command_that_produces_nothing_it_promised_is_refused() {
 
 #[test]
 fn build_passes_only_the_declared_environment() {
-    // The child writes down what it can see. `HOME` is set in every environment this test
-    // runs in, so seeing `absent` there is the assertion that the parent's environment was
-    // cleared rather than inherited.
+    // The child writes down what it can see: the declared value, and whether it has a home
+    // directory to work in. The allowlist's *exclusions* are asserted by the unit tests on
+    // `ambient`, because mutating this process's environment is `unsafe` in Rust 2024 and a
+    // test that does it can race every other test in the binary.
     let manifest = MANIFEST
         .replace(
             r#"command = ["sh", "-c", "mkdir -p out && printf payload > out/example-0.1.0-0.conda"]"#,
-            r#"command = ["sh", "-c", "mkdir -p out && printf '%s:%s' \"$GREETING\" \"${HOME:-absent}\" > out/example-0.1.0-0.conda"]"#,
+            r#"command = ["sh", "-c", "mkdir -p out && printf '%s:%s' \"$GREETING\" \"${HOME:+present}\" > out/example-0.1.0-0.conda"]"#,
         )
         .replace(
             r#"outputs = ["out/*.conda"]"#,
@@ -220,7 +221,7 @@ fn build_passes_only_the_declared_environment() {
     assert_eq!(
         std::fs::read_to_string(directory.path().join("out/example-0.1.0-0.conda"))
             .expect("the artifact exists"),
-        "hello:absent"
+        "hello:present"
     );
 }
 
