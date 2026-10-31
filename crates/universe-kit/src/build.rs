@@ -129,15 +129,18 @@ fn execute(
 
     let mut command = Command::new(program);
     command.args(arguments).current_dir(root);
-    // Only the declared environment is passed. Inheriting the parent's would hand a build
-    // every token this session holds, which is exactly what `UNI-9` #4 forbids.
+    // The child sees the declared environment and a named set of ambient variables, and
+    // nothing else. Inheriting the parent's environment would hand a build every token this
+    // session holds — the thing `UNI-9` #4 forbids — while clearing it outright leaves a
+    // toolchain without a home directory or a temporary directory to work in.
     command.env_clear();
+    for (name, value) in std::env::vars_os() {
+        if ambient(&name.to_string_lossy()) {
+            command.env(name, value);
+        }
+    }
     for (name, value) in &package.env {
         command.env(name, value);
-    }
-    // Enough of an environment to be runnable at all: a cleared PATH cannot find `pixi`.
-    if let Some(path) = std::env::var_os("PATH") {
-        command.env("PATH", path);
     }
 
     let completed = command.output().map_err(|error| {
@@ -150,13 +153,7 @@ fn execute(
     })?;
 
     if !completed.status.success() {
-        let stderr = String::from_utf8_lossy(&completed.stderr);
-        let detail = stderr
-            .lines()
-            .last()
-            .unwrap_or("no stderr")
-            .trim()
-            .to_owned();
+        let detail = stderr_tail(&String::from_utf8_lossy(&completed.stderr));
         return Err(Diagnostic::new(
             Severity::Error,
             "build.command.failed",
@@ -197,6 +194,55 @@ fn execute(
     Ok(outputs)
 }
 
+/// The last few lines a failed command wrote, on one line and bounded.
+///
+/// A build tool's final line is usually the one that does not say what broke, and the whole
+/// log lives behind a URL this job cannot publish. So the tail travels in the diagnostic,
+/// which is what reaches an annotation a reader can actually fetch.
+fn stderr_tail(stderr: &str) -> String {
+    const LINES: usize = 6;
+    const CHARS: usize = 800;
+    let lines: Vec<&str> = stderr
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    let tail = lines[lines.len().saturating_sub(LINES)..].join(" | ");
+    match tail.char_indices().nth(CHARS) {
+        Some((cut, _)) => format!("{}…", &tail[..cut]),
+        None if tail.is_empty() => "no stderr".to_owned(),
+        None => tail,
+    }
+}
+
+/// Ambient variables a build toolchain needs and that carry no credential.
+///
+/// The list is an allowlist on purpose: a new variable has to be argued for here, and a
+/// secret that happens to be in the environment is excluded by default rather than by luck.
+/// `PATH` is how `pixi` is found; `HOME` and the temp variables are where compilers and
+/// package managers keep their caches; the locale and certificate variables keep output
+/// parsing and TLS working; the proxy variables are the network's routing, not its identity.
+fn ambient(name: &str) -> bool {
+    const ALLOWED: [&str; 15] = [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "LANG",
+        "LANGUAGE",
+        "LC_ALL",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+    ];
+    ALLOWED.contains(&name) || name == "SYSTEMROOT" || name == "no_proxy"
+}
+
 fn empty_command(package: &str) -> Diagnostic {
     Diagnostic::new(
         Severity::Error,
@@ -204,4 +250,54 @@ fn empty_command(package: &str) -> Diagnostic {
         format!("package '{package}' has no command to run"),
     )
     .with_path(format!("packages[{package}].command"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ambient, stderr_tail};
+
+    #[test]
+    fn the_tail_keeps_the_lines_that_explain_the_failure() {
+        let stderr = "resolving\nwarning: slow\nerror: recipe not found\n";
+        assert_eq!(
+            stderr_tail(stderr),
+            "resolving | warning: slow | error: recipe not found"
+        );
+    }
+
+    #[test]
+    fn the_tail_is_bounded_and_says_so_when_a_command_said_nothing() {
+        assert_eq!(stderr_tail("  \n\n"), "no stderr");
+        let long = "x".repeat(2_000);
+        assert!(stderr_tail(&long).chars().count() <= 801);
+    }
+
+    #[test]
+    fn the_ambient_allowlist_carries_what_a_toolchain_needs() {
+        for name in [
+            "PATH",
+            "HOME",
+            "TMPDIR",
+            "LANG",
+            "SSL_CERT_FILE",
+            "HTTPS_PROXY",
+        ] {
+            assert!(ambient(name), "{name} must reach a build");
+        }
+    }
+
+    #[test]
+    fn the_ambient_allowlist_carries_no_credential() {
+        // Named for the failure that matters: a token in the environment must not become a
+        // token in a child process, whatever it is called.
+        for name in [
+            "UNIVERSE_CHANNEL_TOKEN",
+            "CONDA_PREFIX_CONDA_TOKEN",
+            "GITHUB_TOKEN",
+            "AWS_SECRET_ACCESS_KEY",
+            "PIXI_INSTALL_TOKEN",
+        ] {
+            assert!(!ambient(name), "{name} must not reach a build");
+        }
+    }
 }
