@@ -1,0 +1,11 @@
+schema_version: 1
+context:
+  version: "one point two"
+package:
+  name: example
+  version: ${{ version }}
+build:
+  number: 0
+about:
+  license: MIT
+  license_file: LICENSE

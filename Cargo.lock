@@ -3557,10 +3557,12 @@ name = "universe-conda"
 version = "0.1.0"
 dependencies = [
  "goblin",
+ "rattler_conda_types",
  "rattler_digest",
  "rattler_package_streaming",
  "serde",
  "serde_json",
+ "serde_yaml",
  "spdx",
  "tar",
  "tempfile",
@@ -3586,10 +3588,14 @@ name = "universe-kit"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+ "tar",
  "tempfile",
  "toml_edit",
+ "universe-conda",
  "universe-core",
  "universe-workflow",
+ "zip",
+ "zstd",
 ]
 
 [[package]]

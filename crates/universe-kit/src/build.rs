@@ -11,9 +11,10 @@ use std::process::Command;
 use serde_json::json;
 use universe_core::CommandOutput;
 use universe_core::diagnostic::{Diagnostic, Severity};
+use universe_core::manifest::Package;
 use universe_core::planner::plan;
 
-use crate::options::Options;
+use crate::options::{Options, VerbSpec};
 use crate::output::{FINDINGS, USAGE, failure, human, json_success};
 use crate::project::Project;
 
@@ -21,13 +22,14 @@ use crate::project::Project;
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Built {
     package: String,
-    command: String,
+    command: Vec<String>,
+    duration_ms: u128,
     outputs: Vec<String>,
 }
 
 /// Run `universe build`.
 pub(crate) fn run(args: &[String]) -> CommandOutput {
-    let options = match Options::parse(args, "build", true) {
+    let options = match Options::parse(args, VerbSpec::build()) {
         Ok(options) => options,
         Err(message) => {
             return failure(
@@ -79,14 +81,29 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
             continue;
         };
 
-        match execute(&options.root, package) {
+        let started = std::time::Instant::now();
+        match execute(&options.root, package, options.timeout_seconds) {
             Ok(outputs) => built.push(Built {
                 package: package.name.clone(),
-                command: package.command.join(" "),
+                command: package.command.clone(),
+                duration_ms: started.elapsed().as_millis(),
                 outputs,
             }),
             Err(diagnostic) => return failure(FINDINGS, &[diagnostic]),
         }
+    }
+
+    if let Some(directory) = &options.receipts
+        && let Err(error) = write_receipts(&options.root, directory, &built)
+    {
+        return failure(
+            USAGE,
+            &[Diagnostic::new(
+                Severity::Error,
+                "build.receipt.write_failed",
+                error,
+            )],
+        );
     }
 
     if options.json {
@@ -110,17 +127,59 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
         body.push_str(&format!(
             "{}: {} -> {}\n",
             entry.package,
-            entry.command,
+            entry.command.join(" "),
             entry.outputs.join(", ")
         ));
     }
     human(body)
 }
 
+/// Write one receipt per package: what ran, where, and the bytes that came out.
+///
+/// The receipt is what a later publish lane consumes, so it records the artifacts by path,
+/// size, and digest rather than trusting whoever built them. Only the duration varies between
+/// two identical runs, and it is recorded rather than omitted because a build that suddenly
+/// takes ten times as long is a finding of its own.
+fn write_receipts(root: &Path, directory: &Path, built: &[Built]) -> Result<(), String> {
+    for entry in built {
+        let outputs = entry
+            .outputs
+            .iter()
+            .map(|output| {
+                let bytes = std::fs::read(root.join(output))
+                    .map_err(|error| format!("cannot read {output}: {error}"))?;
+                Ok(json!({
+                    "path": output,
+                    "size_bytes": bytes.len(),
+                    "digest": universe_workflow::sha256::sha256_hex(&bytes),
+                }))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let receipt = json!({
+            "package": entry.package,
+            "command": entry.command,
+            "cwd": ".",
+            "duration_ms": entry.duration_ms,
+            "outputs": outputs,
+        });
+        let document = serde_json::to_string_pretty(&receipt)
+            .map_err(|error| format!("cannot serialize a receipt: {error}"))?;
+        let path = directory.join(format!("{}.json", entry.package));
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
+        }
+        std::fs::write(&path, format!("{document}\n"))
+            .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
+    }
+    Ok(())
+}
+
 /// Run one package's declared command and collect its declared outputs.
 fn execute(
     root: &Path,
     package: &universe_core::manifest::Package,
+    timeout_seconds: u64,
 ) -> Result<Vec<String>, Diagnostic> {
     let (program, arguments) = package
         .command
@@ -143,7 +202,7 @@ fn execute(
         command.env(name, value);
     }
 
-    let completed = command.output().map_err(|error| {
+    let completed = run_bounded(command, timeout_seconds).map_err(|error| {
         Diagnostic::new(
             Severity::Error,
             "build.command.unrunnable",
@@ -179,6 +238,12 @@ fn execute(
             }
         }
     }
+    // The collected files have to be the package they claim to be, before anything downstream
+    // audits or publishes them: a build that produced a differently-identified archive is a
+    // build whose output directory was stale.
+    for output in &outputs {
+        verify_identity(root, output, package)?;
+    }
     if outputs.is_empty() {
         return Err(Diagnostic::new(
             Severity::Error,
@@ -192,6 +257,77 @@ fn execute(
         .with_path(format!("packages[{}].outputs", package.name)));
     }
     Ok(outputs)
+}
+
+/// What a bounded run produced.
+struct Completed {
+    status: std::process::ExitStatus,
+    stderr: Vec<u8>,
+}
+
+/// Run a command to completion, or kill it at `timeout_seconds`.
+///
+/// A builder that hangs is the failure mode a runner notices last: the job sits until the
+/// platform's six-hour ceiling and reports nothing useful. The limit is per command, so it
+/// bounds the thing that can hang rather than the whole job.
+fn run_bounded(mut command: Command, timeout_seconds: u64) -> std::io::Result<Completed> {
+    use std::io::Read;
+
+    let started = std::time::Instant::now();
+    let mut child = command
+        .stderr(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .spawn()?;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            let mut stderr = Vec::new();
+            if let Some(mut pipe) = child.stderr.take() {
+                let _ = pipe.read_to_end(&mut stderr);
+            }
+            return Ok(Completed { status, stderr });
+        }
+        if started.elapsed().as_secs() >= timeout_seconds {
+            let _ = child.kill();
+            let status = child.wait()?;
+            return Ok(Completed {
+                status,
+                stderr: format!("timed out after {timeout_seconds}s").into_bytes(),
+            });
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
+/// Check a collected artifact against the package that claims it.
+///
+/// A Conda archive answers for itself: `info/index.json` names the package, so the check is a
+/// read rather than an inference from the file name. Anything else is checked by name only.
+fn verify_identity(root: &Path, output: &str, package: &Package) -> Result<(), Diagnostic> {
+    if package.kind != universe_core::manifest::PackageKind::Conda || !output.ends_with(".conda") {
+        return Ok(());
+    }
+    let path = root.join(output);
+    let opened = universe_conda::open_package(&path).map_err(|error| {
+        Diagnostic::new(
+            Severity::Error,
+            "build.output.unreadable",
+            format!("{output}: {error}"),
+        )
+        .with_path(format!("packages[{}].outputs", package.name))
+    })?;
+    if opened.index().name != package.name {
+        return Err(Diagnostic::new(
+            Severity::Error,
+            "build.output.identity",
+            format!(
+                "{output} is package '{}' inside the archive but '{}' in the manifest",
+                opened.index().name,
+                package.name
+            ),
+        )
+        .with_path(format!("packages[{}].outputs", package.name)));
+    }
+    Ok(())
 }
 
 /// The last few lines a failed command wrote, on one line and bounded.

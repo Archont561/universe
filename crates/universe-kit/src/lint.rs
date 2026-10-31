@@ -14,13 +14,15 @@ use serde_json::json;
 use universe_core::CommandOutput;
 use universe_core::diagnostic::{Diagnostic, Severity};
 
-use crate::options::Options;
+use universe_conda::{RecipeRules, lint_recipe};
+
+use crate::options::{Options, VerbSpec};
 use crate::output::{FINDINGS, USAGE, failure, human, json_success};
 use crate::project::Project;
 
 /// Run `universe lint`.
 pub(crate) fn run(args: &[String]) -> CommandOutput {
-    let options = match Options::parse(args, "lint", false) {
+    let options = match Options::parse(args, VerbSpec::lint()) {
         Ok(options) => options,
         Err(message) => {
             return failure(
@@ -43,6 +45,7 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
 
     let mut diagnostics = project.manifest.validate();
     diagnostics.extend(version_parity(&project.root));
+    diagnostics.extend(recipe_findings(&project));
 
     let has_errors = diagnostics.iter().any(Diagnostic::is_error);
     if options.json {
@@ -74,6 +77,36 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
     }
     body.push_str("ok\n");
     human(body)
+}
+
+/// Every recipe, linted with the rules the manifest's `[audit]` section declares.
+///
+/// The rules come from the manifest rather than from a flag so that turning a rule off is a
+/// reviewable change to a committed file, not something a contributor can do for one run.
+fn recipe_findings(project: &Project) -> Vec<Diagnostic> {
+    let rules = RecipeRules {
+        allow_mutable_git: false,
+        enforce_license_file: project.manifest.audit.enforce_license_file,
+        require_valid_spdx: project.manifest.audit.require_valid_spdx,
+    };
+    let mut findings = Vec::new();
+    for recipe in recipes(&project.root.join("crates")) {
+        let Ok(text) = std::fs::read_to_string(&recipe) else {
+            continue;
+        };
+        let directory = recipe.parent().unwrap_or(&project.root);
+        for finding in lint_recipe(directory, &text, rules) {
+            findings.push(finding.with_path(relative(&project.root, &recipe)));
+        }
+    }
+    findings
+}
+
+fn relative(root: &std::path::Path, path: &std::path::Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// The workspace version, every recipe's `context.version`, and the changelog.

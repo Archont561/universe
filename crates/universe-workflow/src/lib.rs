@@ -421,7 +421,9 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
             .with_matrix("platform", manifest.project.platforms.clone())
             .with_step(Step::Run {
                 label: "Build the declared packages".to_owned(),
-                command: verb("build --json"),
+                command: verb(&format!(
+                    "build --json --receipts {ARTIFACT_PATH}/.receipts"
+                )),
             })
             .with_step(Step::uses_with(
                 universe_assets::UPLOAD_ARTIFACT,
@@ -445,7 +447,9 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
             ))
             .with_step(Step::Run {
                 label: "Audit the built artifacts".to_owned(),
-                command: verb("audit --json"),
+                command: verb(&format!(
+                    "audit --json --emit-fragment {ARTIFACT_PATH}/fragments"
+                )),
             }),
     );
 
