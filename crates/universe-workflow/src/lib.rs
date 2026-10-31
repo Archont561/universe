@@ -42,6 +42,15 @@ pub const MAIN_FILE: &str = "universe.yml";
 pub const PUBLISH_FILE: &str = "universe-publish.yml";
 /// The file that exists when an Airlock scope declares a lock adapter.
 pub const AIRLOCK_FILE: &str = "universe-airlock.yml";
+/// Name of the artifact a build uploads and every later job downloads.
+///
+/// The matrix platform is part of the name, so two platform builds land as two artifacts and
+/// a later job can ask for exactly the one it needs.
+pub const ARTIFACT_NAME: &str = "universe-${{ matrix.platform }}";
+
+/// Where a job keeps the artifacts it produces or consumes.
+pub const ARTIFACT_PATH: &str = "output";
+
 /// The file that exists when a package declares an upstream release source.
 pub const WATCH_FILE: &str = "universe-watch.yml";
 
@@ -127,10 +136,34 @@ impl std::error::Error for RenderError {}
 /// One step of a rendered job.
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Step {
-    /// A pinned action.
-    Uses { reference: String },
+    /// A pinned action, with the inputs it needs.
+    Uses {
+        reference: String,
+        inputs: Vec<(String, String)>,
+    },
     /// A shell command.
     Run { label: String, command: String },
+}
+
+impl Step {
+    /// A pinned action that takes no inputs.
+    fn uses(reference: &str) -> Self {
+        Self::Uses {
+            reference: reference.to_owned(),
+            inputs: Vec::new(),
+        }
+    }
+
+    /// A pinned action with its `with:` block, in declaration order.
+    fn uses_with(reference: &str, inputs: &[(&str, &str)]) -> Self {
+        Self::Uses {
+            reference: reference.to_owned(),
+            inputs: inputs
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                .collect(),
+        }
+    }
 }
 
 /// One job of a rendered workflow.
@@ -222,7 +255,13 @@ impl Job {
             .steps
             .iter()
             .map(|step| match step {
-                Step::Uses { reference } => json!({ "uses": reference }),
+                Step::Uses { reference, inputs } => json!({
+                    "uses": reference,
+                    "inputs": inputs
+                        .iter()
+                        .map(|(name, value)| json!({ "name": name, "value": value }))
+                        .collect::<Vec<_>>(),
+                }),
                 Step::Run { label, command } => json!({
                     "uses": Value::Null,
                     "label": label,
@@ -294,12 +333,8 @@ fn to_identifier(text: &str) -> String {
 /// two are prepended rather than appended so the call site reads in execution order.
 fn checkout_and_pixi(job: Job) -> Job {
     let mut steps = vec![
-        Step::Uses {
-            reference: universe_assets::CHECKOUT.to_owned(),
-        },
-        Step::Uses {
-            reference: universe_assets::SETUP_PIXI.to_owned(),
-        },
+        Step::uses(universe_assets::CHECKOUT),
+        Step::uses(universe_assets::SETUP_PIXI),
     ];
     steps.extend(job.steps);
     Job { steps, ..job }
@@ -378,20 +413,36 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     }
     validate = checkout_and_pixi(validate);
 
+    // A job's filesystem does not outlive it, so the build hands its bytes to the jobs that
+    // audit and verify them. Without this the audit job audits an empty tree — and, because
+    // audit fails closed, says so.
     let build = checkout_and_pixi(
         Job::new("build", "universe", vec!["view".to_owned()])
             .with_matrix("platform", manifest.project.platforms.clone())
             .with_step(Step::Run {
                 label: "Build the declared packages".to_owned(),
                 command: verb("build --json"),
-            }),
+            })
+            .with_step(Step::uses_with(
+                universe_assets::UPLOAD_ARTIFACT,
+                &[
+                    ("name", ARTIFACT_NAME),
+                    ("path", ARTIFACT_PATH),
+                    ("if-no-files-found", "error"),
+                ],
+            )),
     );
 
     let audit = checkout_and_pixi(
-        Job::new("audit", "universe", vec!["build".to_owned()]).with_step(Step::Run {
-            label: "Audit the built artifacts".to_owned(),
-            command: verb("audit --json"),
-        }),
+        Job::new("audit", "universe", vec!["build".to_owned()])
+            .with_step(Step::uses_with(
+                universe_assets::DOWNLOAD_ARTIFACT,
+                &[("pattern", "universe-*"), ("merge-multiple", "true")],
+            ))
+            .with_step(Step::Run {
+                label: "Audit the built artifacts".to_owned(),
+                command: verb("audit --json"),
+            }),
     );
 
     let mut jobs = vec![view, validate, build, audit];
@@ -400,6 +451,10 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
         jobs.push(checkout_and_pixi(
             Job::new("verify-artifact", "universe", vec!["audit".to_owned()])
                 .with_matrix("platform", manifest.project.platforms.clone())
+                .with_step(Step::uses_with(
+                    universe_assets::DOWNLOAD_ARTIFACT,
+                    &[("name", ARTIFACT_NAME)],
+                ))
                 .with_step(Step::Run {
                     label: "Prove the built artifact installs and runs".to_owned(),
                     command: verb("verify --artifact --json"),
@@ -432,7 +487,10 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         for secret in &store.secrets {
             job = job.with_env(&secret_variable(&store.name, secret), secret);
         }
-        job = checkout_and_pixi(job);
+        job = checkout_and_pixi(job).with_step(Step::uses_with(
+            universe_assets::DOWNLOAD_ARTIFACT,
+            &[("pattern", "universe-*"), ("merge-multiple", "true")],
+        ));
         for package in manifest
             .destinations()
             .into_iter()

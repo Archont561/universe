@@ -31,9 +31,23 @@ pub const CHECKOUT: &str = "actions/checkout@3d3c42e5aac5ba805825da76410c181273b
 pub const SETUP_PIXI: &str =
     "prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2";
 
+/// `actions/upload-artifact`, pinned.
+///
+/// A build that produces an artifact on one runner and audits it on another needs the bytes
+/// to travel between them; Runner filesystems are not shared.
+pub const UPLOAD_ARTIFACT: &str =
+    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2";
+
+/// `actions/download-artifact`, pinned.
+pub const DOWNLOAD_ARTIFACT: &str =
+    "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0";
+
 #[cfg(test)]
 mod tests {
-    use super::{CHECKOUT, SETUP_PIXI, VERSION, WORKFLOW_TEMPLATE, portal_assets};
+    use super::{
+        CHECKOUT, DOWNLOAD_ARTIFACT, SETUP_PIXI, UPLOAD_ARTIFACT, VERSION, WORKFLOW_TEMPLATE,
+        portal_assets,
+    };
 
     #[test]
     fn version_matches_the_package_manifest() {
@@ -67,7 +81,7 @@ mod tests {
 
     #[test]
     fn action_pins_are_commit_shas() {
-        for action in [CHECKOUT, SETUP_PIXI] {
+        for action in [CHECKOUT, SETUP_PIXI, UPLOAD_ARTIFACT, DOWNLOAD_ARTIFACT] {
             let reference = action.split('@').nth(1).expect("ref");
             let sha = reference.split_whitespace().next().expect("sha");
             assert_eq!(sha.len(), 40, "{action} is not pinned to a commit");

@@ -92,10 +92,12 @@ name = "pre-release"
 stores = ["prefix-dev", "branch"]
 
 [workflow]
-# Both verification ranges stay on: the built artifact has to prove it installs, and the
-# published copy has to prove it arrived.
-verify_artifact = true
-verify_published = true
+# Off until `universe verify` exists (UNI-32/UNI-33). The job is rendered from this flag, so
+# declaring it false is the difference between a pipeline that proves less than it claims and
+# one that fails every run on a verb nobody has written yet. Flip both to `true` in the commit
+# that lands the verb, and never before.
+verify_artifact = false
+verify_published = false
 
 # The closed three-slot vocabulary. Each command is one Pixi task, which is what keeps the
 # rendered `validate` job free of ad-hoc shell (house rule 10).
