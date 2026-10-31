@@ -173,3 +173,95 @@ fn the_plan_serializes_as_levels_of_jobs() {
     assert_eq!(json["levels"][0]["jobs"][0]["package"], "one");
     assert_eq!(json["levels"][0]["jobs"][0]["platforms"][0], "linux-64");
 }
+
+// The property the matrix depends on: an edge always points forward in time. A planner that
+// merely happens to order this repository's packages correctly is a planner that will break
+// on someone else's; a random DAG is the cheapest way to stop trusting the happy path.
+mod properties {
+    use super::unvalidated;
+    use proptest::prelude::*;
+    use serde_json::json;
+    use std::collections::BTreeSet;
+    use universe_core::planner::plan;
+
+    fn any_dag(bound: usize) -> impl Strategy<Value = Vec<Vec<bool>>> {
+        // An adjacency matrix restricted to edges that point from a lower index to a higher
+        // one: every such graph is acyclic by construction, so the generator cannot waste
+        // cases on cycles the planner is expected to refuse.
+        (0..=bound).prop_flat_map(|size| {
+            proptest::collection::vec(any::<bool>(), size * size).prop_map(move |bits| {
+                let mut matrix = vec![vec![false; size]; size];
+                for (from, row) in matrix.iter_mut().enumerate().take(size) {
+                    for (to, edge) in row.iter_mut().enumerate().skip(from + 1) {
+                        *edge = bits[from * size + to];
+                    }
+                }
+                matrix
+            })
+        })
+    }
+
+    fn manifest_for(matrix: &[Vec<bool>]) -> universe_core::manifest::Manifest {
+        let packages: Vec<serde_json::Value> = matrix
+            .iter()
+            .enumerate()
+            .map(|(from, row)| {
+                let dependencies: Vec<String> = row
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, edge)| **edge)
+                    .map(|(to, _)| format!("p{to}"))
+                    .collect();
+                json!({
+                    "name": format!("p{from}"),
+                    "kind": "conda",
+                    "command": ["build"],
+                    "depends_on": dependencies,
+                    // Built without validation: the generator produces shapes the validator
+                    // would refuse for reasons that have nothing to do with ordering.
+                    "release": false,
+                })
+            })
+            .collect();
+        unvalidated(serde_json::Value::Array(packages))
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn every_edge_points_forward_in_time(matrix in any_dag(12)) {
+            let manifest = manifest_for(&matrix);
+            let plan = plan(&manifest).expect("an acyclic graph always plans");
+            let mut level_of = std::collections::BTreeMap::new();
+            for (index, level) in plan.levels.iter().enumerate() {
+                for package in level {
+                    level_of.insert(package.clone(), index);
+                }
+            }
+            for (from, row) in matrix.iter().enumerate() {
+                for (to, edge) in row.iter().enumerate() {
+                    if *edge {
+                        let dependent = level_of[&format!("p{from}")];
+                        let dependency = level_of[&format!("p{to}")];
+                        prop_assert!(
+                            dependency < dependent,
+                            "p{} depends on p{} but sits at level {} against {}",
+                            from, to, dependent, dependency
+                        );
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn the_same_graph_always_plans_the_same_way(matrix in any_dag(12)) {
+            let first = plan(&manifest_for(&matrix)).expect("plans");
+            let second = plan(&manifest_for(&matrix)).expect("plans again");
+            let total = first.levels.iter().flatten().count();
+            prop_assert_eq!(first.clone(), second);
+            let names: BTreeSet<String> = first.levels.iter().flatten().cloned().collect();
+            prop_assert_eq!(names.len(), total);
+        }
+    }
+}

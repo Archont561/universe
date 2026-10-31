@@ -1,0 +1,19 @@
+schema_version: 1
+context:
+  version: "2.0.0"
+recipe:
+  name: suite
+outputs:
+  - package:
+      name: suite-core
+      version: ${{ version }}
+    build:
+      number: 0
+    about:
+      license: MIT
+      license_file: LICENSE
+  - package:
+      version: ${{ version }}
+    about:
+      license: MIT
+      license_file: LICENSE

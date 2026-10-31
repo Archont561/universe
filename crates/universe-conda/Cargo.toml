@@ -15,10 +15,12 @@ workspace = true
 
 [dependencies]
 goblin = { workspace = true }
+rattler_conda_types = { workspace = true }
 rattler_digest = { workspace = true }
 rattler_package_streaming = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 spdx = { workspace = true }
 tar = { workspace = true }
 thiserror = { workspace = true }

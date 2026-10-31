@@ -74,7 +74,7 @@ v0.1.0 milestone is `linux-64` only, `decision-132`), md5 and `info/paths.json`,
 <!-- AC:BEGIN -->
 - [ ] #1 Synthetic minimal ELF64, PE32+, and Mach-O64 `.conda` fixtures can be audited on Linux (cross-platform pure-Rust header/RPATH parsing without `ldd`, `otool`, or `dumpbin`).
 - [ ] #2 Auditor catches wrong-arch binaries (e.g., `x86_64` Mach-O inside `osx-arm64`), leaked `/home/runner/work/...` `DT_RUNPATH` or `LC_RPATH`, missing `info/licenses/*`, native binaries in `noarch`, and missing `expected_binaries`.
-- [ ] #3 `--emit-fragment` outputs valid `FragmentJson` matching `@universe/schema` with `sha256`, `md5`, `index_json`, `about_json`, `run_exports_json`, and `audit_summary`.
+- [ ] #3 `--emit-fragment` outputs valid `FragmentJson` matching `@universe/schema` with `sha256`, `md5`, `index_json`, `about_json`, `run_exports_json`, and `audit_summary`. — 2026-10-31 (partial): `universe audit --emit-fragment <dir>` writes one deterministic document per artifact at `<dir>/<subdir>/<filename>.json`, carrying `package`, `version`, `build`, `build_number`, `subdir`, `digest`, `size_bytes`, `license`, `license_files`, and `depends` — derived from the archive's own `info/index.json` and `info/about.json` rather than from the file name, and refused when the archive's identity disagrees with the manifest (`audit.package.identity`) or its licence fails SPDX or `license_file` (`audit.licence.*`). The rendered build/audit jobs now pass `--receipts` and `--emit-fragment`, so both paths run in CI. Missing against this criterion: `md5`, the `run_exports.json` read, the `@universe/schema` alignment, and `audit_summary`; the fragment is not yet claimed as the schema-valid form.
 <!-- AC:END -->
 
 ## Definition of Done

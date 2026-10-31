@@ -9,7 +9,9 @@
 mod binary;
 mod licence;
 mod package;
+mod recipe;
 
 pub use binary::{BinaryAudit, BinaryError, BinaryFormat, BinaryRules, audit_binary};
 pub use licence::{LicenceAudit, LicenceRules, audit_licence};
 pub use package::{CondaPackage, PackageError, PackageIndex, open_package};
+pub use recipe::{RecipeRules, lint_recipe};

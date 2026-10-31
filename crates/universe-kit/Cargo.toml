@@ -16,11 +16,17 @@ workspace = true
 [dependencies]
 serde_json = { workspace = true }
 toml_edit = { workspace = true }
+universe-conda = { workspace = true }
 universe-core = { workspace = true }
 universe-workflow = { workspace = true }
 
 [dev-dependencies]
+# Archive fixtures are built, not committed: a builder that spells out the format is the
+# specification the reader has to satisfy.
+tar = { workspace = true }
 tempfile = { workspace = true }
+zip = { version = "9", default-features = false }
+zstd = { version = "0.14", default-features = false }
 
 [[bin]]
 name = "universe-kit"
