@@ -55,6 +55,12 @@ jobs:
 {%- for step in job.steps %}
 {%- if step.uses %}
       - uses: << step.uses >>
+{%- if step.inputs | length %}
+        with:
+{%- for input in step.inputs %}
+          << input.name >>: << input.value >>
+{%- endfor %}
+{%- endif %}
 {%- else %}
       - name: << step.label >>
         run: |

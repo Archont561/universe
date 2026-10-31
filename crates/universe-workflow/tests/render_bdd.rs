@@ -387,6 +387,53 @@ fn no_bare_universe_command(project: &Project) {
     );
 }
 
+#[then("the build job uploads the artifacts it produced")]
+fn build_uploads(project: &Project) {
+    let main = project.workflow("universe.yml");
+    let build = job_blocks(&main)
+        .into_iter()
+        .find(|(name, _)| name == "build")
+        .expect("the main file has a build job")
+        .1;
+    assert!(
+        build.contains("actions/upload-artifact@"),
+        "the build job does not hand its output on:\n{main}"
+    );
+    assert!(
+        build.contains("name: universe-${{ matrix.platform }}"),
+        "the artifact is not named per platform, so the downloaders cannot ask for one:\n{main}"
+    );
+    assert!(
+        build.contains("if-no-files-found: error"),
+        "a build that produced nothing must fail here rather than at publish time:\n{main}"
+    );
+}
+
+#[then("every job that audits, verifies, or publishes downloads them")]
+fn later_jobs_download(project: &Project) {
+    let mut checked = 0;
+    for file in ["universe.yml", "universe-publish.yml"] {
+        let text = project.workflow(file);
+        for (name, body) in job_blocks(&text) {
+            let consumes = body.contains("audit --json")
+                || body.contains("verify --artifact")
+                || body.contains("publish --store");
+            if !consumes {
+                continue;
+            }
+            checked += 1;
+            assert!(
+                body.contains("actions/download-artifact@"),
+                "job {name} consumes artifacts it never downloads:\n{text}"
+            );
+        }
+    }
+    assert!(
+        checked >= 3,
+        "only {checked} consuming jobs were found, so this scenario proved little"
+    );
+}
+
 #[then("the drift check names the main workflow file")]
 fn drift_names_the_main_file(project: &Project) {
     let diagnostics = universe_workflow::check(&project.directories(), project.rendered());
@@ -491,5 +538,13 @@ fn every_job_runs_somewhere_and_checks_out_first(project: Project) {
     name = "Every Universe command runs through the Pixi task that built it"
 )]
 fn every_command_goes_through_the_pixi_task(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "tests/features/render.feature",
+    name = "A build's artifacts reach the jobs that audit and publish them"
+)]
+fn artifacts_reach_the_jobs_that_need_them(project: Project) {
     let _ = project;
 }

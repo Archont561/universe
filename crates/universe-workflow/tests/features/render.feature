@@ -43,3 +43,9 @@ Feature: Rendering the workflow set from a project manifest
     Given a project that publishes its Airlock package to a hosted channel and to a static channel
     When the workflow set is rendered
     Then no step runs a bare universe command
+
+  Scenario: A build's artifacts reach the jobs that audit and publish them
+    Given a project that publishes its Airlock package to a hosted channel and to a static channel
+    When the workflow set is rendered
+    Then the build job uploads the artifacts it produced
+    And every job that audits, verifies, or publishes downloads them
