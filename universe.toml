@@ -36,10 +36,12 @@ verify_arch_headers = true
 [[packages]]
 name = "universe-airlock"
 kind = "conda"
-# The recipe owns the build; this command only invokes it. `--frozen` keeps the build
-# toolchain to the locked environment, which is what makes the artifact reproducible from
-# a commit rather than from whatever the runner had installed.
-command = ["pixi", "run", "--frozen", "package-airlock"]
+# The recipe owns the build; this command only invokes it. `-e packaging` is not optional:
+# `rattler-build` lives in that environment, and running the task in `default` fails with a
+# bare "command not found". `--frozen` keeps the build toolchain to the locked environment,
+# which is what makes the artifact reproducible from a commit rather than from whatever the
+# runner had installed.
+command = ["pixi", "run", "-e", "packaging", "--frozen", "package-airlock"]
 platforms = ["linux-64"]
 outputs = ["output/universe-airlock/linux-64/*.conda"]
 # Mandatory because the package publishes: a package with no smoke command is a package
