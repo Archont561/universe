@@ -14,6 +14,7 @@ description = "Conda channel rendering and publication for Universe: fragments i
 workspace = true
 
 [dependencies]
+reqwest = { workspace = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
 serde_json = { workspace = true }
@@ -27,3 +28,4 @@ tempfile = { workspace = true }
 # bundle is through `main` and the sandbox publisher: declaring it here, letting the relock
 # bot resolve it, and merging is what makes `cargo test` able to build it locally next time.
 wiremock = { workspace = true }
+tokio = { workspace = true }
