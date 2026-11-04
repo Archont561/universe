@@ -21,6 +21,12 @@ pub(crate) struct VerbSpec {
     pub(crate) change_scope: bool,
     /// `--timeout <seconds>` and `--receipts <dir>`.
     pub(crate) build_controls: bool,
+    /// `--fragments <dir>` and `--output <dir>`.
+    pub(crate) channel_inputs: bool,
+    /// `--base-url <url>` and `--package <name>` (repeatable).
+    pub(crate) channel_shape: bool,
+    /// `--remote <name>`, `--branch <name>`, `--check`, and `--dry-run`.
+    pub(crate) transport: bool,
 }
 
 impl VerbSpec {
@@ -32,6 +38,9 @@ impl VerbSpec {
             fragment: false,
             change_scope: true,
             build_controls: false,
+            channel_inputs: false,
+            channel_shape: false,
+            transport: false,
         }
     }
 
@@ -43,6 +52,9 @@ impl VerbSpec {
             fragment: false,
             change_scope: false,
             build_controls: false,
+            channel_inputs: false,
+            channel_shape: false,
+            transport: false,
         }
     }
 
@@ -54,6 +66,9 @@ impl VerbSpec {
             fragment: false,
             change_scope: false,
             build_controls: true,
+            channel_inputs: false,
+            channel_shape: false,
+            transport: false,
         }
     }
 
@@ -65,6 +80,37 @@ impl VerbSpec {
             fragment: true,
             change_scope: false,
             build_controls: false,
+            channel_inputs: false,
+            channel_shape: false,
+            transport: false,
+        }
+    }
+
+    /// What `universe index` accepts.
+    pub(crate) const fn index() -> Self {
+        Self {
+            verb: "index",
+            platform: false,
+            fragment: false,
+            change_scope: false,
+            build_controls: false,
+            channel_inputs: true,
+            channel_shape: true,
+            transport: false,
+        }
+    }
+
+    /// What `universe publish` accepts.
+    pub(crate) const fn publish() -> Self {
+        Self {
+            verb: "publish",
+            platform: false,
+            fragment: false,
+            change_scope: false,
+            build_controls: false,
+            channel_inputs: true,
+            channel_shape: true,
+            transport: true,
         }
     }
 
@@ -81,6 +127,17 @@ impl VerbSpec {
         }
         if self.fragment {
             usage.push_str(" [--emit-fragment <dir>]");
+        }
+        if self.channel_inputs {
+            usage.push_str(" [--fragments <dir>] [--output <dir>]");
+        }
+        if self.channel_shape {
+            usage.push_str(" [--base-url <url>] [--package <name>]...");
+        }
+        if self.transport {
+            usage.push_str(
+                " [--remote <name>] [--branch <name>] [--store <name>] [--check] [--dry-run]",
+            );
         }
         usage.push_str(" [--json]");
         format!("unknown argument: {argument}\n{usage}")
@@ -106,6 +163,24 @@ pub(crate) struct Options {
     pub(crate) timeout_seconds: u64,
     /// Directory the `build` verb writes receipts to.
     pub(crate) receipts: Option<PathBuf>,
+    /// Directory the channel's fragments are read from.
+    pub(crate) fragments: Option<PathBuf>,
+    /// Directory a rendered channel tree is written to.
+    pub(crate) output: Option<PathBuf>,
+    /// Public URL the channel will be served from, recorded in its metadata.
+    pub(crate) base_url: Option<String>,
+    /// Packages a publish is narrowed to; empty means all of them.
+    pub(crate) packages: Vec<String>,
+    /// Git remote the channel branch lives on.
+    pub(crate) remote: Option<String>,
+    /// Branch the channel is published to.
+    pub(crate) branch: Option<String>,
+    /// Store whose budgets and channel the publish is measured against.
+    pub(crate) store: Option<String>,
+    /// Whether to only compare the branch with what the fragments render to.
+    pub(crate) check: bool,
+    /// Whether to describe the publish without performing it.
+    pub(crate) dry_run: bool,
 }
 
 impl Options {
@@ -125,6 +200,15 @@ impl Options {
             base_ref: "origin/main".to_owned(),
             timeout_seconds: 1800,
             receipts: None,
+            fragments: None,
+            output: None,
+            base_url: None,
+            packages: Vec::new(),
+            remote: None,
+            branch: None,
+            store: None,
+            check: false,
+            dry_run: false,
         };
         let mut rest = args.iter();
         while let Some(argument) = rest.next() {
@@ -148,6 +232,31 @@ impl Options {
                         .parse()
                         .map_err(|_| format!("--timeout takes whole seconds, not '{raw}'"))?;
                 }
+                "--fragments" if spec.channel_inputs => {
+                    options.fragments = Some(PathBuf::from(value(rest.next(), "--fragments")?));
+                }
+                "--output" if spec.channel_inputs => {
+                    options.output = Some(PathBuf::from(value(rest.next(), "--output")?));
+                }
+                "--base-url" if spec.channel_shape => {
+                    options.base_url = Some(value(rest.next(), "--base-url")?.clone());
+                }
+                "--package" if spec.channel_shape => {
+                    options
+                        .packages
+                        .push(value(rest.next(), "--package")?.clone());
+                }
+                "--remote" if spec.transport => {
+                    options.remote = Some(value(rest.next(), "--remote")?.clone());
+                }
+                "--store" if spec.transport => {
+                    options.store = Some(value(rest.next(), "--store")?.clone());
+                }
+                "--branch" if spec.transport => {
+                    options.branch = Some(value(rest.next(), "--branch")?.clone());
+                }
+                "--check" if spec.transport => options.check = true,
+                "--dry-run" if spec.transport => options.dry_run = true,
                 "--receipts" if spec.build_controls => {
                     options.receipts = Some(PathBuf::from(value(rest.next(), "--receipts")?));
                 }
@@ -160,4 +269,72 @@ impl Options {
 
 fn value<'a>(next: Option<&'a String>, flag: &str) -> Result<&'a String, String> {
     next.ok_or_else(|| format!("{flag} needs a value"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Options, VerbSpec};
+
+    fn parse(args: &[&str], spec: VerbSpec) -> Result<Options, String> {
+        let owned: Vec<String> = args.iter().map(|argument| (*argument).to_owned()).collect();
+        Options::parse(&owned, spec)
+    }
+
+    #[test]
+    fn publish_accepts_every_flag_it_documents() {
+        let options = parse(
+            &[
+                "--remote",
+                "origin",
+                "--branch",
+                "channel",
+                "--store",
+                "conda-branch",
+                "--fragments",
+                "output/fragments",
+                "--output",
+                "output/publish",
+                "--base-url",
+                "https://example.invalid/channel",
+                "--package",
+                "a",
+                "--package",
+                "b",
+                "--check",
+                "--dry-run",
+                "--json",
+            ],
+            VerbSpec::publish(),
+        )
+        .expect("flags are accepted");
+
+        assert_eq!(options.remote.as_deref(), Some("origin"));
+        assert_eq!(options.branch.as_deref(), Some("channel"));
+        assert_eq!(options.store.as_deref(), Some("conda-branch"));
+        assert_eq!(options.packages, ["a", "b"]);
+        assert!(options.check && options.dry_run && options.json);
+    }
+
+    #[test]
+    fn index_refuses_a_transport_flag_because_it_publishes_nothing() {
+        // A flag that silently did nothing would make a script believe it had published.
+        let error = parse(&["--remote", "origin"], VerbSpec::index()).expect_err("refused");
+        assert!(error.contains("usage: universe index"), "{error}");
+    }
+
+    #[test]
+    fn a_channel_verb_documents_its_own_flags_in_the_usage_line() {
+        let error = parse(&["--nonsense"], VerbSpec::publish()).expect_err("refused");
+        assert!(error.contains("--remote <name>"), "{error}");
+        assert!(error.contains("--check"), "{error}");
+        let error = parse(&["--nonsense"], VerbSpec::index()).expect_err("refused");
+        assert!(error.contains("--output <dir>"), "{error}");
+        assert!(!error.contains("--remote"), "{error}");
+    }
+
+    #[test]
+    fn a_flag_without_its_value_says_which_flag() {
+        let error = parse(&["--remote"], VerbSpec::publish()).expect_err("refused");
+        assert!(error.contains("--remote needs a value"), "{error}");
+    }
 }

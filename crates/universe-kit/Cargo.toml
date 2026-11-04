@@ -17,6 +17,7 @@ workspace = true
 serde_json = { workspace = true }
 toml_edit = { workspace = true }
 universe-conda = { workspace = true }
+universe-channel = { workspace = true }
 universe-core = { workspace = true }
 universe-workflow = { workspace = true }
 
