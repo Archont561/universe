@@ -85,7 +85,7 @@ def test_offline_cargo_gates_require_vendored_transport() -> None:
 
 
 def test_the_standalone_repository_passes_repo_check() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
     assert validate_repo(repo_root) == []
 
 
@@ -119,7 +119,7 @@ def test_main_prints_success_and_failure(
     captured = capsys.readouterr()
     assert "legacy repository reference" in captured.err
 
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
     assert main(["--root", str(repo_root)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "repo-check: repository invariants are valid\n"

@@ -98,7 +98,7 @@ crates/universe-workflow/           deterministic manifest → workflow renderer
 crates/*/recipe/                    Conda build recipes
 packages/                           Bun workspace: config, schema, portal
 scripts/                            repository automation (Python) and restore
-TESTS/                              pytest suites for that automation
+scripts/tests/                      pytest suites for that automation
 docs/                               manifest, workflows, airlock, development
 backlog/                            decisions, designs, roadmap, tasks
 .agents/skills/                     contributor agent skills

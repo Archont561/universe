@@ -9,6 +9,7 @@ import pytest
 
 from scripts.skills_check import (
     SkillLock,
+    SkillLockEntry,
     hash_skill_directory,
     main,
     parse_skill_frontmatter,
@@ -143,3 +144,93 @@ def test_reports_a_missing_lock_entry_and_main_modes(
     assert main(["--root", str(tmp_path)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "skills-check: skills are valid\n"
+
+
+def _write_skill(root: Path, name: str) -> None:
+    """Create one skill directory with valid frontmatter."""
+    directory = root / ".agents" / "skills" / name
+    directory.mkdir(parents=True)
+    (directory / "SKILL.md").write_text(
+        f"---\nname: {name}\ndescription: {name} skill\n---\nUse it well.\n",
+        encoding="utf-8",
+    )
+
+
+def _write_lock(root: Path, entries: dict[str, SkillLockEntry]) -> None:
+    """Write a lock file holding exactly `entries`."""
+    (root / "skills-lock.json").write_text(
+        json.dumps({"version": 1, "skills": entries}), encoding="utf-8"
+    )
+
+
+def test_accepts_a_vendored_skill_locked_by_its_upstream_path(tmp_path: Path) -> None:
+    # A skill installed with `npx skills add <repo> --skill <name>` is locked by where it
+    # comes from, not by where it now lives: a refresh has to be able to find it upstream.
+    _write_skill(tmp_path, "vendored")
+    _write_lock(
+        tmp_path,
+        {
+            "vendored": {
+                "computedHash": hash_skill_directory(tmp_path / ".agents" / "skills" / "vendored"),
+                "skillPath": "plugins/patterns/bdd/skills/vendored/SKILL.md",
+                "source": "thebushidocollective/han",
+                "sourceType": "github",
+            }
+        },
+    )
+
+    assert validate_skills(tmp_path) == []
+
+
+def test_a_vendored_skill_must_name_an_owner_and_repository(tmp_path: Path) -> None:
+    _write_skill(tmp_path, "vendored")
+    _write_lock(
+        tmp_path,
+        {
+            "vendored": {
+                "computedHash": hash_skill_directory(tmp_path / ".agents" / "skills" / "vendored"),
+                "skillPath": "SKILL.md",
+                "source": "han",
+                "sourceType": "github",
+            }
+        },
+    )
+
+    errors = "\n".join(validate_skills(tmp_path))
+    assert "lock source must be an owner/repository slug" in errors
+
+
+def test_write_mode_keeps_the_provenance_of_a_vendored_skill(tmp_path: Path) -> None:
+    # Refreshing the hashes must not silently re-author someone else's skill.
+    _write_skill(tmp_path, "vendored")
+    _write_skill(tmp_path, "local")
+    _write_lock(
+        tmp_path,
+        {
+            "vendored": {
+                "computedHash": "0" * 64,
+                "skillPath": "plugins/patterns/bdd/skills/vendored/SKILL.md",
+                "source": "thebushidocollective/han",
+                "sourceType": "github",
+            },
+            "local": {
+                "computedHash": "0" * 64,
+                "skillPath": ".agents/skills/local/SKILL.md",
+                "source": "Archont561/universe",
+                "sourceType": "local",
+            },
+        },
+    )
+
+    assert validate_skills(tmp_path, write=True) == []
+    assert validate_skills(tmp_path) == []
+
+    lock = cast(SkillLock, json.loads((tmp_path / "skills-lock.json").read_text(encoding="utf-8")))
+    vendored = lock["skills"]["vendored"]
+    assert vendored["source"] == "thebushidocollective/han"
+    assert vendored["sourceType"] == "github"
+    assert vendored["skillPath"] == "plugins/patterns/bdd/skills/vendored/SKILL.md"
+    assert vendored["computedHash"] == hash_skill_directory(
+        tmp_path / ".agents" / "skills" / "vendored"
+    )
+    assert lock["skills"]["local"]["sourceType"] == "local"

@@ -12,7 +12,8 @@ updated_date: '2026-10-27'
 - Rust integration tests live below each crate's `tests/` directory where
   practical; product behaviour is proven through public library surfaces and
   real binaries.
-- Python tests for repository automation live in `TESTS/`.
+- Python tests for repository automation live in `scripts/tests/`, beside the automation they
+  cover, so one `mypy`/`ruff` invocation reaches both halves.
 - Tests never mutate the live repository or a developer's real home
   directory. Use fixtures, temporary directories, and isolated environment
   variables.

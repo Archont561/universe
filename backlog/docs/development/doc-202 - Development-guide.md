@@ -18,11 +18,12 @@ rules are in `AGENTS.md`.
 | Environment | Pixi 0.83+ with the committed `pixi.lock` |
 | Product language | Rust 2024 workspace under `crates/` |
 | Repository scripts | Python 3.13 modules under `scripts/` |
-| Python tests | pytest suites under `TESTS/` |
+| Python tests | pytest suites under `scripts/tests/` |
 | Python format/lint/types | Ruff formatter, Ruff lint, strict mypy |
 | Rust tests | External `tests/`, nextest, and doc tests |
 | Coverage | `cargo llvm-cov` LCOV for Rust; pytest-cov LCOV for Python scripts |
 | Workflow lint | Actionlint plus full-SHA action refs |
+| Gherkin lint | `gherlint` over every `features/*.feature`, failing closed when there are none |
 | Commits | Convco Conventional Commits |
 | Hooks | Lefthook delegating to Pixi tasks |
 
@@ -54,7 +55,11 @@ pixi run gates
 - `repo-check` — what a declarative rule cannot express: the legacy-token scan,
   Cargo/Pixi version sync through workspace inheritance, recipe drift, and the
   offline-transport and audit-gate contracts.
-- `skills-check` — skill frontmatter and content hashes in `skills-lock.json`.
+- `skills-check` — skill frontmatter and content hashes in `skills-lock.json`,
+  including the provenance of the skills vendored from upstream.
+- `lint-gherkin` — `gherlint` over every `features/*.feature` file. Discovery fails
+  closed, and a finding is printed as `file:line:column: message (name)`; the
+  linter's own CLI exits zero on findings, so the exit code is this gate's job.
 - `crate-check` — the dependency boundary of `universe-core`: `cargo metadata --locked`
   resolves the normal/build closure and every crate in it must be on the neutral
   allowlist, so the shared vocabulary cannot silently acquire an ecosystem, UI,
