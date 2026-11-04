@@ -45,10 +45,10 @@ This task consumes those records instead of defining a per-command shape of its 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `proptest` proves byte-identical repodata, compressed metadata, and shards for arbitrary input fragment order.
-- [ ] #2 Every configured subdir, including empty subdirs, has valid metadata and standard channel paths; every advertised artifact's bytes are present at the canonical static path and match its digest/size.
+- [ ] #1 `proptest` proves byte-identical repodata, compressed metadata, and shards for arbitrary input fragment order. — 2026-11-04 (partial): a property test proves arbitrary fragment order renders a byte-identical tree, but only plain `repodata.json` exists — no `.zst` metadata and no shards.
+- [x] #2 Every configured subdir, including empty subdirs, has valid metadata and standard channel paths; every advertised artifact's bytes are present at the canonical static path and match its digest/size. — 2026-11-04: `universe index --output <dir>` writes one `repodata.json` per configured subdir plus `noarch` even when empty, `channeldata.json`, `run_exports.json`, `.nojekyll`, and the generated `README.md`, and copies each verified artifact to `<subdir>/<filename>`; a test asserts the artifact's bytes arrive unmodified.
 - [ ] #3 Local HTTP integration proves a real Conda/Pixi client resolves, downloads, and installs a package from the generated static channel with network egress denied outside the local fixture.
-- [ ] #4 Missing artifact bytes, digest mismatch, unsupported metadata, or unavailable static path fails publication closed; a GitHub Release URL alone fails the fixture acceptance test.
+- [ ] #4 Missing artifact bytes, digest mismatch, unsupported metadata, or unavailable static path fails publication closed; a GitHub Release URL alone fails the fixture acceptance test. — 2026-11-04 (partial): missing bytes and digest mismatches fail both verbs closed with exit 1 and name the file; compressed metadata and shards are not written yet, so the unsupported-metadata path has nothing to meet.
 - [ ] #5 Output contains Conda metadata and package files only; portal extraction/HTML hydration is not invoked.
 <!-- AC:END -->
 
