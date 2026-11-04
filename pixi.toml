@@ -69,6 +69,9 @@ alint = "==0.20.1"
 # toolchain is needed. The packaging task and per-crate pyproject.toml land with
 # the distribution slice, not here.
 maturin = "==1.16.0"
+# Gherkin linter for `lint-gherkin`. Pinned exactly like the other pypi tools above: a
+# linter that changes its checks overnight turns an unrelated pull request red.
+gherlint = "==0.5.0"
 
 [feature.dev.activation.env]
 LLVM_COV = "$CONDA_PREFIX/bin/llvm-cov"
@@ -112,6 +115,7 @@ sandbox-publish-logs = { cmd = "python -m scripts.print_sandbox_logs \"$RUNNER_T
 skills-check = { cmd = "python -m scripts.skills_check", description = "Validate agent-skill frontmatter and content hashes" }
 skills-check-write = { cmd = "python -m scripts.skills_check --write", description = "Refresh agent-skill content hashes after a deliberate skill edit" }
 lint-actions = { cmd = "actionlint .github/workflows/*.yml", description = "Lint GitHub Actions workflows" }
+lint-gherkin = { cmd = "python -m scripts.gherkin_lint", description = "Lint every features/*.feature file with gherlint, failing when there is none" }
 lint-commit = { cmd = "convco check --config .versionrc --from-stdin", description = "Validate one conventional commit message" }
 lint-commits = { cmd = "convco check --config .versionrc", description = "Validate a conventional commit range" }
 ci-render = { cmd = "cargo run --quiet --locked -p universe-kit -- ci render", description = "Regenerate the GitHub workflows from universe.toml (the manifest is the only source of truth)" }
@@ -132,7 +136,8 @@ check = { depends-on = [
   "alint-check",
   "crate-check",
   "ci-check",
-], description = "Run format, lint, type, test, backlog, repository, skill, crate-boundary, and workflow-drift checks" }
+  "lint-gherkin",
+], description = "Run format, lint, type, test, backlog, repository, skill, crate-boundary, workflow-drift, and Gherkin checks" }
 offline-gates = { depends-on = [
   "check",
   "coverage",

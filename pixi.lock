@@ -97,7 +97,12 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026e-h5d301ff_0.conda
       - pypi: https://files.pythonhosted.org/packages/0a/dc/e77f490557cb5e045a75c3d18a7965425ac576235c970dfff4d903eb2c74/maturin-1.16.0-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.musllinux_1_1_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/4b/04/1f16eba1ffc5e0f5ae7b5bfd1847e8f0355c03bf67c34381d6cc5b7b2b2b/gherkin_official-42.0.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/5d/dd/34e863a6082a3af3cf2e5db46d4164f0051c46f5bfe1a11c69c41ad0c969/alint-0.20.1-py3-none-manylinux_2_17_x86_64.musllinux_1_2_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/72/f5/83179949035ff69c204beb71e48a349c2ea7653caadac951bcc6a11683b9/pydantic-1.10.27-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/7e/e5/ab51cd252d2c1f1419cf03fc0e5b85af11545cffde08d9f69ca27ebe7972/gherlint-0.5.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/8f/5f/fbe039e06108eefad9e6b1f7d915a9c73ca0451700c7d48ce05eaa3a2833/parse-1.22.4-py2.py3-none-any.whl
   packaging:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -190,7 +195,12 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026e-h5d301ff_0.conda
       - pypi: https://files.pythonhosted.org/packages/0a/dc/e77f490557cb5e045a75c3d18a7965425ac576235c970dfff4d903eb2c74/maturin-1.16.0-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.musllinux_1_1_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/4b/04/1f16eba1ffc5e0f5ae7b5bfd1847e8f0355c03bf67c34381d6cc5b7b2b2b/gherkin_official-42.0.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/5d/dd/34e863a6082a3af3cf2e5db46d4164f0051c46f5bfe1a11c69c41ad0c969/alint-0.20.1-py3-none-manylinux_2_17_x86_64.musllinux_1_2_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/72/f5/83179949035ff69c204beb71e48a349c2ea7653caadac951bcc6a11683b9/pydantic-1.10.27-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/7e/e5/ab51cd252d2c1f1419cf03fc0e5b85af11545cffde08d9f69ca27ebe7972/gherlint-0.5.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/8f/5f/fbe039e06108eefad9e6b1f7d915a9c73ca0451700c7d48ce05eaa3a2833/parse-1.22.4-py2.py3-none-any.whl
 packages:
 - conda: https://conda.anaconda.org/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
   build_number: 20
@@ -1411,8 +1421,44 @@ packages:
   - patchelf ; extra == 'patchelf'
   - ziglang>=0.10.0 ; extra == 'zig'
   requires_python: '>=3.7'
+- pypi: https://files.pythonhosted.org/packages/4b/04/1f16eba1ffc5e0f5ae7b5bfd1847e8f0355c03bf67c34381d6cc5b7b2b2b/gherkin_official-42.0.1-py3-none-any.whl
+  name: gherkin-official
+  version: 42.0.1
+  sha256: 6bf291733d126712eb167f6f75be57931dd8b9c9eb606de28013f3669007ec06
+  requires_dist:
+  - typing-extensions>=4
+  requires_python: '>=3.10'
+- pypi: https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl
+  name: click
+  version: 8.5.0
+  sha256: 255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+  requires_python: '>=3.10'
 - pypi: https://files.pythonhosted.org/packages/5d/dd/34e863a6082a3af3cf2e5db46d4164f0051c46f5bfe1a11c69c41ad0c969/alint-0.20.1-py3-none-manylinux_2_17_x86_64.musllinux_1_2_x86_64.whl
   name: alint
   version: 0.20.1
   sha256: 39d87dec0138df1d96638f60fa89e66b30afba6a2c5ee29d7a87233b2c45bda7
   requires_python: '>=3.7'
+- pypi: https://files.pythonhosted.org/packages/72/f5/83179949035ff69c204beb71e48a349c2ea7653caadac951bcc6a11683b9/pydantic-1.10.27-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+  name: pydantic
+  version: 1.10.27
+  sha256: e2882264f36d8c9e33e28c246a1fb5ac72b1a3807aa8a56a0391496485643da2
+  requires_dist:
+  - typing-extensions>=4.2.0
+  - email-validator>=1.0.3 ; extra == 'email'
+  - python-dotenv>=0.10.4 ; extra == 'dotenv'
+  requires_python: '>=3.7'
+- pypi: https://files.pythonhosted.org/packages/7e/e5/ab51cd252d2c1f1419cf03fc0e5b85af11545cffde08d9f69ca27ebe7972/gherlint-0.5.0-py3-none-any.whl
+  name: gherlint
+  version: 0.5.0
+  sha256: da4e54748b88381ca9caa996cb199e2a3f0c2573be3b325f78d4818135df1ac7
+  requires_dist:
+  - click>=8.0.1
+  - gherkin-official>=22.0.0
+  - parse>=1.19.0
+  - pydantic>=1.9.0,<2.0.0
+  - tomli>=1.0.0
+  requires_python: '>=3.10'
+- pypi: https://files.pythonhosted.org/packages/8f/5f/fbe039e06108eefad9e6b1f7d915a9c73ca0451700c7d48ce05eaa3a2833/parse-1.22.4-py2.py3-none-any.whl
+  name: parse
+  version: 1.22.4
+  sha256: ae430a4477316eed4a9710f642b2db968ec89d5d82e6b0908b8169673b476847
