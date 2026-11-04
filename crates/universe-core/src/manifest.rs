@@ -278,6 +278,35 @@ pub struct Store {
     /// Endpoint, for stores addressed by URL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// Ceilings one publish is measured against before anything moves.
+    #[serde(default, skip_serializing_if = "StoreBudgets::is_default")]
+    pub budgets: StoreBudgets,
+}
+
+/// Size ceilings a publish is measured against, in bytes.
+///
+/// Absent fields keep the publisher's defaults, so a manifest says only what it disagrees
+/// with. Written as `[stores.budgets]` under the store it applies to.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct StoreBudgets {
+    /// Largest single blob the transport accepts whole.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blob: Option<u64>,
+    /// Total bytes one publish may move.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<u64>,
+    /// Bytes one staged push may hold.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staged: Option<u64>,
+}
+
+impl StoreBudgets {
+    /// Whether every field is unset, in which case the block is not written back out.
+    #[must_use]
+    pub const fn is_default(&self) -> bool {
+        self.blob.is_none() && self.transport.is_none() && self.staged.is_none()
+    }
 }
 
 /// Destination protocols.
@@ -735,6 +764,25 @@ impl Manifest {
                     )
                     .with_path(format!("{path}.name")),
                 );
+            }
+            for (field, value) in [
+                ("blob", store.budgets.blob),
+                ("transport", store.budgets.transport),
+                ("staged", store.budgets.staged),
+            ] {
+                if value == Some(0) {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            Severity::Error,
+                            "manifest.store.budget.zero",
+                            format!(
+                                "store '{}' declares a zero {field} budget, which would refuse every publish",
+                                store.name
+                            ),
+                        )
+                        .with_path(format!("{path}.budgets.{field}")),
+                    );
+                }
             }
             if matches!(
                 store.kind,
@@ -1507,6 +1555,38 @@ verifier = "registry"
                 "manifest.store.channel.empty",
                 "manifest.store.secret.empty",
             ]
+        );
+    }
+
+    #[test]
+    fn a_store_may_narrow_the_publish_ceilings() {
+        let text = format!("{MINIMAL}\n[stores.budgets]\nblob = 1048576\n");
+        let store = &parsed(&text).stores[0];
+        assert_eq!(store.budgets.blob, Some(1_048_576));
+        assert_eq!(store.budgets.transport, None);
+    }
+
+    #[test]
+    fn an_unstated_budget_is_left_out_of_the_serialized_manifest() {
+        // Absent means "the publisher's default", so serializing must not invent a block.
+        let manifest = parsed(MINIMAL);
+        assert!(manifest.stores[0].budgets.is_default());
+        let text = serde_json::to_string(&manifest).expect("manifest serializes");
+        assert!(!text.contains("budgets"), "{text}");
+    }
+
+    #[test]
+    fn a_zero_budget_is_refused_because_it_would_refuse_every_publish() {
+        // TOML cannot hold two `[stores.budgets]` blocks, so the second store carries it.
+        let text = format!(
+            "{MINIMAL}\n\n[[stores]]\nname = \"other\"\nkind = \"filesystem\"\n[stores.budgets]\nstaged = 0\n"
+        );
+        let diagnostics = problems(&text);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code() == "manifest.store.budget.zero"),
+            "{diagnostics:?}"
         );
     }
 

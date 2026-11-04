@@ -1,0 +1,25 @@
+[package]
+name = "universe-channel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Conda channel rendering and publication for Universe: fragments in, deterministic static channel out"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+sha2 = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+universe-core = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
