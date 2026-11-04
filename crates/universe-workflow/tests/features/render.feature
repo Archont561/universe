@@ -49,3 +49,14 @@ Feature: Rendering the workflow set from a project manifest
     When the workflow set is rendered
     Then the build job uploads the artifacts it produced
     And every job that audits, verifies, or publishes downloads them
+
+  Scenario: Lock adapters add the Airlock file with a job per declared format
+    Given a project that declares Pixi and Bun lock adapters
+    When the workflow set is rendered
+    Then the rendered file set includes the Airlock file
+    And the Airlock file exercises every declared lock format
+
+  Scenario: A project that verifies published destinations gets a separate reader job
+    Given a project that verifies every published destination
+    When the workflow set is rendered
+    Then the publish file holds a separate reader for the anonymous destination

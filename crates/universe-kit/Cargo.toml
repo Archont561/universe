@@ -26,6 +26,10 @@ universe-workflow = { workspace = true }
 # specification the reader has to satisfy.
 tar = { workspace = true }
 tempfile = { workspace = true }
+# Scenarios live in `tests/features/*.feature` and are driven through `rstest-bdd`.
+rstest = { workspace = true }
+rstest-bdd = { workspace = true }
+rstest-bdd-macros = { workspace = true }
 zip = { version = "9", default-features = false }
 zstd = { version = "0.14", default-features = false }
 

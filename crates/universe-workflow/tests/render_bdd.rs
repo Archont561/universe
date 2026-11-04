@@ -119,6 +119,59 @@ writable = true
 secrets = ["npm-token"]
 "#;
 
+const LOCK_ADAPTERS: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+
+[airlock.developer]
+adapters = ["pixi", "bun"]
+mirror = "mirror"
+
+[[packages]]
+name = "universe-airlock"
+kind = "conda"
+command = ["rattler-build", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["universe-airlock --version"]
+publish = ["conda-static"]
+
+[[stores]]
+name = "conda-static"
+kind = "static"
+writable = true
+needs_index = true
+verifier = "file"
+"#;
+
+const VERIFY_PUBLISHED: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+
+[workflow]
+verify_published = true
+
+[[packages]]
+name = "universe-airlock"
+kind = "conda"
+command = ["rattler-build", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["universe-airlock --version"]
+publish = ["conda-static"]
+
+[[stores]]
+name = "conda-static"
+kind = "static"
+writable = true
+needs_index = true
+verifier = "file"
+"#;
+
 #[fixture]
 fn project() -> Project {
     Project::default()
@@ -168,6 +221,29 @@ fn project_with_incompatible_store(project: &mut Project) {
     assert!(
         project.manifest.is_none(),
         "the manifest validator refuses this before rendering"
+    );
+}
+
+#[given("a project that declares Pixi and Bun lock adapters")]
+fn project_with_lock_adapters(project: &mut Project) {
+    load(project, LOCK_ADAPTERS);
+    assert!(
+        project.manifest.is_some(),
+        "the lock-adapter manifest is valid"
+    );
+}
+
+#[given("a project that verifies every published destination")]
+fn project_that_verifies_publications(project: &mut Project) {
+    load(project, VERIFY_PUBLISHED);
+    assert!(
+        project
+            .manifest
+            .as_ref()
+            .expect("manifest")
+            .workflow
+            .verify_published,
+        "the manifest asks for the destinations to be verified"
     );
 }
 
@@ -481,6 +557,76 @@ fn both_renders_are_identical(project: &Project) {
     );
 }
 
+#[then("the rendered file set includes the Airlock file")]
+fn airlock_file_is_rendered(project: &Project) {
+    let names: Vec<&str> = project
+        .rendered()
+        .files
+        .iter()
+        .map(|file| file.path.as_str())
+        .collect();
+    assert!(
+        names.contains(&"universe-airlock.yml"),
+        "declared lock adapters must produce the Airlock file, got {names:?}"
+    );
+    assert!(
+        project.directories().join("universe-airlock.yml").is_file(),
+        "the file is in the rendered record but not on disk"
+    );
+}
+
+#[then("the Airlock file exercises every declared lock format")]
+fn airlock_file_covers_each_adapter(project: &Project) {
+    let airlock = project.workflow("universe-airlock.yml");
+    // The adapters are a matrix, so one job covers both formats rather than one job each;
+    // reading the axis is what proves both were declared.
+    assert!(
+        airlock.contains("adapter: [pixi, bun]"),
+        "the mirror job does not fan out over the declared adapters:\n{airlock}"
+    );
+    assert!(
+        airlock.contains("airlock mirror --adapter ${{ matrix.adapter }}"),
+        "the mirror job does not pass its own axis to the verb:\n{airlock}"
+    );
+    let render = job_blocks(&airlock)
+        .into_iter()
+        .find(|(name, _)| name == "render-airlock")
+        .expect("the Airlock file renders the entrypoints")
+        .1;
+    assert!(
+        render.contains("needs: [mirror]"),
+        "rendering the entrypoints before the mirror finishes would publish a partial lock:\n{airlock}"
+    );
+}
+
+#[then("the publish file holds a separate reader for the anonymous destination")]
+fn publish_file_has_a_separate_reader(project: &Project) {
+    let publish = project.workflow("universe-publish.yml");
+    let blocks = job_blocks(&publish);
+    let (_, store_job) = blocks
+        .iter()
+        .find(|(name, _)| name == "conda-static")
+        .expect("the publish file has the store's job");
+    // A destination anyone can read is checked by a job that presents no credential of
+    // its own, so the check cannot pass on the publisher's authority.
+    assert!(
+        !store_job.contains("verify --published"),
+        "the publishing job verified its own anonymous destination:\n{publish}"
+    );
+    let (_, reader) = blocks
+        .iter()
+        .find(|(name, _)| name == "verify-index")
+        .expect("a verifiable destination needs a reader job");
+    assert!(
+        reader.contains("verify --index"),
+        "the reader job does not re-read the destinations:\n{publish}"
+    );
+    assert!(
+        reader.contains("needs: [conda-static]"),
+        "the reader must run after the publish it reads:\n{publish}"
+    );
+}
+
 // One binding per scenario: `#[scenario]` without a `name` selects the first scenario in
 // the file, so each function names the one it drives. The fixture parameter exists so the
 // macro can place it in the step context; the test body has nothing left to assert,
@@ -546,5 +692,21 @@ fn every_command_goes_through_the_pixi_task(project: Project) {
     name = "A build's artifacts reach the jobs that audit and publish them"
 )]
 fn artifacts_reach_the_jobs_that_need_them(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "tests/features/render.feature",
+    name = "Lock adapters add the Airlock file with a job per declared format"
+)]
+fn lock_adapters_add_the_airlock_file(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "tests/features/render.feature",
+    name = "A project that verifies published destinations gets a separate reader job"
+)]
+fn a_verifiable_destination_gets_a_reader(project: Project) {
     let _ = project;
 }
