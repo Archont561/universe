@@ -14,6 +14,11 @@ from scripts.lib.files import list_files, path_exists
 SKILL_SOURCE = "Archont561/universe"
 SKILL_SOURCE_TYPE = "local"
 
+# Provenance of a skill that was authored elsewhere and vendored here. `skills-lock.json`
+# records the upstream repository and the path the skill has there, because that is what a
+# refresh needs; the path it lives at in this repository is derived, never stored.
+EXTERNAL_SOURCE_TYPES = frozenset({"github"})
+
 
 class SkillLockEntry(TypedDict):
     """One entry in ``skills-lock.json``."""
@@ -117,26 +122,47 @@ def validate_skills(repo_root: Path | None = None, *, write: bool = False) -> li
                 )
 
         computed_hash = hash_skill_directory(directory)
-        expected_entries[name] = {
-            "computedHash": computed_hash,
-            "skillPath": skill_path,
-            "source": SKILL_SOURCE,
-            "sourceType": SKILL_SOURCE_TYPE,
-        }
+        previous = locked_skills.get(name)
+        external = previous is not None and previous.get("sourceType") in EXTERNAL_SOURCE_TYPES
+        if previous is not None and external:
+            # A vendored skill keeps saying where it came from; only its hash is refreshed.
+            provenance: SkillLockEntry = {
+                "computedHash": computed_hash,
+                "skillPath": previous["skillPath"],
+                "source": previous["source"],
+                "sourceType": previous["sourceType"],
+            }
+        else:
+            provenance = {
+                "computedHash": computed_hash,
+                "skillPath": skill_path,
+                "source": SKILL_SOURCE,
+                "sourceType": SKILL_SOURCE_TYPE,
+            }
+        expected_entries[name] = provenance
 
         if not write:
-            previous = locked_skills.get(name)
             if previous is None:
                 errors.append(f"{skill_path}: missing skills-lock.json entry")
                 continue
-            if previous.get("skillPath") != skill_path:
-                errors.append(f"{skill_path}: lock skillPath is {previous.get('skillPath')}")
             if previous.get("computedHash") != computed_hash:
                 errors.append(f"{skill_path}: content hash drift; run pixi run skills-check-write")
-            if previous.get("source") != SKILL_SOURCE:
-                errors.append(f"{skill_path}: lock source must be {SKILL_SOURCE}")
-            if previous.get("sourceType") != SKILL_SOURCE_TYPE:
-                errors.append(f"{skill_path}: lock sourceType must be {SKILL_SOURCE_TYPE}")
+            if external:
+                # A vendored skill states where it came from; the installed path is derived.
+                if previous.get("source", "").count("/") != 1:
+                    errors.append(
+                        f"{skill_path}: lock source must be an owner/repository slug for a"
+                        " vendored skill"
+                    )
+                if not previous.get("skillPath"):
+                    errors.append(f"{skill_path}: lock skillPath must name the upstream file")
+            else:
+                if previous.get("skillPath") != skill_path:
+                    errors.append(f"{skill_path}: lock skillPath is {previous.get('skillPath')}")
+                if previous.get("source") != SKILL_SOURCE:
+                    errors.append(f"{skill_path}: lock source must be {SKILL_SOURCE}")
+                if previous.get("sourceType") != SKILL_SOURCE_TYPE:
+                    errors.append(f"{skill_path}: lock sourceType must be {SKILL_SOURCE_TYPE}")
 
     if not write:
         for locked_name in locked_skills:

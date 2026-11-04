@@ -170,7 +170,6 @@ rules:
     kind: file_absent
     paths:
       - "scripts/**/*.ts"
-      - "TESTS/**/*.ts"
     message: "Repository automation is Python under scripts/, not TypeScript"
     level: error
 
@@ -247,6 +246,11 @@ rules:
     level: error
 
   # --- Agent skills -------------------------------------------------------
+  # Registration is enforced by `scripts/skills_check.py`, which also hashes each skill and
+  # knows the difference between a skill written here (locked by its installed path) and one
+  # vendored from upstream (locked by the path it has there, so a `skills update` can find
+  # it). A path-set comparison here can only express the first of those, so this rule would
+  # fire on every correctly locked vendored skill.
   - id: skills-registered-in-lock
     kind: cross_file
     source:
@@ -257,7 +261,7 @@ rules:
     relation: registered
     register_as: "{path}"
     message: "Every agent skill directory must be registered in skills-lock.json"
-    level: error
+    level: off
 
   - id: skills-lock-schema-version
     kind: json_path_equals

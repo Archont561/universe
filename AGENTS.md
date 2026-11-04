@@ -29,7 +29,7 @@ product scope and status.
 
 This is a basic scaffold. The three binaries report version only and share a
 tested plain/JSON stdout contract. Repository automation is Python under
-`scripts/`, tested by pytest under `TESTS/`. The repository uses Python for repository automation and a Bun/Turbo workspace for the
+`scripts/`, tested by pytest under `scripts/tests/`. The repository uses Python for repository automation and a Bun/Turbo workspace for the
 `packages/*` portal, schema, and shared configuration packages. Root TypeScript tooling must
 not replace the Python repository scripts.
 
@@ -66,7 +66,9 @@ not replace the Python repository scripts.
    not every change earns a `.feature` file, and one written after the code is
    acceptance automation, so record it as that rather than calling it BDD.
    Scenarios use concrete data (a real package name, a real digest), not `foo`
-   and `user1`, and they state what, never how.
+   and `user1`, and they state what, never how. `.agents/skills/bdd-scenarios`
+   and `.agents/skills/bdd-patterns` cover the writing; `pixi run lint-gherkin`
+   is what catches a feature file that has drifted out of shape.
 
    **Clean code.** Read `.agents/skills/clean-code-principles/SKILL.md` before
    implementing, and apply it *while* writing the slice rather than cleaning up
@@ -141,7 +143,7 @@ pixi run gates
 
 Focused Rust or Python work also goes through Pixi's environment, for example
 `pixi run --locked cargo test -p universe-core` or
-`pixi run --locked pytest TESTS/test_repo_check.py`.
+`pixi run --locked pytest scripts/tests/test_repo_check.py`.
 
 ## Skills
 
@@ -149,3 +151,11 @@ Contributor skills live in `.agents/skills/` and are hashed in
 `skills-lock.json`. After deliberately editing a skill, run
 `pixi run skills-check-write`, review the hash diff, and run
 `pixi run skills-check`.
+
+Most skills are written here and locked as `sourceType: local`. A few are vendored from
+upstream and are locked as `sourceType: github` with the repository they came from and the
+path the file has there; `.agents/skills/bdd-scenarios` and `.agents/skills/bdd-patterns`
+come from `thebushidocollective/han` that way, installed with
+`npx skills add https://github.com/thebushidocollective/han --skill <name> --agent universal`.
+Vendored skills are refreshed by re-running that command, not by hand-editing them: the lock
+hash catches a hand edit, and an upstream improvement should arrive from upstream.
