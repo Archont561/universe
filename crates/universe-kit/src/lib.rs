@@ -5,13 +5,17 @@ use universe_core::{CommandOutput, Product};
 
 mod audit;
 mod build;
+mod channel;
 mod ci;
+mod git;
+mod index;
 mod lint;
 mod options;
 mod output;
 mod paths;
 mod plan;
 mod project;
+mod publish;
 
 /// Version of this component, equal to the workspace version the whole artifact set
 /// is released under (`decision-122`: one tag, one version train).
@@ -37,6 +41,8 @@ where
         Some("lint") => lint::run(&args[1..]),
         Some("build") => build::run(&args[1..]),
         Some("audit") => audit::run(&args[1..]),
+        Some("index") => index::run(&args[1..]),
+        Some("publish") => publish::run(&args[1..]),
         _ => universe_core::execute_version(Product::Kit, args),
     }
 }

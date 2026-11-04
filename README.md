@@ -52,6 +52,7 @@ bytes — a partial release is not a release.
 | :-- | :-- |
 | `universe validate` | manifest, recipes, digests, licences — offline, no network |
 | `universe build` | run your declared commands in dependency order, assert output digests |
+| `universe index` | render the Conda channel — CEP-15/16 metadata, README, artifacts — into a directory |
 | `universe publish` | fan out to every declared destination, verifying each |
 | `universe release plan\|prepare\|cut\|promote` | attempts, evidence, promotion, journal |
 | `universe ci render\|check` | generate the workflow set; fail on drift |
