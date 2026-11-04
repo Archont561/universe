@@ -11,6 +11,7 @@ use serde_json::json;
 use universe_channel::transport::{Budgets, ChannelTree, PushOutcome, Transport};
 use universe_core::CommandOutput;
 use universe_core::diagnostic::{Diagnostic, Severity};
+use universe_core::manifest::Store;
 
 use crate::channel::{FRAGMENT_DIRECTORY, build_tree, read_fragments, select, spec_for, verify};
 use crate::git::GitTransport;
@@ -79,10 +80,11 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
         Err(diagnostic) => return failure(FINDINGS, &[diagnostic]),
     };
 
-    let budgets = match budgets(&project, options.store.as_deref()) {
-        Ok(budgets) => budgets,
+    let store = match store_for(&project, options.store.as_deref()) {
+        Ok(store) => store,
         Err(diagnostic) => return failure(USAGE, &[diagnostic]),
     };
+    let budgets = budgets(store);
     // Whole files are the unit of transport, so git's content addressing can skip an
     // unchanged artifact. Only a file above the blob ceiling is cut, and the ceiling is the
     // store's when it declares one.
@@ -127,23 +129,73 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
     }
 }
 
-/// The budgets the named store declares, with the crate's defaults for anything absent.
-fn budgets(project: &Project, store: Option<&str>) -> Result<Budgets, Diagnostic> {
-    let mut budgets = Budgets::default();
-    let Some(name) = store else {
-        return Ok(budgets);
-    };
-    let Some(declared) = project
+/// The store this publish is measured against.
+///
+/// A budget belongs to a destination, so a publish that names no store still has to find the
+/// one it writes to. Falling back to the crate's defaults instead — which is what this verb
+/// used to do — applies a manifest's ceilings only when the invocation remembered `--store`,
+/// and a CI job that forgets the flag publishes a snapshot the manifest forbids. Resolution
+/// therefore goes: the name given, else the single writable store that holds a branch, else
+/// the defaults when the manifest declares no such store at all. Two candidates is a
+/// question only the operator can answer, so it is refused rather than guessed.
+fn store_for<'a>(
+    project: &'a Project,
+    named: Option<&str>,
+) -> Result<Option<&'a Store>, Diagnostic> {
+    if let Some(name) = named {
+        let Some(declared) = project
+            .manifest
+            .stores
+            .iter()
+            .find(|candidate| candidate.name == name)
+        else {
+            return Err(Diagnostic::new(
+                Severity::Error,
+                "publish.store.unknown",
+                format!("no store named '{name}' is declared in universe.toml"),
+            ));
+        };
+        if !declared.kind.is_git_branch() {
+            return Err(Diagnostic::new(
+                Severity::Error,
+                "publish.store.kind",
+                format!(
+                    "store '{name}' is a '{}' store, but `publish` writes a tree to a Git branch; \
+                     a 'branch' or 'static' store is what `--store` may name here",
+                    declared.kind.as_str()
+                ),
+            ));
+        }
+        return Ok(Some(declared));
+    }
+
+    let mut candidates = project
         .manifest
         .stores
         .iter()
-        .find(|candidate| candidate.name == name)
-    else {
-        return Err(Diagnostic::new(
+        .filter(|candidate| candidate.writable && candidate.kind.is_git_branch());
+    let first = candidates.next();
+    let second = candidates.next();
+    match (first, second) {
+        (None, _) => Ok(None),
+        (Some(only), None) => Ok(Some(only)),
+        (Some(left), Some(right)) => Err(Diagnostic::new(
             Severity::Error,
-            "publish.store.unknown",
-            format!("no store named '{name}' is declared in universe.toml"),
-        ));
+            "publish.store.ambiguous",
+            format!(
+                "universe.toml declares two writable branch stores, '{}' and '{}'; \
+                 pass --store to say which one this publish is measured against",
+                left.name, right.name
+            ),
+        )),
+    }
+}
+
+/// The budgets a store declares, with the crate's defaults for anything absent.
+fn budgets(store: Option<&Store>) -> Budgets {
+    let mut budgets = Budgets::default();
+    let Some(declared) = store else {
+        return budgets;
     };
     if let Some(value) = declared.budgets.blob {
         budgets.blob = value;
@@ -154,7 +206,7 @@ fn budgets(project: &Project, store: Option<&str>) -> Result<Budgets, Diagnostic
     if let Some(value) = declared.budgets.staged {
         budgets.staged = value;
     }
-    Ok(budgets)
+    budgets
 }
 
 fn message(name: &str, verified: &[crate::channel::Verified], branch: &str) -> String {

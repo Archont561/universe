@@ -394,6 +394,90 @@ fn a_store_budget_that_the_snapshot_exceeds_refuses_before_anything_is_pushed() 
 }
 
 #[test]
+fn a_publish_that_names_no_store_still_applies_the_store_budget() {
+    // The trap this guards: the budget used to be read only when `--store` was passed, so the
+    // same manifest produced a refusal for one invocation and a push for another.
+    let manifest = MANIFEST.replace(
+        "writable = true",
+        "writable = true\n[stores.budgets]\ntransport = 4",
+    );
+    let fixture = Fixture::with_manifest(&manifest);
+    let remote = remote(fixture.root());
+    let remote_before = snapshot(&remote);
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+    ]);
+
+    assert_eq!(output.exit_code(), 1);
+    assert!(
+        output.stderr().contains("publish.budget.exceeded"),
+        "{}",
+        output.stderr()
+    );
+    assert_eq!(remote_before, snapshot(&remote));
+}
+
+#[test]
+fn a_publish_that_names_no_store_is_refused_when_two_branch_stores_are_writable() {
+    let manifest = format!(
+        "{MANIFEST}\n[[stores]]\nname = \"mirror-branch\"\nkind = \"branch\"\nwritable = true\n"
+    );
+    let fixture = Fixture::with_manifest(&manifest);
+    let remote = remote(fixture.root());
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+    ]);
+
+    assert_eq!(output.exit_code(), 2);
+    assert!(
+        output.stderr().contains("publish.store.ambiguous"),
+        "{}",
+        output.stderr()
+    );
+    assert!(
+        output.stderr().contains("mirror-branch"),
+        "the refusal names both candidates: {}",
+        output.stderr()
+    );
+}
+
+#[test]
+fn a_publish_measured_against_a_registry_store_is_refused() {
+    let manifest = format!(
+        "{MANIFEST}\n[[stores]]\nname = \"hosted\"\nkind = \"prefix-dev\"\nchannel = \"acme/acme\"\nwritable = true\n"
+    );
+    let fixture = Fixture::with_manifest(&manifest);
+    let remote = remote(fixture.root());
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+        "--store",
+        "hosted",
+    ]);
+
+    assert_eq!(output.exit_code(), 2);
+    assert!(
+        output.stderr().contains("publish.store.kind"),
+        "{}",
+        output.stderr()
+    );
+}
+
+#[test]
 fn a_package_filter_narrows_the_channel_to_what_was_named() {
     let fixture = Fixture::new();
     fixture.add_package("other-airlock", "linux-64", b"other conda bytes");
