@@ -7,13 +7,20 @@
 //! **Publication** moves that tree to a destination exactly once, behind a transport seam, so
 //! a refused push and an idempotent republish are testable without a network.
 //!
-//! What is *not* here: no HTTP client, no git library, no solver. The channel is a tree of
-//! files; how it travels is the transport's business, and which store it travels to is
-//! `universe-kit`'s.
+//! **Store writes** ([`store`]) publish one artifact at a time to a destination that owns the
+//! identity of a file — a Conda registry, an object store, a release — behind a [`Remote`]
+//! seam that fixes the three rules a republish must obey: an unchanged digest is not re-sent,
+//! a changed digest under an occupied name is refused, and a dry run sends no mutating
+//! request.
+//!
+//! What is *not* here: no git library, no solver, and no store's configuration. The channel is
+//! a tree of files; how it travels is the transport's business, and which store it travels to
+//! is `universe-kit`'s.
 
 pub mod channel;
 pub mod fragment;
 pub mod readme;
+pub mod store;
 pub mod transport;
 
 pub use channel::{
