@@ -281,6 +281,20 @@ pub struct Store {
     /// Ceilings one publish is measured against before anything moves.
     #[serde(default, skip_serializing_if = "StoreBudgets::is_default")]
     pub budgets: StoreBudgets,
+    /// Prefix of the rolling release tags a release store publishes under.
+    ///
+    /// A release is per subdir, so the tag is `<prefix>-<subdir>`: `packages-linux-64`,
+    /// `packages-noarch`. Absent means `packages`, which is a protocol default rather than an
+    /// owner default, so it is the same for every project.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag_prefix: Option<String>,
+    /// How many builds of one version a release store keeps.
+    ///
+    /// A GitHub release holds at most 1,000 assets, so a channel that publishes every build
+    /// eventually cannot publish at all. Retention keeps the highest build numbers of each
+    /// `(package, version)` and prunes the rest; absent means no pruning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_builds_per_version: Option<usize>,
 }
 
 /// Size ceilings a publish is measured against, in bytes.
@@ -369,6 +383,17 @@ impl StoreKind {
     #[must_use]
     pub const fn generates_index(self) -> bool {
         matches!(self, Self::Static | Self::Branch | Self::PrefixDev)
+    }
+
+    /// Whether a store of this kind is a Git branch holding a channel tree.
+    ///
+    /// `branch` and `static` both land as a tree on a branch; they differ in whether the
+    ///  manifest expects Universe to render the index, not in how the tree travels. A verb
+    /// that pushes a tree therefore accepts both and refuses everything else, which is what
+    /// keeps `--store prefix-dev` from quietly being measured with branch budgets.
+    #[must_use]
+    pub const fn is_git_branch(self) -> bool {
+        matches!(self, Self::Static | Self::Branch)
     }
 
     /// Whether this destination accepts a package of `kind`.
@@ -808,6 +833,51 @@ impl Manifest {
                         ),
                     )
                     .with_path(format!("{path}.channel")),
+                );
+            }
+            if let Some(max_builds) = store.max_builds_per_version {
+                if store.kind != StoreKind::Releases {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            Severity::Warning,
+                            "manifest.store.retention.unused",
+                            format!(
+                                "store '{}' declares max_builds_per_version but is a '{}' store, \
+                                 which has no per-release asset cap to prune against",
+                                store.name,
+                                store.kind.as_str()
+                            ),
+                        )
+                        .with_path(format!("{path}.max_builds_per_version")),
+                    );
+                }
+                if max_builds == 0 {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            Severity::Error,
+                            "manifest.store.retention.zero",
+                            format!(
+                                "store '{}' declares max_builds_per_version = 0, which would prune \
+                                 the build it just published",
+                                store.name
+                            ),
+                        )
+                        .with_path(format!("{path}.max_builds_per_version")),
+                    );
+                }
+            }
+            if store
+                .tag_prefix
+                .as_deref()
+                .is_some_and(|prefix| prefix.trim().is_empty())
+            {
+                diagnostics.push(
+                    Diagnostic::new(
+                        Severity::Error,
+                        "manifest.store.tag_prefix.empty",
+                        format!("store '{}' declares an empty tag_prefix", store.name),
+                    )
+                    .with_path(format!("{path}.tag_prefix")),
                 );
             }
             for (secret_index, secret) in store.secrets.iter().enumerate() {
