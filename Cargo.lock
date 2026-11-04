@@ -3600,6 +3600,9 @@ dependencies = [
 name = "universe-kit"
 version = "0.1.0"
 dependencies = [
+ "rstest",
+ "rstest-bdd",
+ "rstest-bdd-macros",
  "serde_json",
  "tar",
  "tempfile",
