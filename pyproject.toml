@@ -4,7 +4,7 @@ skip_covered = false
 
 [tool.coverage.run]
 branch = true
-omit = ["TESTS/*"]
+omit = ["scripts/tests/*"]
 source = ["scripts"]
 
 [tool.mypy]
@@ -12,10 +12,22 @@ mypy_path = "."
 python_version = "3.13"
 strict = true
 
+# `gherlint` ships no type information, so its modules are unanalysable. The gate needs
+# its reporter to collect findings rather than print them, which means subclassing a class
+# mypy can only see as `Any`; that one diagnostic is silenced for the module that does it,
+# not for the checker as a whole.
+[[tool.mypy.overrides]]
+module = ["gherlint", "gherlint.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["scripts.gherkin_lint"]
+disable_error_code = ["misc"]
+
 [tool.pytest.ini_options]
 addopts = "-q"
 pythonpath = ["."]
-testpaths = ["TESTS"]
+testpaths = ["scripts/tests"]
 
 [tool.ruff]
 line-length = 100

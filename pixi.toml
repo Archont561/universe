@@ -94,10 +94,10 @@ setup = { depends-on = [
   "hooks-install",
 ], description = "Materialise the Pixi environment and Git hooks" }
 
-fmt = { cmd = "cargo fmt --all && taplo fmt && ruff format scripts TESTS && ruff check --fix scripts TESTS", description = "Format Rust, TOML, and Python files" }
-fmt-check = { cmd = "cargo fmt --all --check && taplo fmt --check && ruff format --check scripts TESTS", description = "Verify Rust, TOML, and Python formatting" }
-lint = { cmd = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && ruff check scripts TESTS", description = "Lint Rust and Python files" }
-typecheck = { cmd = "cargo check --workspace --all-targets --all-features --locked && mypy scripts TESTS", description = "Type-check Rust and Python" }
+fmt = { cmd = "cargo fmt --all && taplo fmt && ruff format scripts && ruff check --fix scripts", description = "Format Rust, TOML, and Python files" }
+fmt-check = { cmd = "cargo fmt --all --check && taplo fmt --check && ruff format --check scripts", description = "Verify Rust, TOML, and Python formatting" }
+lint = { cmd = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && ruff check scripts", description = "Lint Rust and Python files" }
+typecheck = { cmd = "cargo check --workspace --all-targets --all-features --locked && mypy scripts", description = "Type-check Rust and Python" }
 test = { cmd = "cargo nextest run --workspace --all-features --locked && cargo test --workspace --locked --doc && pytest", description = "Run Rust unit/integration/doc tests and Python script tests" }
 build = { cmd = "cargo build --workspace --all-features --locked", description = "Build every Universe crate and binary" }
 universe = { cmd = "cargo build --quiet --locked --workspace --bins && PATH=\"$PWD/target/debug:$PATH\" ./target/debug/universe", description = "Run the universe facade this workspace just built, with its components on PATH (dogfooding entrypoint)" }

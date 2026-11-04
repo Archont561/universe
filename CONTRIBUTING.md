@@ -18,7 +18,7 @@ docs, hooks, or CI.
 
 There is no root TypeScript configuration and no TypeScript repository
 automation. Repository checks are Python modules in `scripts/`, with pytest
-suites in `TESTS/`.
+suites in `scripts/tests/`.
 
 ## Commands
 
@@ -33,6 +33,7 @@ suites in `TESTS/`.
 | `pixi run backlog-check` | Validate Backlog IDs, statuses, filenames, and links |
 | `pixi run repo-check` | Validate required files, versions, clean layout, and workflow SHAs |
 | `pixi run skills-check` | Validate skill frontmatter and content hashes |
+| `pixi run lint-gherkin` | Lint every `features/*.feature` file with `gherlint` |
 | `pixi run gates` | Run the complete local gate suite |
 
 ## Backlog workflow

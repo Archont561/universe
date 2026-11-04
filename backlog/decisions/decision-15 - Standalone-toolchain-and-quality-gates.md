@@ -19,7 +19,8 @@ glue or weaken the ecosystem-neutral core boundary.
 - Rust product code lives in `crates/`; Rust tests use each crate's external
   `tests/` directory where practical.
 - Repository checks are Python modules under `scripts/`, tested by pytest
-  under `TESTS/`, formatted/linted by Ruff, and type-checked by mypy.
+  under `scripts/tests/`, formatted/linted by Ruff, and type-checked by mypy. `decision-133`
+  moved them there from the top-level `TESTS/` this record originally named.
 - A root `package.json`, Bun lockfile, Biome/Turbo/TypeScript configuration, and
   `packages/{config,schema,portal}` are allowed only for product workspace packages.
   Every package has a `VERSIONS` file checked against its package manifest.
