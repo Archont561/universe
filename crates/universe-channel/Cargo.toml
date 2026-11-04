@@ -18,8 +18,12 @@ serde = { workspace = true }
 sha2 = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-universe-core = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 tempfile = { workspace = true }
+# A fake HTTP endpoint, for the store writers that upload rather than push a tree. It lands
+# before its first consumer because the only way its sources reach the offline developer
+# bundle is through `main` and the sandbox publisher: declaring it here, letting the relock
+# bot resolve it, and merging is what makes `cargo test` able to build it locally next time.
+wiremock = { workspace = true }
