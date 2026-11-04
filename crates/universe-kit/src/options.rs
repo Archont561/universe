@@ -27,6 +27,8 @@ pub(crate) struct VerbSpec {
     pub(crate) channel_shape: bool,
     /// `--remote <name>`, `--branch <name>`, `--check`, and `--dry-run`.
     pub(crate) transport: bool,
+    /// `--force`, and the `--store`/`--dry-run` an upload needs.
+    pub(crate) upload: bool,
 }
 
 impl VerbSpec {
@@ -41,6 +43,7 @@ impl VerbSpec {
             channel_inputs: false,
             channel_shape: false,
             transport: false,
+            upload: false,
         }
     }
 
@@ -55,6 +58,7 @@ impl VerbSpec {
             channel_inputs: false,
             channel_shape: false,
             transport: false,
+            upload: false,
         }
     }
 
@@ -69,6 +73,7 @@ impl VerbSpec {
             channel_inputs: false,
             channel_shape: false,
             transport: false,
+            upload: false,
         }
     }
 
@@ -83,6 +88,7 @@ impl VerbSpec {
             channel_inputs: false,
             channel_shape: false,
             transport: false,
+            upload: false,
         }
     }
 
@@ -97,6 +103,7 @@ impl VerbSpec {
             channel_inputs: true,
             channel_shape: true,
             transport: false,
+            upload: false,
         }
     }
 
@@ -111,6 +118,22 @@ impl VerbSpec {
             channel_inputs: true,
             channel_shape: true,
             transport: true,
+            upload: false,
+        }
+    }
+
+    /// What `universe publish-artifacts` accepts.
+    pub(crate) const fn publish_artifacts() -> Self {
+        Self {
+            verb: "publish-artifacts",
+            platform: false,
+            fragment: false,
+            change_scope: false,
+            build_controls: false,
+            channel_inputs: true,
+            channel_shape: true,
+            transport: false,
+            upload: true,
         }
     }
 
@@ -138,6 +161,9 @@ impl VerbSpec {
             usage.push_str(
                 " [--remote <name>] [--branch <name>] [--store <name>] [--check] [--dry-run]",
             );
+        }
+        if self.upload {
+            usage.push_str(" [--store <name>] [--force] [--dry-run]");
         }
         usage.push_str(" [--json]");
         format!("unknown argument: {argument}\n{usage}")
@@ -181,6 +207,8 @@ pub(crate) struct Options {
     pub(crate) check: bool,
     /// Whether to describe the publish without performing it.
     pub(crate) dry_run: bool,
+    /// Whether an upload may replace an artifact whose digest differs.
+    pub(crate) force: bool,
 }
 
 impl Options {
@@ -209,6 +237,7 @@ impl Options {
             store: None,
             check: false,
             dry_run: false,
+            force: false,
         };
         let mut rest = args.iter();
         while let Some(argument) = rest.next() {
@@ -249,14 +278,15 @@ impl Options {
                 "--remote" if spec.transport => {
                     options.remote = Some(value(rest.next(), "--remote")?.clone());
                 }
-                "--store" if spec.transport => {
+                "--store" if spec.transport || spec.upload => {
                     options.store = Some(value(rest.next(), "--store")?.clone());
                 }
+                "--force" if spec.upload => options.force = true,
                 "--branch" if spec.transport => {
                     options.branch = Some(value(rest.next(), "--branch")?.clone());
                 }
                 "--check" if spec.transport => options.check = true,
-                "--dry-run" if spec.transport => options.dry_run = true,
+                "--dry-run" if spec.transport || spec.upload => options.dry_run = true,
                 "--receipts" if spec.build_controls => {
                     options.receipts = Some(PathBuf::from(value(rest.next(), "--receipts")?));
                 }

@@ -3,6 +3,7 @@
 use std::process::ExitCode;
 use universe_core::{CommandOutput, Product};
 
+mod artifacts;
 mod audit;
 mod build;
 mod channel;
@@ -43,6 +44,7 @@ where
         Some("audit") => audit::run(&args[1..]),
         Some("index") => index::run(&args[1..]),
         Some("publish") => publish::run(&args[1..]),
+        Some("publish-artifacts") => artifacts::run(&args[1..]),
         _ => universe_core::execute_version(Product::Kit, args),
     }
 }
