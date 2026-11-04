@@ -1,4 +1,5 @@
 {
+  "version": 1,
   "skills": {
     "audit": {
       "computedHash": "d7c095f9dd7eb0b81118dcab428fb19f07ec2aaf174c707e51a3e7b7fa5a0e6f",
@@ -17,6 +18,18 @@
       "skillPath": ".agents/skills/bdd/SKILL.md",
       "source": "Archont561/universe",
       "sourceType": "local"
+    },
+    "bdd-patterns": {
+      "source": "thebushidocollective/han",
+      "sourceType": "github",
+      "skillPath": "plugins/patterns/bdd/skills/bdd-patterns/SKILL.md",
+      "computedHash": "568efbb372f2c9f180c68fe37a52303a47192afaa1a739a9dfba3bcc8eff464c"
+    },
+    "bdd-scenarios": {
+      "source": "thebushidocollective/han",
+      "sourceType": "github",
+      "skillPath": "plugins/patterns/bdd/skills/bdd-scenarios/SKILL.md",
+      "computedHash": "7ee39ea5a4f60c34321ef9455bdad9da0888ce7be9b56fae806716d6fdf995d9"
     },
     "cep-channel": {
       "computedHash": "5760589b7a40cbbda2e74b47a9c5c3df4a739bd452da6ec3c21c8937cc8772dc",
@@ -72,6 +85,5 @@
       "source": "Archont561/universe",
       "sourceType": "local"
     }
-  },
-  "version": 1
+  }
 }
