@@ -19,9 +19,17 @@ yanked = "deny"
 # `universe-kit`, so the exception is a real one, and its removal condition is real
 # too — it goes when `rattler_conda_types` drops `serde_yaml`, or when the adapter
 # stops depending on the rattler stack.
+# The third is the same shape as the second and is recorded the day it appeared. Astral
+# stopped maintaining `astral-tokio-tar` on 2026-11-03 (RUSTSEC-2026-0440, informational =
+# "unmaintained"), and every version is affected — the advisory lists no patched release, so
+# there is nothing to upgrade to. It reaches a shipped artifact through
+# `rattler_package_streaming`, which is how `.conda` archives are read; replacing that reader
+# is a change to `UNI-10`'s adapter, not a lock bump, so the exception stays until the reader
+# moves to a maintained decoder.
 ignore = [
   { id = "RUSTSEC-2026-0374", reason = "dev-only: basic-toml is reached solely through rstest-bdd's i18n-embed, ships in no artifact, and has no fixed version to upgrade to" },
   { id = "RUSTSEC-2024-0449", reason = "unmaintained, not vulnerable: unsafe-libyaml is reached only through the deprecated serde_yaml under rattler_conda_types, which this repository never hands a YAML document; no fixed version exists" },
+  { id = "RUSTSEC-2026-0440", reason = "unmaintained, not vulnerable: astral-tokio-tar is reached only through rattler_package_streaming's .conda reader, all versions are affected with no patched release, and moving the reader to a maintained decoder is a change to the adapter rather than a lock bump" },
 ]
 
 [licenses]
@@ -54,9 +62,14 @@ unused-allowed-license = "allow"
 #   because the bundled BoringSSL-derived sources carry the OpenSSL licence — that is a
 #   licence *identifier*, not the `openssl`/`openssl-sys` crates, which stay banned in
 #   `[bans]` below. Permissive and attributive, like the rest of the list.
+# - `CDLA-Permissive-2.0` for `webpki-root-certs` alone: Mozilla's CA root bundle,
+#   reached through `rustls-platform-verifier`. It is a *data* licence for the certificate
+#   list, permissive in the same sense as the rest, and it carries no obligation beyond
+#   keeping the notice. Nothing here redistributes a modified bundle.
 allow = [
   "Apache-2.0",
   "BSD-3-Clause",
+  "CDLA-Permissive-2.0",
   "ISC",
   "MIT",
   "MPL-2.0",
