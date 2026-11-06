@@ -1,0 +1,6 @@
+{
+  "git": {
+    "sha1": "464ba9738b0f1a018a605a0e54c228c7b89e230c"
+  },
+  "path_in_vcs": "crates/rattler_conda_types"
+}

@@ -1,0 +1,6 @@
+{
+  "git": {
+    "sha1": "dba4661f881dac35100b3722b5487ae21e65dc5a"
+  },
+  "path_in_vcs": "crates/rattler_package_streaming"
+}
