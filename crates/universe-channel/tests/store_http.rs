@@ -271,16 +271,33 @@ fn a_dry_run_reads_but_never_writes() {
 }
 
 #[test]
-fn an_https_endpoint_is_refused_before_a_single_request() {
+fn an_endpoint_without_a_scheme_is_refused_before_a_single_request() {
+    let harness = Harness::start();
+    let mut target = target(&harness, Kind::PrefixDev, "my-channel");
+    target.endpoint = "prefix.dev/api".to_owned();
+
+    let error = HttpRemote::new(target).expect_err("a schemeless endpoint names no host to call");
+
+    match error {
+        StoreError::Unsupported { endpoint, .. } => assert_eq!(endpoint, "prefix.dev/api"),
+        other => panic!("expected an unsupported scheme, got {other:?}"),
+    }
+    harness.verify();
+}
+
+#[test]
+fn an_https_destination_is_addressed_over_tls() {
+    // The scheme is accepted because the build links `rustls`; the assertion is on the
+    // address, since a `wiremock` server speaks plaintext and cannot answer a handshake.
     let harness = Harness::start();
     let mut target = target(&harness, Kind::PrefixDev, "my-channel");
     target.endpoint = "https://prefix.dev".to_owned();
+    let remote = HttpRemote::new(target).expect("an https destination is speakable");
 
-    let error = HttpRemote::new(target).expect_err("this build links no TLS provider");
+    let url = remote
+        .url_for(&Upload::new("linux-64/foo-1.0.0-0.conda", Vec::new()))
+        .expect("a channel path");
 
-    match error {
-        StoreError::Unsupported { endpoint, .. } => assert_eq!(endpoint, "https://prefix.dev"),
-        other => panic!("expected an unsupported scheme, got {other:?}"),
-    }
+    assert_eq!(url, "https://prefix.dev/api/v1/upload/my-channel");
     harness.verify();
 }

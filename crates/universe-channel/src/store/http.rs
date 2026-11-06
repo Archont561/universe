@@ -130,7 +130,7 @@ impl HttpRemote {
     ///
     /// Returns [`StoreError::Unsupported`] when the endpoint's scheme is not one this build
     /// can speak. That check is here rather than at the first request because a publish that
-    /// discovers it has no TLS half-way through has already written to some destinations.
+    /// discovers a bad endpoint half-way through has already written to some destinations.
     pub fn new(target: Target) -> Result<Self, StoreError> {
         if let Some(reason) = unsupported_scheme(&target.endpoint) {
             return Err(StoreError::Unsupported {
@@ -286,17 +286,13 @@ impl Remote for HttpRemote {
 
 /// Why an endpoint cannot be spoken to, if it cannot.
 fn unsupported_scheme(endpoint: &str) -> Option<&'static str> {
-    if endpoint.starts_with("https://") {
-        return Some(
-            "this build links no TLS provider, so HTTPS destinations cannot be published to; \
-             the scheme is refused here rather than failing at the first upload, after other \
-             destinations have already been written",
-        );
+    if endpoint.starts_with("https://") || endpoint.starts_with("http://") {
+        return None;
     }
-    if !endpoint.starts_with("http://") {
-        return Some("only http:// endpoints reach an HTTP destination");
-    }
-    None
+    Some(
+        "a store is reached over http:// or https://, and a peer-to-peer or object-store URL \
+         without a scheme names no host to call",
+    )
 }
 
 /// A response body, shortened for a message.
@@ -373,11 +369,41 @@ mod tests {
     }
 
     #[test]
-    fn an_https_endpoint_is_refused_because_this_build_links_no_tls() {
-        let reason = unsupported_scheme("https://prefix.dev").expect("https is refused");
-        assert!(reason.contains("TLS"), "{reason}");
-        assert!(unsupported_scheme("ftp://example.invalid").is_some());
+    fn a_scheme_that_names_no_host_to_call_is_refused() {
+        assert_eq!(unsupported_scheme("https://prefix.dev"), None);
         assert_eq!(unsupported_scheme("http://127.0.0.1:8080"), None);
+        for refused in ["ftp://example.invalid", "s3://bucket", "127.0.0.1:8080", ""] {
+            assert!(unsupported_scheme(refused).is_some(), "{refused}");
+        }
+    }
+
+    #[test]
+    fn an_https_destination_is_reachable_because_the_build_links_rustls() {
+        let remote = HttpRemote::new(target(Kind::PrefixDev, "https://prefix.dev", Some("acme")))
+            .expect("an https destination is speakable");
+
+        let url = remote
+            .url_for(&crate::store::Upload::new(
+                "linux-64/foo-1.0.0-0.conda",
+                Vec::new(),
+            ))
+            .expect("a channel path");
+
+        assert_eq!(url, "https://prefix.dev/api/v1/upload/acme");
+    }
+
+    #[test]
+    fn an_https_connection_that_cannot_be_made_is_a_transport_error_not_a_panic() {
+        // Nothing listens on port 1, so the handshake never starts: the point of the test is
+        // that the TLS stack is wired in far enough to attempt one and report it as transport.
+        let remote = HttpRemote::new(target(Kind::S3, "https://127.0.0.1:1", Some("bucket")))
+            .expect("an https destination is speakable");
+
+        let error = remote
+            .head("linux-64/foo-1.0.0-0.conda")
+            .expect_err("a closed port is a transport failure");
+
+        assert!(matches!(error, StoreError::Transport { .. }), "{error:?}");
     }
 
     #[test]

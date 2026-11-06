@@ -64,15 +64,18 @@ unless forced, a dry run issues no mutating request), a blocking `HttpRemote`, a
 sole writable branch store instead of silently ignoring its budgets.
 
 Not done here, and deliberately still open:
-- **TLS.** This build links no TLS provider — `reqwest` with `rustls` needs `quinn`,
-  `rustls-platform-verifier` and `webpki-roots`, none of which are vendored, and a relock round
-  trip through the relock bot and the sandbox publisher is what would add them. Until then an
-  `https://` endpoint is refused by name, at construction, rather than failing at the first
-  upload, and `auth = "oidc"` is refused for the same reason (no token exchange exists).
-  This limits real destinations to `filesystem` stores.
+- **TLS is in place (2026-11-06).** The relock round trip landed `reqwest`'s `rustls` feature
+  with the `aws-lc-rs` provider, so an `https://` store is addressed over TLS and a
+  connection that cannot be made is an ordinary transport error. Two policy files moved with
+  it: `cmake` joined the Pixi environment (`aws-lc-sys` drives its bundled C with CMake), and
+  `deny.toml` allows the `OpenSSL` licence *identifier* for `aws-lc-sys` plus
+  `CDLA-Permissive-2.0` for `webpki-root-certs`, while the `openssl`/`openssl-sys` *crates*
+  stay banned. What is still missing is `auth = "oidc"`: the store is refused because the
+  token exchange does not exist yet, so a real prefix.dev publish still needs a token store.
 - **The `.conda.json` fragment commit to `index_branch`** from the description above is not
   implemented; the release store uploads assets only.
 - **The rendered publish workflow still calls `universe publish --store prefix-dev`**, which
   cannot work: `publish` pushes a tree to a Git branch and needs `--remote`. That job should
-  call `publish-artifacts` once TLS lands; it is a pre-existing gap, not one this slice made.
+  call `publish-artifacts`; TLS is no longer the blocker, the flag is. A pre-existing gap, not
+  one this slice made.
 <!-- SECTION:NOTES:END -->
