@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 use universe_core::VERSION;
 use universe_core::diagnostic::{Diagnostic, Severity};
-use universe_core::manifest::{Manifest, PackageKind, ReadAuth, StoreAuth, StoreKind};
+use universe_core::manifest::{Manifest, PackageKind, ReadAuth, Store, StoreAuth, StoreKind};
 
 /// Version of this component, equal to the workspace version the whole artifact set is
 /// released under.
@@ -374,13 +374,47 @@ const fn store_write_scope(kind: StoreKind) -> Option<&'static str> {
     }
 }
 
-fn secret_variable(store_name: &str, secret: &str) -> String {
-    format!(
-        "{}_{}",
-        store_name.to_uppercase().replace(['-', '.'], "_"),
-        secret.to_uppercase().replace(['-', '.'], "_")
-    )
+/// The environment variable a store's named secret is exported as.
+///
+/// The rule lives on [`Store`] so the renderer and the verbs that read the variable cannot
+/// disagree about how it is spelt — they did, and a tag run would have exported a name
+/// nothing looked up.
+fn secret_variable(store: &Store, secret: &str) -> String {
+    store.secret_environment_variable(secret)
 }
+
+/// The verb that publishes to a store of `kind`, if one exists.
+///
+/// The split is the transport's, not the ecosystem's: a branch is replaced wholesale, so one
+/// verb pushes a tree to it, while a registry keeps what it was first given, so another sends
+/// one file at a time and compares digests first. Rendering the wrong one is not a typo the
+/// workflow reports — it fails on a tag, hours after the change that caused it.
+const fn publish_verb(kind: StoreKind) -> Option<&'static str> {
+    match kind {
+        StoreKind::Branch | StoreKind::Static => Some("publish"),
+        StoreKind::Releases
+        | StoreKind::PrefixDev
+        | StoreKind::Anaconda
+        | StoreKind::Quetz
+        | StoreKind::Artifactory
+        | StoreKind::S3
+        | StoreKind::Filesystem => Some("publish-artifacts"),
+        // Nothing implements these yet: no package kind reaches them in v0.1.0, and rendering
+        // a command that would fail at run time is worse than rendering none.
+        StoreKind::Npmjs
+        | StoreKind::GithubPackages
+        | StoreKind::Pypi
+        | StoreKind::CratesIo
+        | StoreKind::Command => None,
+    }
+}
+
+/// The remote a rendered branch publish pushes to.
+///
+/// The manifest names the store, not its URL: for a branch store the remote *is* the
+/// repository the workflow runs in, so the expression resolves at run time rather than
+/// becoming a second place the owner's hosting is written down.
+const BRANCH_REMOTE: &str = "${{ github.server_url }}/${{ github.repository }}.git";
 
 /// The command line a rendered job uses to reach a Universe verb.
 ///
@@ -493,7 +527,7 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
             job = job.with_owned_permissions(permissions);
         }
         for secret in &store.secrets {
-            job = job.with_env(&secret_variable(&store.name, secret), secret);
+            job = job.with_env(&secret_variable(store, secret), secret);
         }
         job = checkout_and_pixi(job).with_step(Step::uses_with(
             universe_assets::DOWNLOAD_ARTIFACT,
@@ -503,6 +537,16 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
                 ("path", ARTIFACT_PATH),
             ],
         ));
+        let Some(publish) = publish_verb(store.kind) else {
+            continue;
+        };
+        // A branch store is pushed to, so the job has to say which remote and which branch;
+        // a registry store is uploaded to, and names nothing beyond itself.
+        let arguments = if publish == "publish" {
+            format!("publish --store {} --remote {BRANCH_REMOTE}", store.name)
+        } else {
+            format!("publish-artifacts --store {}", store.name)
+        };
         for package in manifest
             .destinations()
             .into_iter()
@@ -512,10 +556,7 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         {
             job = job.with_step(Step::Run {
                 label: format!("Publish {}", package.name),
-                command: verb(&format!(
-                    "publish --store {} --package {} --json",
-                    store.name, package.name
-                )),
+                command: verb(&format!("{arguments} --package {} --json", package.name)),
             });
         }
         // A credential-free destination is verified by a separate reader; a credentialed

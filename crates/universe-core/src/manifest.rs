@@ -297,6 +297,24 @@ pub struct Store {
     pub max_builds_per_version: Option<usize>,
 }
 
+impl Store {
+    /// The environment variable one of this store's named secrets is exported as.
+    ///
+    /// The store name is part of the variable, because two stores may name the same secret
+    /// and a job that publishes to both must not hand one destination the other's token. The
+    /// rendered workflow exports exactly this name, and the verbs that consume a token look it
+    /// up under this name *and* under the bare one, so a local shell that exports the secret
+    /// exactly as the manifest spells it keeps working.
+    #[must_use]
+    pub fn secret_environment_variable(&self, secret: &str) -> String {
+        format!(
+            "{}_{}",
+            self.name.to_uppercase().replace(['-', '.'], "_"),
+            secret.to_uppercase().replace(['-', '.'], "_")
+        )
+    }
+}
+
 /// Size ceilings a publish is measured against, in bytes.
 ///
 /// Absent fields keep the publisher's defaults, so a manifest says only what it disagrees
