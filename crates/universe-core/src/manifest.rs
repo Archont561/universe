@@ -546,6 +546,66 @@ pub struct AirlockDeveloper {
     /// Branch prefix the mirror transport writes to.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mirror: Option<String>,
+    /// What a disconnected host runs to restore this scope.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restore: Option<AirlockRestore>,
+}
+
+/// The ref a restore entrypoint clones, spelled out rather than looked up.
+///
+/// A commit, not a branch head: the entrypoint is committed, so a consumer who runs it in a
+/// year must get the bytes it was rendered against. The branch is named as well because a
+/// depth-one clone has to ask for it by name, and because two refs that agree is a fact a
+/// reader can check.
+///
+/// Every field here is interpolated into a generated shell script and a generated PowerShell
+/// script, so the validator holds them to a charset those scripts can carry in single quotes.
+/// Escaping at render time would be a second place to get it wrong.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AirlockRestore {
+    /// Repository the pinned commit is fetched from: a URL or a path.
+    pub remote: String,
+    /// Branch the commit is reachable from, which a shallow clone names.
+    pub branch: String,
+    /// Full commit id the entrypoint checks out and then verifies.
+    pub commit: String,
+    /// Path to the bootstrapper inside the checkout, when it is not the default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bootstrap: Option<String>,
+}
+
+impl AirlockRestore {
+    /// The bootstrapper's path inside the checkout.
+    #[must_use]
+    pub fn bootstrap(&self) -> &str {
+        self.bootstrap.as_deref().unwrap_or(DEFAULT_BOOTSTRAP)
+    }
+}
+
+/// Where the bootstrapper sits in a published ref when the manifest does not say.
+pub const DEFAULT_BOOTSTRAP: &str = "universe-airlock-bootstrap";
+
+/// Whether `text` is a full lowercase hex commit id.
+#[must_use]
+pub fn is_commit(text: &str) -> bool {
+    text.len() == 40
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+/// Whether `text` can be carried by a single-quoted shell string unescaped.
+///
+/// A conservative set: remote URLs and paths, branch names, and relative paths all fit. What
+/// it excludes — quotes, `$`, backticks, whitespace, newlines — is exactly what would let a
+/// manifest edit change what the generated script does rather than merely where it fetches.
+#[must_use]
+pub fn is_script_safe(text: &str) -> bool {
+    !text.is_empty()
+        && text
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || ".-_~:/@+".contains(character))
 }
 
 /// The delivery scope.
@@ -701,7 +761,99 @@ impl Manifest {
         self.validate_packages(&mut diagnostics);
         self.validate_release(&mut diagnostics);
         self.validate_workflow(&mut diagnostics);
+        self.validate_airlock(&mut diagnostics);
         diagnostics
+    }
+
+    /// Check the scopes whose values end up inside a generated script.
+    ///
+    /// The values are held to a charset rather than escaped at render time: a generated
+    /// entrypoint is text a consumer runs, so a manifest edit that could change what it *does*
+    /// — rather than merely where it fetches from — is refused where the manifest is read.
+    fn validate_airlock(&self, diagnostics: &mut Vec<Diagnostic>) {
+        let Some(airlock) = &self.airlock else {
+            return;
+        };
+        let Some(developer) = &airlock.developer else {
+            return;
+        };
+        let Some(restore) = &developer.restore else {
+            // A mirror lane can land before anything is published to restore from. The
+            // warning is here so that omission is a decision rather than an oversight.
+            if !developer.adapters.is_empty() {
+                diagnostics.push(
+                    Diagnostic::new(
+                        Severity::Warning,
+                        "manifest.airlock.restore.missing",
+                        "`[airlock.developer]` declares lock adapters but no `[airlock.developer.restore]`, \
+                         so no restore entrypoint is rendered",
+                    )
+                    .with_path("airlock.developer.restore"),
+                );
+            }
+            return;
+        };
+        for (field, value) in [
+            ("remote", &restore.remote),
+            ("branch", &restore.branch),
+            ("commit", &restore.commit),
+        ] {
+            if value.trim().is_empty() {
+                diagnostics.push(
+                    Diagnostic::new(
+                        Severity::Error,
+                        "manifest.airlock.restore.empty",
+                        format!("`[airlock.developer.restore]` declares an empty `{field}`"),
+                    )
+                    .with_path(format!("airlock.developer.restore.{field}")),
+                );
+            } else if !is_script_safe(value) {
+                diagnostics.push(
+                    Diagnostic::new(
+                        Severity::Error,
+                        "manifest.airlock.restore.unsafe",
+                        format!(
+                            "`[airlock.developer.restore] {field}` is '{value}', and an entrypoint \
+                             carries it inside a quoted string; allowed characters are letters, \
+                             digits, and . - _ ~ : / @ +"
+                        ),
+                    )
+                    .with_path(format!("airlock.developer.restore.{field}")),
+                );
+            }
+        }
+        if !restore.commit.trim().is_empty() && !is_commit(&restore.commit) {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.airlock.restore.commit",
+                    format!(
+                        "`[airlock.developer.restore] commit` is '{}', which is not a full \
+                         lowercase 40-character commit id; a branch head would make the \
+                         entrypoint fetch bytes it was not rendered against",
+                        restore.commit
+                    ),
+                )
+                .with_path("airlock.developer.restore.commit"),
+            );
+        }
+        if let Some(bootstrap) = &restore.bootstrap
+            && (!is_script_safe(bootstrap)
+                || bootstrap.starts_with('/')
+                || bootstrap.split('/').any(|segment| segment == ".."))
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.airlock.restore.bootstrap",
+                    format!(
+                        "`[airlock.developer.restore] bootstrap` is '{bootstrap}', which must be \
+                         a relative path inside the checkout"
+                    ),
+                )
+                .with_path("airlock.developer.restore.bootstrap"),
+            );
+        }
     }
 
     fn validate_workflow(&self, diagnostics: &mut Vec<Diagnostic>) {
@@ -1524,9 +1676,9 @@ fn value_to_json(value: &toml_edit::Value) -> Result<serde_json::Value, String> 
 #[cfg(test)]
 mod tests {
     use super::{
-        KNOWN_PLATFORMS, LockAdapter, MANIFEST_SCHEMA_VERSION, Manifest, PackageKind,
-        RELEASE_MANIFEST_SCHEMA_VERSION, ReadAuth, ReleaseManifest, SkipExisting, StoreAuth,
-        StoreKind, Verifier, has_duplicates,
+        DEFAULT_BOOTSTRAP, KNOWN_PLATFORMS, LockAdapter, MANIFEST_SCHEMA_VERSION, Manifest,
+        PackageKind, RELEASE_MANIFEST_SCHEMA_VERSION, ReadAuth, ReleaseManifest, SkipExisting,
+        StoreAuth, StoreKind, Verifier, has_duplicates, is_commit, is_script_safe,
     };
     use crate::diagnostic::Diagnostic;
 
@@ -2015,6 +2167,122 @@ channel = "someone/channel"
                 .as_deref(),
             Some("mirror")
         );
+    }
+
+    /// A manifest with a developer scope whose restore pin is `restore` verbatim.
+    fn with_restore(restore: &str) -> String {
+        format!(
+            "{MINIMAL}\n[airlock.developer]\nadapters = [\"pixi\"]\nmirror = \"mirror\"\n\
+             [airlock.developer.restore]\nremote = \"https://github.com/example/fixture.git\"\n\
+             branch = \"mirror/pixi\"\n{restore}"
+        )
+    }
+
+    const A_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
+
+    #[test]
+    fn a_restore_pin_is_read_as_written() {
+        let manifest = parsed(&with_restore(&format!("commit = \"{A_COMMIT}\"\n")));
+        let restore = manifest
+            .airlock
+            .expect("airlock")
+            .developer
+            .expect("developer")
+            .restore
+            .expect("restore");
+
+        assert_eq!(restore.branch, "mirror/pixi");
+        assert_eq!(restore.commit, A_COMMIT);
+        assert_eq!(restore.bootstrap(), DEFAULT_BOOTSTRAP);
+    }
+
+    #[test]
+    fn a_pin_that_is_not_a_commit_is_refused() {
+        let text = with_restore("commit = \"main\"\n");
+        let diagnostics = problems(&text);
+        assert_eq!(codes(&diagnostics), ["manifest.airlock.restore.commit"]);
+        assert_eq!(
+            diagnostics[0].path(),
+            Some("airlock.developer.restore.commit")
+        );
+        assert!(
+            diagnostics[0].message().contains("branch head"),
+            "{:?}",
+            diagnostics[0].message()
+        );
+    }
+
+    #[test]
+    fn a_pin_value_a_generated_script_could_not_carry_is_refused() {
+        let text = with_restore("commit = \"0123456789abcdef0123456789abcdef01234567\"\n").replace(
+            "remote = \"https://github.com/example/fixture.git\"",
+            "remote = \"https://example.com/a;rm -rf ~\"",
+        );
+        let diagnostics = problems(&text);
+
+        assert_eq!(codes(&diagnostics), ["manifest.airlock.restore.unsafe"]);
+        assert_eq!(
+            diagnostics[0].path(),
+            Some("airlock.developer.restore.remote")
+        );
+    }
+
+    #[test]
+    fn a_bootstrapper_outside_the_checkout_is_refused() {
+        for bootstrap in [
+            "../elsewhere/bootstrap",
+            "/usr/bin/bootstrap",
+            "bin/two words",
+        ] {
+            let text = with_restore(&format!(
+                "commit = \"{A_COMMIT}\"\nbootstrap = \"{bootstrap}\"\n"
+            ));
+            let diagnostics = problems(&text);
+            assert_eq!(
+                codes(&diagnostics),
+                ["manifest.airlock.restore.bootstrap"],
+                "{bootstrap}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_mirror_lane_without_a_restore_scope_is_a_warning_rather_than_a_refusal() {
+        let text = format!("{MINIMAL}\n[airlock.developer]\nadapters = [\"pixi\"]\n");
+        let diagnostics = findings(&text);
+
+        assert_eq!(codes(&diagnostics), ["manifest.airlock.restore.missing"]);
+        assert!(!diagnostics[0].is_error());
+        // And an empty secret-free manifest says nothing at all.
+        assert!(findings(MINIMAL).is_empty());
+    }
+
+    #[test]
+    fn only_a_full_lowercase_commit_is_a_commit() {
+        assert!(is_commit(A_COMMIT));
+        assert!(!is_commit("0123456789ABCDEF0123456789abcdef01234567"));
+        assert!(!is_commit("0123456789abcdef"));
+        assert!(!is_commit(""));
+        // A `git` abbreviation is deliberately not enough: it is stable only by luck.
+        assert!(!is_commit("0123456"));
+    }
+
+    #[test]
+    fn a_script_safe_value_is_the_conservative_set() {
+        for value in [
+            "https://github.com/example/fixture.git",
+            "git@github.com:example/fixture.git",
+            "mirror/pixi",
+            "/tmp/.tmp1234/remote.git",
+            "v1.2.3+local",
+        ] {
+            assert!(is_script_safe(value), "{value}");
+        }
+        for value in [
+            "", " ", "a b", "a$(id)", "a'b", "a\"b", "a`id`", "a%b", "a,b",
+        ] {
+            assert!(!is_script_safe(value), "{value}");
+        }
     }
 
     #[test]
