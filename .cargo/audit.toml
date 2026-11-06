@@ -19,5 +19,13 @@
 # Nothing here hands it a YAML document — the Conda adapter reads the archive's JSON
 # records — and no fixed version exists. Removal condition: when `rattler_conda_types`
 # drops `serde_yaml`, or when the adapter stops depending on the rattler stack.
+#
+# RUSTSEC-2026-0440 — `astral-tokio-tar` is unmaintained as of 2026-11-03; every version
+# is affected and the advisory names no patched release, so there is nothing to upgrade
+# to. It is linked into `universe-kit` through `rattler_package_streaming`, which is how
+# `.conda` archives are read. Removal condition: when the reader moves to a maintained
+# decoder, which is a change to the adapter rather than a lock bump. Recorded on the day
+# the advisory appeared, because leaving it out would have made the gate red on every
+# pull request including `main`, for a dependency no diff in this repository introduced.
 [advisories]
-ignore = ["RUSTSEC-2024-0449", "RUSTSEC-2026-0374"]
+ignore = ["RUSTSEC-2024-0449", "RUSTSEC-2026-0374", "RUSTSEC-2026-0440"]
