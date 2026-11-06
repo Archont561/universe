@@ -41,3 +41,12 @@ consumer restore flow distinct from UNI-36's developer-toolchain transport.
 - [ ] #1 Clean-environment fixture restores on Linux x86_64.
 - [ ] #2 `pixi run gates` passes.
 <!-- DOD:END -->
+
+## Notes
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-06 — the entrypoint that will call this binary is rendered and tested (`UNI-53`,
+`crates/universe-kit/src/airlock.rs`). It fixes the invocation the bootstrapper should accept:
+`universe-airlock-bootstrap restore --commit <40-hex>`, run with the pinned checkout as the
+working tree and the pin verified by the entrypoint before the handover, so the binary can
+trust the ref it was started from but must still verify the payload inside it.
+<!-- SECTION:NOTES:END -->

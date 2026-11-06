@@ -1,10 +1,10 @@
 ---
 id: UNI-53
 title: Render the Airlock restore entrypoint and drift-check it
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-31'
-updated_date: '2026-10-31'
+updated_date: '2026-11-06'
 labels:
   - airlock
   - cli
@@ -43,15 +43,49 @@ and its drift verification.
 
 ## Acceptance Criteria
 <!-- AC.BEGIN -->
-- [ ] #1 `universe airlock render` emits POSIX and PowerShell entrypoints that contain no runtime digest, name the pinned branch and commit, and pass `shellcheck` and the repository's workflow-shell lint.
-- [ ] #2 `universe airlock render --check` exits non-zero with a diff when the committed entrypoint differs from the rendered one, and is wired into the repository gate tasks.
-- [ ] #3 The README usage block is rendered from the same source of truth and drift-checked identically.
-- [ ] #4 Template rendering is a pure function of the manifest: two renders are byte-identical, no timestamp appears in the output, and tests render into a temporary directory rather than the live repository.
-- [ ] #5 A consumer fixture proves the generated entrypoint and the rendered workflow set agree on the pinned commit, so the two cannot drift apart silently.
+- [x] #1 `universe airlock render` emits POSIX and PowerShell entrypoints that contain no runtime digest, name the pinned branch and commit, and pass `shellcheck` and the repository's workflow-shell lint. — 2026-11-06: `.universe-airlock/restore.sh` and `.universe-airlock/restore.ps1` are rendered from `[airlock.developer.restore]`; the only digest in either is the manifest stamp in the `@generated` header, asserted by `the_entrypoint_names_the_pin_and_no_artifact_digest`. `shellcheck` (pinned in the default environment) runs in `crates/universe-kit/tests/airlock_restore.rs`, as does the workflow-shell lint that `actionlint` applies to the rendered workflows.
+- [x] #2 `universe airlock render --check` exits non-zero with a diff when the committed entrypoint differs from the rendered one, and is wired into the repository gate tasks. — 2026-11-06: exit `1` (drift, distinct from `2`, a bad invocation) with a line diff from an LCS table, so a one-line insertion does not report the whole file as changed; `pixi run airlock-check` is in the `check` gate set. A generated file whose scope was removed is drift too (`airlock.render.stale`), and `render` deletes it rather than leaving it behind.
+- [x] #3 The README usage block is rendered from the same source of truth and drift-checked identically. — 2026-11-06: the block between `<!-- airlock:begin -->` and `<!-- airlock:end -->` is replaced in place, so a project's own prose around it survives; the README is one of the files `--check` compares. A README with an unmatched marker gets the block appended rather than a guessed edit that would eat prose.
+- [x] #4 Template rendering is a pure function of the manifest: two renders are byte-identical, no timestamp appears in the output, and tests render into a temporary directory rather than the live repository. — 2026-11-06: `two_renders_of_one_manifest_are_byte_identical` renders twice and also re-renders over its own output; `the_entrypoint_carries_no_clock_and_no_run_identity` pins the absence of a date or run id; every test in the file works in a `TempDir`.
+- [x] #5 A consumer fixture proves the generated entrypoint and the rendered workflow set agree on the pinned commit, so the two cannot drift apart silently. — 2026-11-06: `the_entrypoint_and_the_rendered_workflow_come_from_one_manifest` renders both from one manifest text, asserts the airlock workflow's `render-airlock` job runs `airlock render` (so CI regenerates exactly this file), asserts the entrypoint's `PIN_COMMIT`/`PIN_BRANCH` are the manifest's, and then moves the pin in the manifest and asserts `--check` reports drift. **Reading, stated plainly:** the workflow does not name a commit of its own — it regenerates the entrypoint and commits it — so "agree on the pin" is one source plus two drift checks, not two copies of the sha.
 <!-- AC.END -->
 
 ## Definition of Done
 <!-- DOD.BEGIN -->
-- [ ] #1 A rendered entrypoint restores the fixture environment on a clean container.
+- [ ] #1 A rendered entrypoint restores the fixture environment on a clean container. — **Open, and blocked on `UNI-33`.** The commit is right and the loop is real: `crates/universe-kit/tests/airlock_restore.rs` publishes a ref to a bare repository, renders the entrypoint, runs it with `sh`, and asserts the clone lands on the pinned commit and that the bootstrapper is handed `restore --commit <pin>`; a rewritten ref, a ref with no bootstrapper, and a second run against a vanishing remote are each covered. What is *not* proven is a restore of a fixture environment, because `universe-airlock-bootstrap restore` is still the version-only scaffold — the ref's bootstrapper in those tests is a stub that prints its arguments. Ticking this without that binary would be claiming the one beat of `m-12` nobody has run.
 - [ ] #2 `pixi run gates` passes.
 <!-- DOD.END -->
+
+## Notes
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-06 — the entrypoint renderer landed, and the two things it needed from the manifest are
+new surface rather than invented defaults.
+
+- **The pin is declared, not resolved.** `[airlock.developer.restore]` names `remote`, `branch`,
+  `commit` and (optionally) `bootstrap`. A renderer that asked git for a branch head would
+  produce a different file on every run, which would make the drift check noise, and a branch
+  head would make the committed entrypoint fetch bytes it was not rendered against. The commit
+  must be a full lowercase 40-hex id (`manifest.airlock.restore.commit`).
+- **Values are validated, not escaped.** Every field is interpolated into a `sh` script and a
+  PowerShell script, so the manifest holds them to a charset a single-quoted shell string
+  survives — letters, digits, `. - _ ~ : / @ +` (`manifest.airlock.restore.unsafe`). Escaping at
+  render time would be a second place to get it wrong, and a `remote` carrying `;` or `$(…)` is
+  a manifest edit that changes what a consumer's host *does*.
+- **The pin is checked rather than trusted.** The script checks out the commit and then compares
+  `rev-parse HEAD` with it, so a force-pushed mirror branch fails at the consumer instead of
+  running whatever now occupies that name. A ref published without an executable bootstrapper
+  fails with a message naming the file.
+- **Drift is a first-class verb.** `airlock render --check` exits `1` with an LCS line diff;
+  `pixi run airlock-check` joins the `check` gate set. A scope deleted from the manifest leaves
+  generated files behind, so they are drift too — `render` removes them, `--check` fails on
+  them. For this repository the gate is currently vacuous by design: `universe.toml` declares
+  no `[airlock]` scope, so it asserts only that nothing stale has been committed.
+- **The facade exception.** `universe airlock render` reads `universe.toml` and writes committed
+  files, so it routes to `universe-kit`; `airlock exec`, `verify` and `restore` stay with
+  `universe-airlock`. The rendered workflow already called `airlock render`, so this also closes
+  a job that pointed at a verb no binary implemented.
+- **What is knowingly not here:** `universe-airlock-bootstrap restore` is still a version-only
+  scaffold (`UNI-33`), and the mirror lane that would publish the ref is `UNI-51`/`UNI-52`. The
+  entrypoint's contract with the bootstrapper is fixed at `restore --commit <pin>`, which is the
+  seam those tasks implement against.
+<!-- SECTION:NOTES:END -->
