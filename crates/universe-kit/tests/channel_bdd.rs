@@ -338,6 +338,51 @@ fn clone_matches_the_digest(channel: &Channel) {
     );
 }
 
+#[then("the branch holds the receipt under the metadata path")]
+fn branch_holds_the_receipt(channel: &Channel) {
+    assert_eq!(
+        channel.output().exit_code(),
+        0,
+        "the publish failed: {}",
+        channel.output().stderr()
+    );
+    let listing = Command::new("git")
+        .args(["-C"])
+        .arg(channel.remote())
+        .args(["ls-tree", "-r", "--name-only", BRANCH])
+        .output()
+        .expect("git is installed");
+    let paths = String::from_utf8_lossy(&listing.stdout);
+    let receipt = "meta/linux-64/example-airlock-1.0.0-0.conda.json";
+    assert!(
+        paths.contains(receipt),
+        "the branch does not hold {receipt}:\n{paths}"
+    );
+    // The receipt is the auditor's text, so the digests a client reads without downloading
+    // the archive and the digests the metadata advertises have to be the same numbers.
+    assert!(
+        paths.contains("linux-64/example-airlock-1.0.0-0.conda"),
+        "a receipt with no artifact beside it is worse than none:\n{paths}"
+    );
+}
+
+#[then("the clone's receipt names the digest of the bytes beside it")]
+fn clone_receipt_matches_the_bytes(channel: &Channel) {
+    let receipt = String::from_utf8(
+        channel.read_checkout("meta/linux-64/example-airlock-1.0.0-0.conda.json"),
+    )
+    .expect("the receipt is UTF-8");
+    let receipt: serde_json::Value = serde_json::from_str(&receipt).expect("the receipt is JSON");
+    let bytes = channel.read_checkout("linux-64/example-airlock-1.0.0-0.conda");
+
+    assert_eq!(
+        receipt["digest"],
+        universe_workflow::sha256::sha256_hex(&bytes).as_str(),
+        "the cloned receipt does not name the digest of the archive in the same tree"
+    );
+    assert_eq!(receipt["size_bytes"], bytes.len());
+}
+
 #[then("the branch holds exactly one commit")]
 fn one_commit(channel: &Channel) {
     assert_eq!(
@@ -405,6 +450,14 @@ fn check_reports_drift(channel: &Channel) {
     name = "An audited package is published to the branch and restored with Git alone"
 )]
 fn a_published_channel_is_restorable(channel: Channel) {
+    let _ = channel;
+}
+
+#[scenario(
+    path = "tests/features/channel.feature",
+    name = "The branch carries each artifact's audit receipt"
+)]
+fn the_receipt_travels_with_the_artifact(channel: Channel) {
     let _ = channel;
 }
 

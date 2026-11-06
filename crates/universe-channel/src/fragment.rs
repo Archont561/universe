@@ -56,6 +56,17 @@ impl Fragment {
         format!("{}/{}", self.subdir, self.file_name())
     }
 
+    /// The path the fragment itself takes in a channel: `meta/<subdir>/<file name>.json`
+    /// (`decision-5`).
+    ///
+    /// Published in the same tree as the bytes — a branch store has one tree per snapshot, so
+    /// there is no second branch to mirror — but kept out of the subdir a client scans, so a
+    /// listing of `linux-64/` still shows one file per artifact.
+    #[must_use]
+    pub fn metadata_path(&self) -> String {
+        format!("meta/{}.json", self.channel_path())
+    }
+
     /// Problems that stop this fragment from describing a channel entry.
     ///
     /// A fragment is written by the auditor and read by a solver, so the cheap checks belong
@@ -130,6 +141,14 @@ mod tests {
         assert_eq!(
             fragment().channel_path(),
             "linux-64/universe-airlock-0.1.0-h1234567_0.conda"
+        );
+    }
+
+    #[test]
+    fn the_receipt_is_published_under_meta_and_not_in_the_subdir_a_client_scans() {
+        assert_eq!(
+            fragment().metadata_path(),
+            "meta/linux-64/universe-airlock-0.1.0-h1234567_0.conda.json"
         );
     }
 

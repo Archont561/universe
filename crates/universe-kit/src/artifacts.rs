@@ -669,6 +669,7 @@ mod tests {
                 license_files: Vec::new(),
                 path: "output/foo-1.0.0-0.conda".to_owned(),
             },
+            text: "{}".to_owned(),
             bytes: b"bytes".to_vec(),
         }];
 
