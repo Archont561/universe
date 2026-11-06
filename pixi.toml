@@ -125,6 +125,8 @@ lint-commit = { cmd = "convco check --config .versionrc --from-stdin", descripti
 lint-commits = { cmd = "convco check --config .versionrc", description = "Validate a conventional commit range" }
 ci-render = { cmd = "cargo run --quiet --locked -p universe-kit -- ci render", description = "Regenerate the GitHub workflows from universe.toml (the manifest is the only source of truth)" }
 ci-check = { cmd = "cargo run --quiet --locked -p universe-kit -- ci check", description = "Fail when a committed workflow no longer matches what universe.toml renders" }
+airlock-render = { cmd = "cargo run --quiet --locked -p universe-kit -- airlock render", description = "Regenerate the committed restore entrypoints from universe.toml" }
+airlock-check = { cmd = "cargo run --quiet --locked -p universe-kit -- airlock render --check", description = "Fail when a committed restore entrypoint no longer matches what universe.toml renders, or was left behind by a scope that went away" }
 audit = { cmd = "python -m scripts.audit check", description = "Audit locked Rust dependencies and supply-chain policy offline when the advisory cache exists" }
 audit-sync = { cmd = "python -m scripts.audit sync", description = "Refresh the RustSec advisory and crates.io index caches (needs network)" }
 alint-check = { cmd = "alint check", description = "Validate repository structure, naming, and cross-file rules from .alint.yml" }
@@ -141,8 +143,9 @@ check = { depends-on = [
   "alint-check",
   "crate-check",
   "ci-check",
+  "airlock-check",
   "lint-gherkin",
-], description = "Run format, lint, type, test, backlog, repository, skill, crate-boundary, workflow-drift, and Gherkin checks" }
+], description = "Run format, lint, type, test, backlog, repository, skill, crate-boundary, workflow-drift, entrypoint-drift, and Gherkin checks" }
 offline-gates = { depends-on = [
   "check",
   "coverage",

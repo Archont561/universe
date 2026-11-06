@@ -8,7 +8,13 @@ updated_date: '2026-10-27T09:20:00Z'
 
 # Init bootstrap and restore lifecycle
 
-**Status: agreed workflow; not implemented by the version-only CLI.** Proposed command names identify responsibilities, not a finalized parser/API.
+**Status: agreed workflow; the restore *entrypoint* now exists, the bootstrapper behind it does not.**
+`universe airlock render` (2026-11-06, `UNI-53`) writes the committed POSIX and PowerShell
+entrypoints from `[airlock.developer.restore]`, drift-checks them, and hands over to a
+bootstrapper with `restore --commit <pin>`. `universe-airlock-bootstrap` is still the
+version-only scaffold, so the handover is the seam, not a restore (`UNI-33`). The rest of this
+document describes the intended loop. Proposed command names identify responsibilities, not a
+finalized parser/API.
 
 ## Corrected user experience
 
