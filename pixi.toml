@@ -18,6 +18,10 @@ cargo-audit = ">=0.22.1,<0.23"
 cargo-deny = ">=0.20.2,<0.21"
 cargo-llvm-cov = ">=0.9.1,<0.10"
 cargo-nextest = ">=0.9.149,<0.10"
+# `aws-lc-sys`, the crypto provider behind the `rustls` stack `decision-3` mandates, ships an
+# upstream C build driven by CMake rather than by `cc`. Without it the workspace builds
+# everywhere except the one environment that has to build it offline.
+cmake = "*"
 convco = ">=0.7.2,<0.8"
 cxx-compiler = "*"
 lefthook = ">=2.2.2,<3"
@@ -46,6 +50,7 @@ cargo-audit = { workspace = true }
 cargo-deny = { workspace = true }
 cargo-llvm-cov = { workspace = true }
 cargo-nextest = { workspace = true }
+cmake = { workspace = true }
 convco = { workspace = true }
 cxx-compiler = { workspace = true }
 lefthook = { workspace = true }

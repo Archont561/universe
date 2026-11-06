@@ -49,12 +49,18 @@ unused-allowed-license = "allow"
 #   `rattler_networking`. MPL is file-level copyleft: it binds changes to that
 #   crate's own files, and nothing here modifies a vendored dependency. If that ever
 #   changes, this entry has to be revisited before the change, not after.
+# - `OpenSSL` for `aws-lc-sys` alone, the C build behind the `rustls` crypto provider
+#   `decision-3` mandates. Its manifest is `ISC AND (Apache-2.0 OR ISC) AND OpenSSL`
+#   because the bundled BoringSSL-derived sources carry the OpenSSL licence — that is a
+#   licence *identifier*, not the `openssl`/`openssl-sys` crates, which stay banned in
+#   `[bans]` below. Permissive and attributive, like the rest of the list.
 allow = [
   "Apache-2.0",
   "BSD-3-Clause",
   "ISC",
   "MIT",
   "MPL-2.0",
+  "OpenSSL",
   "Unicode-3.0",
   "Zlib",
   "bzip2-1.0.6",
