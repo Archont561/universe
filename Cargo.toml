@@ -50,7 +50,10 @@ tar = "0.4"
 tempfile = "3.19"
 thiserror = "2.0"
 toml_edit = { version = "0.25", default-features = false, features = ["parse"] }
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "json"] }
+# `rustls` rather than the default `native-tls`, per `decision-3`: pure-Rust TLS is what keeps
+# the Conda build free of C header discovery, and `deny.toml` bans `openssl-sys`, `openssl` and
+# `native-tls` outright. The provider is `aws-lc-rs`, which is what `decision-3` names.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 wiremock = "0.6"
 
