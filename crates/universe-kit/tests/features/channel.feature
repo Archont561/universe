@@ -13,6 +13,13 @@ Feature: Publishing a Conda channel to a branch and restoring it with Git
     When a consumer clones the channel branch
     Then the clone's package matches the digest the fragment recorded
 
+  Scenario: The branch carries each artifact's audit receipt
+    Given an audited package with a channel branch store
+    When the channel is published
+    Then the branch holds the receipt under the metadata path
+    When a consumer clones the channel branch
+    Then the clone's receipt names the digest of the bytes beside it
+
   Scenario: Publishing the same artifacts twice pushes no second commit
     Given an audited package with a channel branch store
     When the channel is published

@@ -23,6 +23,25 @@ CEP-15 (`repodata_version: 2`) introduces `info.base_url` in `<subdir>/repodata.
    - Always initialize all configured + standard subdirs (`noarch`, `linux-64`, `linux-aarch64`, `win-64`, `osx-64`, `osx-arm64`) with valid empty `repodata.json` files so multi-platform `pixi lock` never 404s when a subdir initially has zero packages.
 4. **Explicit CEP-15 client floor**: Generated portal copy and `README` guidance explicitly state the CEP-15 client floor (`pixi >= 0.40`, `rattler-build`, `conda >= 24.5` with `conda-libmamba-solver >= 24.7`, `mamba`/`micromamba >= 2.0`), noting that legacy `repodata_version: 1` Python solvers reject `repodata_version: 2`.
 
+## Amendment — 2026-11-06: where a branch store keeps its fragments
+
+Item 2 says fragments persist on a dedicated metadata branch. That is right for a store whose
+bytes live somewhere else — a release host, an object store — because `pages build` must
+synthesize a channel without downloading archives.
+
+A **branch store is the exception, and it is an exception by construction**: `UNI-58` publishes
+one orphan snapshot per publish, so the metadata and the bytes are the same tree, obtained by
+the same `git clone`, addressed by the same commit. A second branch would be a second thing to
+keep consistent, and could describe bytes the snapshot does not hold. `universe publish` and
+`universe index` therefore write each fragment into that tree at
+`meta/<subdir>/<filename>.conda.json` — the path this decision names, minus the separate
+branch — copying the auditor's own text verbatim so a field a later Universe writes survives.
+The path is outside the subdir a client scans, so a listing of `linux-64/` still shows one file
+per artifact.
+
+A `github-pages` store, when it exists, still owes item 2's dedicated `universe-index` branch:
+its bytes are release assets and its metadata is not.
+
 ## Consequences
 
 - Static hosting/object storage serves the native Conda channel tree; a separately generated portal provides discovery/docs. GitHub Release copies can support immutable release audit/transport, but do not by themselves satisfy channel availability.

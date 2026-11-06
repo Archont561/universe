@@ -4,7 +4,7 @@ title: Implement multi-target artifact publisher (prefix.dev OIDC, S3, Anaconda,
 status: In Progress
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-11-06 15:10'
+updated_date: '2026-11-06 16:40'
 labels:
   - channel
   - release
@@ -72,7 +72,8 @@ Not done here, and deliberately still open:
   `CDLA-Permissive-2.0` for `webpki-root-certs`, while the `openssl`/`openssl-sys` *crates*
   stay banned. `auth = "oidc"` landed on 2026-11-06 — see the note below.
 - **The `.conda.json` fragment commit to `index_branch`** from the description above is not
-  implemented; the release store uploads assets only.
+  implemented for a release store; see the 2026-11-06 note for what a branch store does
+  instead.
 - **The rendered publish jobs now name the right verb (2026-11-06).** The renderer emitted
   `publish --store <name>` for every writable store, so a tag run would have died twice: the
   `prefix-dev` job on a verb that pushes a tree, and the `branch` job on
@@ -130,6 +131,24 @@ question: where does a token come from when nothing long-lived is stored?
   renderer's variable name and asserts the push lands, that an absent variable still pushes,
   and that the token never reaches stdout or stderr; and a renderer scenario asserts
   `id-token: write` is on the *hosted* job and that the hosted job reads no `secrets.`.
-- **Still open in this task:** the `.conda.json` fragment commit to `index_branch`, S3,
-  Quetz and Artifactory upload paths.
+2026-11-06 (later) — the audit receipt now travels with the bytes, and the channel a tag
+publishes is proved usable by a real client.
+
+- **The fragment is published.** `build_tree` writes each fragment into the channel tree at
+  `meta/<subdir>/<filename>.conda.json`, copied verbatim from what `universe audit` wrote —
+  verbatim because a field a later Universe adds (the binary audit of `decision-5`) must
+  survive a publisher that does not name it. `read_fragments` therefore keeps the text beside
+  the parsed `Fragment` (`Audited`, and `Verified` carries it on), instead of re-serializing.
+  `decision-5` gained an amendment: a branch store has one tree per snapshot, so it serves the
+  fragments from that tree rather than from a second `universe-index` branch; a `github-pages`
+  store still owes the dedicated branch.
+- **The channel is proved resolvable, not just readable.** `crates/universe-kit/tests/channel_resolves.rs`
+  publishes a real `.conda` (built in the test: metadata, file list, one executable) to a bare
+  repository, clones the branch with `git`, and runs the real `pixi install --offline` against
+  a `pixi.toml` that names nothing but that checkout. It asserts the installed entrypoint runs.
+  Two layout facts are pinned there because a client is the only thing that can confirm them:
+  `.conda` entries belong under `packages.conda` with an empty legacy `packages`, and a solve
+  asks for `noarch` whatever the project builds.
+- **Still open in this task:** the `.conda.json` fragment commit to a dedicated `index_branch`
+  for a release/hosted store, S3, Quetz and Artifactory upload paths.
 <!-- SECTION:NOTES:END -->

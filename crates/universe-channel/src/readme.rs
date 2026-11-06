@@ -65,8 +65,16 @@ pub fn render(fragments: &[&Fragment], spec: &ChannelSpec) -> String {
 
     body.push_str(
         "The digests above are the ones the audit measured. A consumer that wants to verify a\n\
-         download hashes the file and compares it with the row for that package.\n",
+         download hashes the file and compares it with the row for that package.\n\n",
     );
+    if !fragments.is_empty() {
+        body.push_str(
+            "Every artifact also has its audit receipt in this tree:\n\
+             `meta/<subdir>/<package>-<version>-<build>.conda.json`, a kilobyte of metadata —\n\
+             name, version, dependencies, licence, digests — for a client that wants to know\n\
+             what a package contains without downloading it.\n",
+        );
+    }
     body
 }
 
@@ -125,5 +133,23 @@ mod tests {
         let packages = [fragment("a")];
         let readme = render(&packages.iter().collect::<Vec<_>>(), &spec);
         assert!(readme.contains(&"a".repeat(64)), "{readme}");
+    }
+
+    #[test]
+    fn the_readme_says_where_the_receipts_are() {
+        let mut one = fragment("example-airlock");
+        one.digest = "a".repeat(64);
+        let rendered = render(
+            &[&one],
+            &ChannelSpec::new("fixture", vec!["linux-64".to_owned(), "noarch".to_owned()]),
+        );
+
+        assert!(
+            rendered.contains("meta/<subdir>/<package>-<version>-<build>.conda.json"),
+            "{rendered}"
+        );
+        // A channel serving nothing has no receipts to describe.
+        let empty = render(&[], &ChannelSpec::new("fixture", vec!["noarch".to_owned()]));
+        assert!(!empty.contains("meta/<subdir>"), "{empty}");
     }
 }

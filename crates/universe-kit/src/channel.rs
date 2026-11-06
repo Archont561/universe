@@ -16,17 +16,33 @@ use universe_core::manifest::Manifest;
 /// Default directory the audit verb writes fragments to.
 pub(crate) const FRAGMENT_DIRECTORY: &str = "output/fragments";
 
+/// A fragment and the exact text it was read from.
+///
+/// The text is kept because a fragment is *published* as well as read: the channel serves it
+/// beside the artifact it describes, and a field a later Universe wrote — the binary audit of
+/// `decision-5`, say — has to survive a publisher that does not name it. Re-serializing the
+/// parsed struct would silently drop those fields.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Audited {
+    /// The fragment as this build understands it.
+    pub(crate) fragment: Fragment,
+    /// The fragment's own bytes, as written by `universe audit`.
+    pub(crate) text: String,
+}
+
 /// A fragment plus the bytes it describes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Verified {
     /// The fragment.
     pub(crate) fragment: Fragment,
-    /// Its bytes, read from the project root.
+    /// The fragment's own bytes, published beside the artifact.
+    pub(crate) text: String,
+    /// The artifact's bytes, read from the project root.
     pub(crate) bytes: Vec<u8>,
 }
 
 /// Read every fragment under `directory`, recursively, in a stable order.
-pub(crate) fn read_fragments(directory: &Path) -> Result<Vec<Fragment>, Diagnostic> {
+pub(crate) fn read_fragments(directory: &Path) -> Result<Vec<Audited>, Diagnostic> {
     let mut paths = Vec::new();
     collect(directory, &mut paths);
     paths.sort();
@@ -47,7 +63,7 @@ pub(crate) fn read_fragments(directory: &Path) -> Result<Vec<Fragment>, Diagnost
                 format!("{}: {error}", path.display()),
             )
         })?;
-        fragments.push(fragment);
+        fragments.push(Audited { fragment, text });
     }
     if fragments.is_empty() {
         return Err(Diagnostic::new(
@@ -85,9 +101,10 @@ fn collect(directory: &Path, found: &mut Vec<PathBuf>) {
 ///
 /// Returns the first fragment whose artifact is missing, whose size differs, or whose digest
 /// differs — naming the file, because "a digest mismatched" without a name is a search.
-pub(crate) fn verify(root: &Path, fragments: &[Fragment]) -> Result<Vec<Verified>, Diagnostic> {
+pub(crate) fn verify(root: &Path, fragments: &[Audited]) -> Result<Vec<Verified>, Diagnostic> {
     let mut verified = Vec::new();
-    for fragment in fragments {
+    for audited in fragments {
+        let fragment = &audited.fragment;
         let problems = fragment.problems();
         if !problems.is_empty() {
             return Err(Diagnostic::new(
@@ -146,6 +163,7 @@ pub(crate) fn verify(root: &Path, fragments: &[Fragment]) -> Result<Vec<Verified
         }
         verified.push(Verified {
             fragment: fragment.clone(),
+            text: audited.text.clone(),
             bytes,
         });
     }
@@ -192,26 +210,32 @@ pub(crate) fn build_tree(
         // The bytes go to the canonical subdir path, so a native client can download what the
         // metadata advertises without knowing anything about this repository.
         tree.insert(entry.fragment.channel_path(), entry.bytes.clone());
+        // The receipt travels with the artifact: same tree, one request, and a client that
+        // wants the dependencies or the licence reads a kilobyte instead of the archive.
+        tree.insert(
+            entry.fragment.metadata_path(),
+            entry.text.as_bytes().to_vec(),
+        );
     }
     Ok(tree)
 }
 
 /// The fragment set a publish would ship: every fragment if `packages` is empty, otherwise
 /// only those for the named packages.
-pub(crate) fn select(fragments: &[Fragment], packages: &[String]) -> Vec<Fragment> {
+pub(crate) fn select(fragments: &[Audited], packages: &[String]) -> Vec<Audited> {
     if packages.is_empty() {
         return fragments.to_vec();
     }
     fragments
         .iter()
-        .filter(|fragment| packages.contains(&fragment.package))
+        .filter(|audited| packages.contains(&audited.fragment.package))
         .cloned()
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{build_tree, read_fragments, select, spec_for, verify};
+    use super::{Audited, build_tree, read_fragments, select, spec_for, verify};
     use universe_channel::channel::ChannelSpec;
     use universe_channel::fragment::Fragment;
     use universe_core::manifest::Manifest;
@@ -238,8 +262,9 @@ url = "https://example.invalid/universe.git"
 writable = true
 "#;
 
-    fn fragment(digest: &str, size: u64, path: &str) -> Fragment {
-        Fragment {
+    /// A fragment and the text a publisher would ship with it.
+    fn fragment(digest: &str, size: u64, path: &str) -> Audited {
+        audited(Fragment {
             package: "example-airlock".to_owned(),
             version: "1.0.0".to_owned(),
             build: "0".to_owned(),
@@ -251,7 +276,13 @@ writable = true
             license: Some("MIT".to_owned()),
             license_files: Vec::new(),
             path: path.to_owned(),
-        }
+        })
+    }
+
+    /// The same fragment, wrapped with the text it would have been read from.
+    fn audited(fragment: Fragment) -> Audited {
+        let text = serde_json::to_string_pretty(&fragment).expect("a fragment serializes");
+        Audited { fragment, text }
     }
 
     /// A root holding the artifact the fragment names.
@@ -349,18 +380,45 @@ writable = true
     }
 
     #[test]
+    fn the_fragment_is_published_beside_the_artifact_it_describes() {
+        let root = root_with(b"conda bytes");
+        let digest = universe_workflow::sha256::sha256_hex(b"conda bytes");
+        let audited = fragment(&digest, 11, "output/example.conda");
+        let verified = verify(root.path(), std::slice::from_ref(&audited)).expect("verified");
+        let spec = spec_for(
+            &Manifest::from_toml(MANIFEST).expect("manifest parses"),
+            None,
+        );
+
+        let tree = build_tree(&verified, &spec).expect("the tree builds");
+        let files: Vec<&str> = tree.files().map(|(path, _)| path.as_str()).collect();
+
+        assert!(
+            files.contains(&"linux-64/example-airlock-1.0.0-0.conda"),
+            "{files:?}"
+        );
+        let published = tree
+            .files()
+            .find(|(path, _)| *path == "meta/linux-64/example-airlock-1.0.0-0.conda.json")
+            .map(|(_, bytes)| String::from_utf8_lossy(bytes).into_owned())
+            .unwrap_or_else(|| panic!("no receipt in {files:?}"));
+        assert_eq!(
+            published, audited.text,
+            "the receipt is the auditor's own text, not a re-reading of it"
+        );
+    }
+
+    #[test]
     fn selecting_packages_keeps_only_the_named_ones_and_an_empty_selection_keeps_all() {
         let digest = "a".repeat(64);
-        let fragments = vec![
-            fragment(&digest, 1, "output/a.conda"),
-            Fragment {
-                package: "other-airlock".to_owned(),
-                ..fragment(&digest, 1, "output/b.conda")
-            },
-        ];
+        let second = audited(Fragment {
+            package: "other-airlock".to_owned(),
+            ..fragment(&digest, 1, "output/b.conda").fragment
+        });
+        let fragments = vec![fragment(&digest, 1, "output/a.conda"), second];
         assert_eq!(select(&fragments, &[]).len(), 2);
         let narrowed = select(&fragments, &["other-airlock".to_owned()]);
         assert_eq!(narrowed.len(), 1);
-        assert_eq!(narrowed[0].package, "other-airlock");
+        assert_eq!(narrowed[0].fragment.package, "other-airlock");
     }
 }
