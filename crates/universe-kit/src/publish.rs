@@ -13,6 +13,7 @@ use universe_core::CommandOutput;
 use universe_core::diagnostic::{Diagnostic, Severity};
 use universe_core::manifest::Store;
 
+use crate::artifacts::declared_token;
 use crate::channel::{FRAGMENT_DIRECTORY, build_tree, read_fragments, select, spec_for, verify};
 use crate::git::GitTransport;
 use crate::options::{Options, VerbSpec};
@@ -104,7 +105,8 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
         .output
         .clone()
         .unwrap_or_else(|| scratch_directory(&project.root));
-    let transport = GitTransport::new(&remote, &branch, &scratch);
+    let transport =
+        GitTransport::new(&remote, &branch, &scratch).authenticated(push_token(store).as_deref());
     if options.check {
         return check(&transport, &tree, &branch, options.json);
     }
@@ -127,6 +129,19 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
             )],
         ),
     }
+}
+
+/// The token the store's manifest names, when the environment holds one.
+///
+/// A declared secret is how a job that has no credential helper authenticates: the renderer
+/// exports it, this reads it, and the push presents it as an `extraheader`. A local run that
+/// has not set the variable keeps working, because there git's own credential store, an SSH
+/// key or a cached agent is a perfectly good answer — the secret is an override, not a
+/// requirement. That is the difference from `publish-artifacts`, where an absent secret is an
+/// error because an anonymous upload fails later and less clearly.
+fn push_token(store: Option<&Store>) -> Option<String> {
+    // Declared but unset is not a failure here: the fall back is git's own credential.
+    store.and_then(declared_token)
 }
 
 /// The store this publish is measured against.

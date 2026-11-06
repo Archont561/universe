@@ -11,6 +11,12 @@ Feature: Rendering the workflow set from a project manifest
     And the publish file has a job for the static channel
     And the publish file prints the store to package mapping
 
+  Scenario: The hosted channel is reached with a token minted from the job's identity
+    Given a project that publishes its Airlock package to a hosted channel and to a static channel
+    When the workflow set is rendered
+    Then the hosted job may mint an identity token
+    And the hosted job exports no long-lived secret
+
   Scenario: A project that publishes nothing renders only the main file
     Given a project that publishes nothing
     When the workflow set is rendered

@@ -11,13 +11,14 @@
 //! an artifact leave the machine. A `--dry-run` builds the same plan and performs no mutating
 //! request.
 
+use std::collections::BTreeMap;
 use std::env;
 use std::path::Path;
 
 use serde_json::json;
 use universe_channel::store::{
-    FilesystemRemote, HttpRemote, Kind, Policy, ReleaseReport, Releases, Report, StoreError,
-    Target, Upload, apply,
+    FilesystemRemote, HttpRemote, Kind, OidcExchange, Policy, ReleaseReport, Releases, Report,
+    StoreError, Target, TrustedPublisher, Upload, apply,
 };
 use universe_core::CommandOutput;
 use universe_core::diagnostic::{Diagnostic, Severity};
@@ -81,10 +82,11 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
         dry_run: options.dry_run,
     };
 
+    let mut credentials = Credentials::ambient();
     let mut published: Vec<serde_json::Value> = Vec::new();
     let mut body = String::new();
     for store in &stores {
-        match publish_to(store, &uploads, policy) {
+        match publish_to(store, &uploads, policy, &mut credentials) {
             Ok(outcome) => {
                 body.push_str(&outcome.describe(store, policy));
                 published.push(outcome.json(store, policy));
@@ -248,7 +250,12 @@ fn stores_for(
 }
 
 /// Publish `uploads` to one store.
-fn publish_to(store: &Store, uploads: &[Upload], policy: Policy) -> Result<Outcome, PublishError> {
+fn publish_to(
+    store: &Store,
+    uploads: &[Upload],
+    policy: Policy,
+    credentials: &mut Credentials,
+) -> Result<Outcome, PublishError> {
     let Some(kind) = channel_kind(store.kind) else {
         return Err(PublishError::new(format!(
             "store '{}' is not a destination this verb writes to",
@@ -271,14 +278,7 @@ fn publish_to(store: &Store, uploads: &[Upload], policy: Policy) -> Result<Outco
             .map_err(PublishError::from);
     }
 
-    if store.auth == StoreAuth::Oidc {
-        return Err(PublishError::new(format!(
-            "store '{}' authenticates with OIDC, whose token exchange this build does not \
-             implement; a `token` store publishes from the secret it names",
-            store.name
-        )));
-    }
-    let target = target_for(store, kind)?;
+    let target = target_for(store, kind, credentials)?;
     if kind == Kind::Releases {
         return publish_releases(store, &target, uploads, policy).map(Outcome::Released);
     }
@@ -333,7 +333,15 @@ fn subdirs(uploads: &[Upload]) -> Vec<String> {
 }
 
 /// The destination a store's manifest entry describes.
-fn target_for(store: &Store, kind: Kind) -> Result<Target, PublishError> {
+///
+/// The token comes from whichever authority the store named: a secret the environment holds, or
+/// — for `auth = "oidc"` — an exchange of this job's identity for a token that expires long
+/// before anyone could copy it.
+fn target_for(
+    store: &Store,
+    kind: Kind,
+    credentials: &mut Credentials,
+) -> Result<Target, PublishError> {
     let endpoint = match store.url.as_deref() {
         Some(url) => url.to_owned(),
         None => match kind {
@@ -348,13 +356,97 @@ fn target_for(store: &Store, kind: Kind) -> Result<Target, PublishError> {
             }
         },
     };
+    let token = match store.auth {
+        StoreAuth::Token => token_for(store)?,
+        StoreAuth::Oidc => Some(credentials.exchange(store, kind, &endpoint)?),
+    };
     Ok(Target {
         name: store.name.clone(),
         kind,
         endpoint,
         channel: store.channel.clone(),
-        token: token_for(store)?,
+        token,
     })
+}
+
+/// This run's authorization to the destinations that do not take a stored secret.
+///
+/// Two properties matter more than the code that follows. A token is **minted once per
+/// destination**: the exchange is two round trips, and a run that publishes to two stores on
+/// one server should not ask twice. And a token is **never printed** — it is not logged, not
+/// echoed, and the error paths in this file carry the destination's answer, not the bearer.
+#[derive(Debug)]
+struct Credentials {
+    /// Tokens already exchanged, keyed by the server they are good at.
+    minted: BTreeMap<String, String>,
+    /// Where an exchange comes from, until it is first needed.
+    exchange: Exchange,
+}
+
+/// The identity an `auth = "oidc"` store exchanges.
+#[derive(Debug)]
+enum Exchange {
+    /// The CI job this process is running in, read from the environment on first use. Reading
+    /// it eagerly would make every publish in a developer's shell fail for the absence of
+    /// GitHub variables that no token store needs.
+    Ambient,
+    /// An exchange the caller prepared, which is what a test supplies.
+    Ready(Box<dyn TrustedPublisher>),
+}
+
+impl Credentials {
+    /// Credentials for this process's own environment.
+    fn ambient() -> Self {
+        Self {
+            minted: BTreeMap::new(),
+            exchange: Exchange::Ambient,
+        }
+    }
+
+    /// The same, over an exchange the caller (or a test) built.
+    #[cfg(test)]
+    fn ready(exchange: impl TrustedPublisher + 'static) -> Self {
+        Self {
+            minted: BTreeMap::new(),
+            exchange: Exchange::Ready(Box::new(exchange)),
+        }
+    }
+
+    /// A bearer token good at a store's endpoint.
+    fn exchange(
+        &mut self,
+        store: &Store,
+        kind: Kind,
+        endpoint: &str,
+    ) -> Result<String, PublishError> {
+        // The mint endpoint is prefix.dev's convention, and no other kind of destination has
+        // been shown to speak it. Guessing would send a job's identity somewhere that cannot
+        // verify it, so the refusal names what could be done instead.
+        if kind != Kind::PrefixDev {
+            return Err(PublishError::new(format!(
+                "store '{}' is a '{}' store and asks for `auth = \"oidc\"`, whose token exchange \
+                 is only defined for a prefix.dev channel; publish to it with `auth = \"token\"`",
+                store.name,
+                store.kind.as_str()
+            )));
+        }
+        if let Some(token) = self.minted.get(endpoint) {
+            return Ok(token.clone());
+        }
+        let token = match &self.exchange {
+            Exchange::Ready(exchange) => exchange.mint(endpoint)?,
+            Exchange::Ambient => {
+                let exchange = OidcExchange::from_env()?;
+                let token = exchange.mint(endpoint)?;
+                // Kept for the next store on the same server, and for the same reason the
+                // exchange is built once: the environment does not change mid-run.
+                self.exchange = Exchange::Ready(Box::new(exchange));
+                token
+            }
+        };
+        self.minted.insert(endpoint.to_owned(), token.clone());
+        Ok(token)
+    }
 }
 
 /// The token a store publishes with, read from the environment variable it names.
@@ -370,6 +462,16 @@ fn target_for(store: &Store, kind: Kind) -> Result<Target, PublishError> {
 /// anonymous upload, because an anonymous upload fails later and less clearly.
 fn token_for(store: &Store) -> Result<Option<String>, PublishError> {
     token_from(store, |name| env::var(name).ok())
+}
+
+/// The token a store's declared secret holds, when this environment has one.
+///
+/// The same two spellings as [`token_from`], for the verb that pushes a branch rather than
+/// uploading an artifact. A store that declares its secrets somewhere else also names the
+/// variable, so a caller that only wants "a token, if there is one" does not need to know the
+/// naming rule.
+pub(crate) fn declared_token(store: &Store) -> Option<String> {
+    token_from(store, |name| env::var(name).ok()).ok().flatten()
 }
 
 /// The same lookup, over an injected environment, so the missing-token case is testable
@@ -468,14 +570,17 @@ impl From<StoreError> for PublishError {
 #[cfg(test)]
 mod tests {
     use super::{
-        Outcome, PublishError, channel_kind, stores_for, subdirs, target_for, token_for,
-        token_from, uploads_of,
+        Credentials, Outcome, PublishError, channel_kind, stores_for, subdirs, target_for,
+        token_for, token_from, uploads_of,
     };
     use crate::channel::Verified;
     use crate::project::Project;
+    use std::cell::RefCell;
     use std::path::PathBuf;
+    use std::rc::Rc;
+    use universe_channel::store::TrustedPublisher;
     use universe_channel::store::{Kind, Policy, ReleaseReport, Report, StoreError, Upload};
-    use universe_core::manifest::{Manifest, StoreKind};
+    use universe_core::manifest::{Manifest, StoreAuth, StoreKind};
 
     fn store_of(kind: StoreKind) -> universe_core::manifest::Store {
         universe_core::manifest::Store {
@@ -579,7 +684,7 @@ mod tests {
         let mut prefix = store_of(StoreKind::PrefixDev);
         prefix.url = None;
         assert_eq!(
-            target_for(&prefix, Kind::PrefixDev)
+            target_for(&prefix, Kind::PrefixDev, &mut Credentials::ambient())
                 .expect("a default")
                 .endpoint,
             "https://prefix.dev"
@@ -588,7 +693,7 @@ mod tests {
         let mut releases = store_of(StoreKind::Releases);
         releases.url = None;
         assert_eq!(
-            target_for(&releases, Kind::Releases)
+            target_for(&releases, Kind::Releases, &mut Credentials::ambient())
                 .expect("a default")
                 .endpoint,
             "https://api.github.com"
@@ -597,7 +702,7 @@ mod tests {
         let mut s3 = store_of(StoreKind::S3);
         s3.url = None;
         assert!(
-            target_for(&s3, Kind::S3).is_err(),
+            target_for(&s3, Kind::S3, &mut Credentials::ambient()).is_err(),
             "an object store has no default endpoint"
         );
     }
@@ -793,5 +898,72 @@ mod tests {
         let json = outcome.json(&store, Policy::default());
         assert_eq!(json["releases"][0]["tag"], "packages-linux-64");
         assert_eq!(json["store"], "test-store");
+    }
+
+    /// An exchange that remembers what it was asked and answers without a network.
+    #[derive(Debug, Default, Clone)]
+    struct RecordingExchange {
+        asked: Rc<RefCell<Vec<String>>>,
+    }
+
+    impl TrustedPublisher for RecordingExchange {
+        fn mint(&self, server: &str) -> Result<String, StoreError> {
+            self.asked.borrow_mut().push(server.to_owned());
+            Ok(format!("token-for-{server}"))
+        }
+    }
+
+    #[test]
+    fn an_oidc_store_publishes_with_the_token_its_identity_bought() {
+        let mut store = store_of(StoreKind::PrefixDev);
+        store.auth = StoreAuth::Oidc;
+        store.secrets.clear();
+        // An explicit endpoint, because the exchange is asked about the server it will
+        // redeem at and a test's guess about the default is not the point.
+        store.url = Some("https://prefix.dev".to_owned());
+        let exchange = RecordingExchange::default();
+        let mut credentials = Credentials::ready(exchange.clone());
+
+        let target = target_for(&store, Kind::PrefixDev, &mut credentials).expect("a destination");
+
+        assert_eq!(
+            target.token.as_deref(),
+            Some("token-for-https://prefix.dev")
+        );
+        assert_eq!(exchange.asked.borrow().len(), 1);
+    }
+
+    #[test]
+    fn one_server_is_asked_once_however_many_stores_publish_to_it() {
+        let mut first = store_of(StoreKind::PrefixDev);
+        first.name = "first".to_owned();
+        first.auth = StoreAuth::Oidc;
+        first.secrets.clear();
+        let mut second = first.clone();
+        second.name = "second".to_owned();
+        let exchange = RecordingExchange::default();
+        let mut credentials = Credentials::ready(exchange.clone());
+
+        let one = target_for(&first, Kind::PrefixDev, &mut credentials).expect("a destination");
+        let two = target_for(&second, Kind::PrefixDev, &mut credentials).expect("a destination");
+
+        // Two round trips per store would be two more than the job can afford, and the second
+        // token would be identical anyway.
+        assert_eq!(exchange.asked.borrow().len(), 1);
+        assert_eq!(one.token, two.token);
+    }
+
+    #[test]
+    fn an_oidc_store_that_is_not_a_prefix_dev_channel_is_refused_with_a_way_out() {
+        let mut store = store_of(StoreKind::Anaconda);
+        store.auth = StoreAuth::Oidc;
+        let mut credentials = Credentials::ready(RecordingExchange::default());
+
+        let error = target_for(&store, Kind::Anaconda, &mut credentials)
+            .expect_err("no exchange is defined for this destination");
+
+        let message = error.message;
+        assert!(message.contains("prefix.dev channel"), "{message}");
+        assert!(message.contains("auth = \"token\""), "{message}");
     }
 }

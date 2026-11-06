@@ -116,58 +116,33 @@ impl Response {
     }
 }
 
-/// A destination reached over HTTP.
+/// One blocking HTTP client, with no destination attached.
+///
+/// The token exchange that precedes a publish is not a store operation — it talks to the CI
+/// provider and then to a mint endpoint — but it is the same client, the same request shape
+/// and the same error vocabulary. Splitting it out is what lets [`super::oidc`] use it without
+/// pretending a token exchange is an upload.
 #[derive(Debug)]
-pub struct HttpRemote {
-    target: Target,
+pub struct Http {
     client: Client,
 }
 
-impl HttpRemote {
-    /// A client for `target`.
+impl Http {
+    /// A client with this crate's user agent.
     ///
     /// # Errors
     ///
-    /// Returns [`StoreError::Unsupported`] when the endpoint's scheme is not one this build
-    /// can speak. That check is here rather than at the first request because a publish that
-    /// discovers a bad endpoint half-way through has already written to some destinations.
-    pub fn new(target: Target) -> Result<Self, StoreError> {
-        if let Some(reason) = unsupported_scheme(&target.endpoint) {
-            return Err(StoreError::Unsupported {
-                store: target.name.clone(),
-                endpoint: target.endpoint.clone(),
-                reason,
-            });
-        }
+    /// Returns [`StoreError::Transport`] when the client cannot be built, which means the TLS
+    /// stack or the resolver is missing rather than that a destination refused anything.
+    pub fn new() -> Result<Self, StoreError> {
         let client = Client::builder()
             .user_agent(concat!("universe/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|error| StoreError::Transport {
-                url: target.endpoint.clone(),
+                url: "http client".to_owned(),
                 message: format!("cannot build an HTTP client: {error}"),
             })?;
-        Ok(Self { target, client })
-    }
-
-    /// The destination this client writes to.
-    #[must_use]
-    pub fn target(&self) -> &Target {
-        &self.target
-    }
-
-    /// The absolute URL one channel path takes at this destination.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`StoreError::Incomplete`] when the destination needs a channel it was not
-    /// given.
-    pub fn url_for(&self, upload: &Upload) -> Result<String, StoreError> {
-        let location = self.target.location(upload)?;
-        Ok(format!(
-            "{}/{}",
-            self.target.endpoint.trim_end_matches('/'),
-            location
-        ))
+        Ok(Self { client })
     }
 
     /// Send one request.
@@ -175,9 +150,8 @@ impl HttpRemote {
     /// # Errors
     ///
     /// Returns [`StoreError::Transport`] when the request cannot be completed, and
-    /// [`StoreError::Response`] when the response's status is an error. The status is not
-    /// collapsed into "failed": a `403` and a `409` are different conversations with the
-    /// destination, and the message keeps the body so the reader can have it.
+    /// [`StoreError::Response`] when a header cannot be expressed. The status itself is *not*
+    /// an error here: `404` is an answer, and only the caller knows which statuses mean what.
     pub fn send(&self, request: &Request) -> Result<Response, StoreError> {
         let mut headers = HeaderMap::new();
         for (name, value) in &request.headers {
@@ -228,6 +202,66 @@ impl HttpRemote {
             headers,
             body,
         })
+    }
+}
+
+/// A destination reached over HTTP.
+#[derive(Debug)]
+pub struct HttpRemote {
+    target: Target,
+    http: Http,
+}
+
+impl HttpRemote {
+    /// A client for `target`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError::Unsupported`] when the endpoint's scheme is not one this build
+    /// can speak. That check is here rather than at the first request because a publish that
+    /// discovers a bad endpoint half-way through has already written to some destinations.
+    pub fn new(target: Target) -> Result<Self, StoreError> {
+        if let Some(reason) = unsupported_scheme(&target.endpoint) {
+            return Err(StoreError::Unsupported {
+                store: target.name.clone(),
+                endpoint: target.endpoint.clone(),
+                reason,
+            });
+        }
+        Ok(Self {
+            target,
+            http: Http::new()?,
+        })
+    }
+
+    /// The destination this client writes to.
+    #[must_use]
+    pub fn target(&self) -> &Target {
+        &self.target
+    }
+
+    /// The absolute URL one channel path takes at this destination.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError::Incomplete`] when the destination needs a channel it was not
+    /// given.
+    pub fn url_for(&self, upload: &Upload) -> Result<String, StoreError> {
+        let location = self.target.location(upload)?;
+        Ok(format!(
+            "{}/{}",
+            self.target.endpoint.trim_end_matches('/'),
+            location
+        ))
+    }
+
+    /// Send one request through this destination's client.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`Http::send`] returns.
+    pub fn send(&self, request: &Request) -> Result<Response, StoreError> {
+        self.http.send(request)
     }
 }
 
