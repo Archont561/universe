@@ -360,9 +360,14 @@ fn target_for(store: &Store, kind: Kind) -> Result<Target, PublishError> {
 /// The token a store publishes with, read from the environment variable it names.
 ///
 /// Names only, never values: the manifest says `secrets = ["UNIVERSE_CHANNEL_TOKEN"]` and the
-/// value reaches the process from the workflow's environment. A token-authenticated store that
-/// names a secret the environment does not hold is an error rather than an anonymous upload,
-/// because an anonymous upload fails later and less clearly.
+/// value reaches the process from the workflow's environment. Two spellings are accepted, and
+/// the order matters: the *rendered* name first — `BRANCH_UNIVERSE_CHANNEL_TOKEN`, which is
+/// what a workflow job exports — and then the bare secret, which is what a local shell sets.
+/// Reading only the bare name was a live mismatch: the renderer exported one and the verb
+/// looked up the other, so the first tag run would have found no token at all.
+///
+/// A store that names a secret the environment does not hold is an error rather than an
+/// anonymous upload, because an anonymous upload fails later and less clearly.
 fn token_for(store: &Store) -> Result<Option<String>, PublishError> {
     token_from(store, |name| env::var(name).ok())
 }
@@ -373,16 +378,20 @@ fn token_from(
     store: &Store,
     lookup: impl Fn(&str) -> Option<String>,
 ) -> Result<Option<String>, PublishError> {
-    let Some(name) = store.secrets.first() else {
+    let Some(secret) = store.secrets.first() else {
         return Ok(None);
     };
-    match lookup(name) {
-        Some(value) if !value.trim().is_empty() => Ok(Some(value)),
-        _ => Err(PublishError::new(format!(
-            "store '{}' publishes with the token in '{name}', which is not set in this environment",
-            store.name
-        ))),
+    let rendered = store.secret_environment_variable(secret);
+    for name in [rendered.as_str(), secret.as_str()] {
+        if let Some(value) = lookup(name).filter(|value| !value.trim().is_empty()) {
+            return Ok(Some(value));
+        }
     }
+    Err(PublishError::new(format!(
+        "store '{}' publishes with the token in '{rendered}' (or '{secret}'), which is not set \
+         in this environment",
+        store.name
+    )))
 }
 
 /// The artifacts a verified fragment set describes, as uploads.
@@ -603,15 +612,51 @@ mod tests {
             token_from(&store, |_| Some("  ".to_owned())).is_err(),
             "a blank token is not a token"
         );
-        assert_eq!(
-            token_from(&store, |_| Some("secret".to_owned()))
-                .expect("a token")
-                .as_deref(),
-            Some("secret")
-        );
 
         store.secrets.clear();
         assert!(token_for(&store).expect("no token needed").is_none());
+    }
+
+    #[test]
+    fn the_rendered_variable_name_is_read_before_the_bare_secret() {
+        let mut store = store_of(StoreKind::PrefixDev);
+        store.secrets = vec!["CONDA_TOKEN".to_owned()];
+
+        // Exactly what a rendered job exports: the store name, then the secret.
+        assert_eq!(
+            store.secret_environment_variable("CONDA_TOKEN"),
+            "TEST_STORE_CONDA_TOKEN"
+        );
+        let rendered_only = token_from(&store, |name| {
+            (name == "TEST_STORE_CONDA_TOKEN").then(|| "from-the-job".to_owned())
+        })
+        .expect("the rendered name is read");
+        assert_eq!(rendered_only.as_deref(), Some("from-the-job"));
+
+        // A local shell sets the bare name, and that still works.
+        let bare_only = token_from(&store, |name| {
+            (name == "CONDA_TOKEN").then(|| "from-my-shell".to_owned())
+        })
+        .expect("the bare name is read too");
+        assert_eq!(bare_only.as_deref(), Some("from-my-shell"));
+
+        // When both are set the rendered one wins, because that is the one the job chose.
+        let both = token_from(&store, |name| Some(format!("{name}-value"))).expect("both are set");
+        assert_eq!(both.as_deref(), Some("TEST_STORE_CONDA_TOKEN-value"));
+    }
+
+    #[test]
+    fn a_missing_token_names_both_spellings_it_looked_for() {
+        let mut store = store_of(StoreKind::PrefixDev);
+        store.secrets = vec!["CONDA_TOKEN".to_owned()];
+
+        let error = token_from(&store, |_| None).expect_err("nothing is set");
+        assert!(
+            error.message.contains("TEST_STORE_CONDA_TOKEN"),
+            "{}",
+            error.message
+        );
+        assert!(error.message.contains("'CONDA_TOKEN'"), "{}", error.message);
     }
 
     #[test]

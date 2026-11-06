@@ -279,6 +279,12 @@ fn publish_job_for_hosted_channel(project: &Project) {
         publish.contains("name: publish / conda-prefix"),
         "no hosted-channel job in:\n{publish}"
     );
+    // A registry keeps what it was first given, so it is uploaded to one file at a time;
+    // `publish` pushes a tree to a branch and would fail here with no remote named.
+    assert!(
+        publish.contains("publish-artifacts --store conda-prefix"),
+        "the hosted job does not use the verb that uploads:\n{publish}"
+    );
 }
 
 #[then("the publish file has a job for the static channel")]
@@ -287,6 +293,16 @@ fn publish_job_for_static_channel(project: &Project) {
     assert!(
         publish.contains("name: publish / conda-static"),
         "no static-channel job in:\n{publish}"
+    );
+    // A branch is pushed to, and `publish` refuses to run without a remote: naming it here
+    // is the difference between a job that works and one that fails on the first tag.
+    assert!(
+        publish.contains("publish --store conda-static --remote"),
+        "the static job names no remote to push to:\n{publish}"
+    );
+    assert!(
+        publish.contains("${{ github.server_url }}/${{ github.repository }}.git"),
+        "the static job's remote is not the repository it runs in:\n{publish}"
     );
 }
 
@@ -493,6 +509,7 @@ fn later_jobs_download(project: &Project) {
         for (name, body) in job_blocks(&text) {
             let consumes = body.contains("audit --json")
                 || body.contains("verify --artifact")
+                || body.contains("publish-artifacts --store")
                 || body.contains("publish --store");
             if !consumes {
                 continue;

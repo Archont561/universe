@@ -74,8 +74,24 @@ Not done here, and deliberately still open:
   token exchange does not exist yet, so a real prefix.dev publish still needs a token store.
 - **The `.conda.json` fragment commit to `index_branch`** from the description above is not
   implemented; the release store uploads assets only.
-- **The rendered publish workflow still calls `universe publish --store prefix-dev`**, which
-  cannot work: `publish` pushes a tree to a Git branch and needs `--remote`. That job should
-  call `publish-artifacts`; TLS is no longer the blocker, the flag is. A pre-existing gap, not
-  one this slice made.
+- **The rendered publish jobs now name the right verb (2026-11-06).** The renderer emitted
+  `publish --store <name>` for every writable store, so a tag run would have died twice: the
+  `prefix-dev` job on a verb that pushes a tree, and the `branch` job on
+  `publish.remote.required`. It now renders `publish-artifacts --store <name>` for the
+  destinations this verb uploads to, and `publish --store <name> --remote
+  ${{ github.server_url }}/${{ github.repository }}.git` for a branch. The secret a job exports
+  is named by one rule, `Store::secret_environment_variable`, and the token lookup accepts the
+  rendered name before the bare one — the two had disagreed, so the rendered variable would
+  have been exported and never read. `crates/universe-kit/tests/rendered_workflow.rs` takes the
+  command lines out of the rendered file and runs them against a directory store and a bare
+  repository, which is the check `ci-check` cannot make: that the file agrees with itself, not
+  that the job works.
+- **A branch push from CI still has no credential (open).** `publish` pushes from a scratch
+  repository nested in the checkout, and `actions/checkout` persists its token into the
+  *outer* repository's config, which git does not inherit. The rendered command now names the
+  right remote, so this is the only thing between the branch job and a green tag run. The
+  mechanism to use is a per-invocation `http.<url>.extraheader` supplied through `GIT_CONFIG_*`
+  environment variables (never argv, where `ps` would show it), with the token read from the
+  store's declared secret; it pairs with the OIDC exchange below, which is why both are one
+  slice.
 <!-- SECTION:NOTES:END -->
