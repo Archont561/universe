@@ -306,6 +306,60 @@ fn publish_job_for_static_channel(project: &Project) {
     );
 }
 
+#[then("the hosted job may mint an identity token")]
+fn hosted_job_may_mint_an_identity_token(project: &Project) {
+    let publish = project.workflow("universe-publish.yml");
+    assert!(
+        publish.contains("id-token: write"),
+        "the hosted job cannot ask for an identity token without the permission:\n{publish}"
+    );
+    // The permission has to be on the job that publishes, not somewhere in the file.
+    let hosted = job_block(&publish, "publish / conda-prefix");
+    assert!(
+        hosted.contains("id-token: write"),
+        "`id-token: write` is not in the hosted job's own permissions:\n{hosted}"
+    );
+}
+
+#[then("the hosted job exports no long-lived secret")]
+fn hosted_job_exports_no_long_lived_secret(project: &Project) {
+    let publish = project.workflow("universe-publish.yml");
+    let hosted = job_block(&publish, "publish / conda-prefix");
+    assert!(
+        !hosted.contains("secrets."),
+        "a trusted-publishing job must not read a stored secret:\n{hosted}"
+    );
+    // The branch store still declares one, so this is a claim about the hosted job rather
+    // than about a manifest that happened to declare nothing.
+    let static_job = job_block(&publish, "publish / conda-static");
+    assert!(
+        !static_job.contains("id-token: write"),
+        "a store that is pushed to needs no identity token:\n{static_job}"
+    );
+}
+
+/// One job's YAML, from its `name:` line to the next job at the same indentation.
+///
+/// A substring search over the whole file cannot say which job a permission belongs to, and
+/// a permission on the wrong job is exactly the mistake this scenario exists to catch.
+fn job_block(publish: &str, name: &str) -> String {
+    let start = publish
+        .find(&format!("name: {name}"))
+        .unwrap_or_else(|| panic!("no job named '{name}' in:\n{publish}"));
+    // Jobs sit two spaces in, so the next line at that indentation opens the following job.
+    let rest = &publish[start..];
+    let end = rest
+        .match_indices("\n  ")
+        .skip(1)
+        .map(|(offset, _)| offset)
+        .find(|offset| {
+            let candidate = &rest[*offset..];
+            candidate.starts_with("\n  ") && !candidate.starts_with("\n    ")
+        })
+        .unwrap_or(rest.len());
+    rest[..end].to_owned()
+}
+
 #[then("the publish file prints the store to package mapping")]
 fn publish_file_prints_mapping(project: &Project) {
     // The mapping is a derived view: the renderer reports it, so a mapping error is

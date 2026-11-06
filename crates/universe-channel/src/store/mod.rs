@@ -21,10 +21,12 @@ use std::collections::BTreeMap;
 
 mod filesystem;
 mod http;
+mod oidc;
 mod releases;
 
 pub use filesystem::FilesystemRemote;
-pub use http::{HttpRemote, Method, Request};
+pub use http::{Http, HttpRemote, Method, Request};
+pub use oidc::{OidcExchange, TrustedPublisher, audience_for};
 pub use releases::{Asset, Release, ReleaseReport, Releases};
 
 /// One place bytes go, as the publisher needs to describe it.

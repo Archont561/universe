@@ -910,6 +910,38 @@ impl Manifest {
                     );
                 }
             }
+            // An identity token is exchanged at prefix.dev's mint endpoint, and no other
+            // destination is known to verify one. Refusing here rather than at the first
+            // upload means a tag never discovers it.
+            if store.auth == StoreAuth::Oidc && store.kind != StoreKind::PrefixDev {
+                diagnostics.push(
+                    Diagnostic::new(
+                        Severity::Error,
+                        "manifest.store.oidc.unsupported",
+                        format!(
+                            "store '{}' is a '{}' store and asks for `auth = \"oidc\"`, whose                              exchange is only defined for a prefix.dev channel; use                              `auth = \"token\"` and name a secret",
+                            store.name,
+                            store.kind.as_str()
+                        ),
+                    )
+                    .with_path(format!("{path}.auth")),
+                );
+            }
+            // Trusted publishing exists so that no long-lived credential has to be stored.
+            // Naming one alongside it is not wrong so much as contradicted.
+            if store.auth == StoreAuth::Oidc && !store.secrets.is_empty() {
+                diagnostics.push(
+                    Diagnostic::new(
+                        Severity::Warning,
+                        "manifest.store.oidc.secret",
+                        format!(
+                            "store '{}' mints its token from the job's identity and names a                              secret as well; the renderer exports the secret, which trusted                              publishing does not need",
+                            store.name
+                        ),
+                    )
+                    .with_path(format!("{path}.secrets")),
+                );
+            }
             if store.writable && store.auth == StoreAuth::Token && store.secrets.is_empty() {
                 diagnostics.push(
                     Diagnostic::new(
@@ -1631,11 +1663,41 @@ verifier = "registry"
     }
 
     #[test]
-    fn store_identity_and_addresses_are_checked() {
-        let text = MINIMAL.replace(
-            "channel = \"someone/channel\"",
-            "channel = \" \"\nsecrets = [\" \"]",
+    fn an_oidc_store_must_be_a_prefix_dev_channel() {
+        let text = MINIMAL.replace("kind = \"prefix-dev\"", "kind = \"anaconda\"");
+        let diagnostics = problems(&text);
+
+        assert_eq!(codes(&diagnostics), ["manifest.store.oidc.unsupported"]);
+        assert_eq!(diagnostics[0].path(), Some("stores[0].auth"));
+        assert!(
+            diagnostics[0].message().contains("auth = \"token\""),
+            "{:?}",
+            diagnostics[0].message()
         );
+    }
+
+    #[test]
+    fn an_oidc_store_that_also_names_a_secret_is_told_it_is_not_needed() {
+        let text = MINIMAL.replace("auth = \"oidc\"", "auth = \"oidc\"\nsecrets = [\"TOKEN\"]");
+        let diagnostics = findings(&text);
+
+        assert_eq!(codes(&diagnostics), ["manifest.store.oidc.secret"]);
+        assert!(
+            !diagnostics[0].is_error(),
+            "naming a secret is redundancy, not a mistake that stops the build"
+        );
+    }
+
+    #[test]
+    fn store_identity_and_addresses_are_checked() {
+        // A token store, so the only findings are about identity and address: an `oidc` store
+        // that also names a secret has its own diagnostic, tested above.
+        let text = MINIMAL
+            .replace(
+                "channel = \"someone/channel\"",
+                "channel = \" \"\nsecrets = [\" \"]",
+            )
+            .replace("auth = \"oidc\"", "auth = \"token\"");
         let diagnostics = problems(&text);
         assert_eq!(
             codes(&diagnostics),

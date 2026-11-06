@@ -4,7 +4,7 @@ title: Implement multi-target artifact publisher (prefix.dev OIDC, S3, Anaconda,
 status: In Progress
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-11-04 16:40'
+updated_date: '2026-11-06 15:10'
 labels:
   - channel
   - release
@@ -70,8 +70,7 @@ Not done here, and deliberately still open:
   it: `cmake` joined the Pixi environment (`aws-lc-sys` drives its bundled C with CMake), and
   `deny.toml` allows the `OpenSSL` licence *identifier* for `aws-lc-sys` plus
   `CDLA-Permissive-2.0` for `webpki-root-certs`, while the `openssl`/`openssl-sys` *crates*
-  stay banned. What is still missing is `auth = "oidc"`: the store is refused because the
-  token exchange does not exist yet, so a real prefix.dev publish still needs a token store.
+  stay banned. `auth = "oidc"` landed on 2026-11-06 — see the note below.
 - **The `.conda.json` fragment commit to `index_branch`** from the description above is not
   implemented; the release store uploads assets only.
 - **The rendered publish jobs now name the right verb (2026-11-06).** The renderer emitted
@@ -86,7 +85,8 @@ Not done here, and deliberately still open:
   command lines out of the rendered file and runs them against a directory store and a bare
   repository, which is the check `ci-check` cannot make: that the file agrees with itself, not
   that the job works.
-- **A branch push from CI still has no credential (open).** `publish` pushes from a scratch
+- **A branch push from CI had no credential** (closed 2026-11-06; the paragraph is kept for
+  the argument, not the status). `publish` pushes from a scratch
   repository nested in the checkout, and `actions/checkout` persists its token into the
   *outer* repository's config, which git does not inherit. The rendered command now names the
   right remote, so this is the only thing between the branch job and a green tag run. The
@@ -94,4 +94,42 @@ Not done here, and deliberately still open:
   environment variables (never argv, where `ps` would show it), with the token read from the
   store's declared secret; it pairs with the OIDC exchange below, which is why both are one
   slice.
+
+2026-11-06 — trusted publishing and the branch credential, one slice. Two mechanisms, one
+question: where does a token come from when nothing long-lived is stored?
+
+- **`auth = "oidc"` publishes.** `crates/universe-channel/src/store/oidc.rs` holds
+  `OidcExchange`: the job's GitHub identity (`GET $ACTIONS_ID_TOKEN_REQUEST_URL&audience=…`
+  with `ACTIONS_ID_TOKEN_REQUEST_TOKEN`) is exchanged at `POST {server}/api/oidc/mint_token`
+  with `{"token": <jwt>}` for the bearer, which is the raw answer body — the shape
+  `rattler_networking`'s `PrefixMint` speaks, so the ecosystem's uploaders and this one agree.
+  The audience is `prefix.dev` for `prefix.dev` and its subdomains and the endpoint's own host
+  otherwise, so a token minted for one server cannot be replayed at another; `prefix.dev.` and
+  `evil-prefix.dev` fail closed. A job without `id-token: write` is told which permission it
+  is missing rather than shown a transport error.
+- **One mint per destination per run.** `publish-artifacts` builds `Credentials` once and
+  hands a token to every store on the same server, then drops it; the bearer is never logged,
+  echoed, or carried into a message. The HTTP client moved into `Http` so the exchange and the
+  uploads share one request path instead of a second one.
+- **The manifest refuses what cannot work.** `auth = "oidc"` on a store that is not a
+  `prefix-dev` channel is now an error (`manifest.store.oidc.unsupported`) naming `auth =
+  "token"` as the way out, and naming a secret alongside OIDC is a warning
+  (`manifest.store.oidc.secret`): redundant, not fatal.
+- **A branch push authenticates.** `GitTransport::authenticated` takes the store's declared
+  secret — rendered name first, then the bare one — and supplies it as
+  `http.<origin>/.extraheader` through `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_0`/
+  `GIT_CONFIG_VALUE_0`: environment, never argv, where `ps` would show it and an error message
+  would quote it. GitHub gets the checkout shape (`AUTHORIZATION: basic base64(x-access-token:…)`);
+  any other host gets `Authorization: Bearer`. A secret the environment does not hold falls
+  back to git's own credential — a local developer's helper or SSH key — because a declared
+  secret is an override there, not a requirement.
+- **What proves it.** `crates/universe-channel/tests/store_oidc.rs` stands a `wiremock`
+  server in front of both requests and asserts the audience, the body, and each failure;
+  `crates/universe-kit/src/git.rs` runs the real `git` against a socket that records what it
+  was sent; `crates/universe-kit/tests/push_credential.rs` drives the binary with the
+  renderer's variable name and asserts the push lands, that an absent variable still pushes,
+  and that the token never reaches stdout or stderr; and a renderer scenario asserts
+  `id-token: write` is on the *hosted* job and that the hosted job reads no `secrets.`.
+- **Still open in this task:** the `.conda.json` fragment commit to `index_branch`, S3,
+  Quetz and Artifactory upload paths.
 <!-- SECTION:NOTES:END -->
