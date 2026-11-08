@@ -322,6 +322,32 @@ rules:
     message: "tests/ must hold at least one test module"
     level: error
 
+  # --- Session start ------------------------------------------------------
+  # `AGENTS.md` rule 14 tells an agent to bring the environment up before it reads anything,
+  # and the rule is only worth having if the three steps stay in the file. Each pattern is
+  # the command itself rather than a sentence about it, so a rewrite that keeps the meaning
+  # keeps the rule green and a rewrite that drops the command does not.
+  - id: agents-md-checks-for-pixi
+    kind: file_content_matches
+    paths: "AGENTS.md"
+    pattern: "command -v pixi"
+    message: "AGENTS.md must say `command -v pixi` is the first thing a session checks"
+    level: error
+
+  - id: agents-md-names-the-restore-script
+    kind: file_content_matches
+    paths: "AGENTS.md"
+    pattern: "bash scripts/restore\\.sh"
+    message: "AGENTS.md must name `bash scripts/restore.sh` as the way back when Pixi is absent"
+    level: error
+
+  - id: agents-md-installs-the-hooks-at-session-start
+    kind: file_content_matches
+    paths: "AGENTS.md"
+    pattern: "pixi run setup"
+    message: "AGENTS.md must say the session installs the Lefthook hooks with `pixi run setup`"
+    level: error
+
   # --- Prose linting ------------------------------------------------------
   # Vale owns how the documentation is written (`decision-138`). These rules own only the
   # question Vale cannot answer about itself: is the linter still wired to a configuration

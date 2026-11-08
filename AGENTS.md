@@ -8,6 +8,10 @@ gate run, task closure, and hand-off. A session is a sprint by default: one
 milestone slice, one version target, and a checked task file at the end. A
 task-long session is an explicit exception.
 
+**Before any of that, bring the environment up** — rule 14 below. A session whose
+first act is reading the roadmap discovers its missing Pixi after it has already
+planned work it cannot run.
+
 ## What this project is
 
 Universe is one Rust monorepo with two product lanes:
@@ -169,6 +173,52 @@ not replace the Python repository scripts.
       `.vale/styles/config/vocabularies/Universe/accept.txt`, and a casing
       variant that is correct in some context stays out of the vocabulary
       entirely — an accepted term is enforced everywhere.
+
+14. **A session starts with the environment, not with the Backlog.** Three steps,
+    in this order, before the first file is read: check that `pixi` exists,
+    restore it when it does not, and install the Git hooks.
+
+    ```bash
+    # 1. Is the entrypoint here? 2. If not, restore it and put it on PATH. 3. Wire the hooks.
+    if ! command -v pixi >/dev/null; then
+      PIXI_SANDBOX_USER_TOOLS=skip bash scripts/restore.sh
+      export PATH="$PWD/.pixi/tools/linux-64:$PATH"
+    fi
+    pixi run setup
+    ```
+
+    - `command -v pixi` is the check. Not `pixi --version`, which answers the same
+      question more slowly and fails as though the environment were broken rather
+      than absent.
+    - `scripts/restore.sh` rebuilds the pinned environment from the sandbox
+      branch, and is the only supported way back. `PIXI_SANDBOX_USER_TOOLS=skip`
+      keeps it from writing outside the repository, which is why the restore is
+      followed by the `export PATH` line: with `skip`, the launcher is on disk at
+      `.pixi/tools/linux-64` and nowhere else, so the next command cannot find it.
+      A `cargo install`, a system package manager, or a bare `pip install` is not
+      a substitute: the gates were measured against the version the bundle
+      carries.
+    - `pixi run setup` is the hooks step, and skipping it is what turns a rejected
+      commit into a rewritten branch. It reaches `hooks-install`, which is
+      `lefthook install`, writing `commit-msg`, `pre-commit`, `pre-push`, and
+      `post-checkout` into `.git/hooks`. Verify rather than assume, because a
+      restore can leave `.git/hooks` untouched and a stale clone keeps passing
+      checks this repository no longer accepts:
+
+      ```bash
+      for hook in commit-msg pre-commit pre-push; do
+        test -x ".git/hooks/$hook" || echo "missing hook: $hook"
+      done
+      ```
+
+    - When neither Pixi nor the restore branch is reachable, say so before
+      touching anything else and name the proof the session cannot produce.
+      `scripts/repo_check.py` refuses a `pixi.toml` whose `setup` no longer
+      reaches `hooks-install`, and `.alint.yml` refuses an `AGENTS.md` that has
+      lost this rule, so the sequence above cannot rot silently.
+
+    `.agents/skills/session/SKILL.md` section 1 continues from the hooks with
+    `pixi install --locked`, the baseline test run, and the rest of the session.
 
 ## Commands
 

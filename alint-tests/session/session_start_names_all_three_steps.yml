@@ -1,0 +1,42 @@
+test_version: 1
+name: AGENTS.md states the Pixi check, the restore, and the hooks step
+tags: [check, agents, session, structure, passing]
+
+docs:
+  title: the session-start rule keeps its three commands
+  case: pass
+  kind: file_content_matches
+
+given:
+  tree:
+    AGENTS.md: |
+      14. **A session starts with the environment, not with the Backlog.**
+
+          ```bash
+          command -v pixi >/dev/null || PIXI_SANDBOX_USER_TOOLS=skip bash scripts/restore.sh
+          pixi run setup
+          ```
+  config: |
+    version: 1
+    rules:
+      - id: agents-md-checks-for-pixi
+        kind: file_content_matches
+        paths: "AGENTS.md"
+        pattern: "command -v pixi"
+        level: error
+      - id: agents-md-names-the-restore-script
+        kind: file_content_matches
+        paths: "AGENTS.md"
+        pattern: "bash scripts/restore\\.sh"
+        level: error
+      - id: agents-md-installs-the-hooks-at-session-start
+        kind: file_content_matches
+        paths: "AGENTS.md"
+        pattern: "pixi run setup"
+        level: error
+
+when: [check]
+
+expect:
+  - exit: success
+    violations: []

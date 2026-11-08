@@ -18,6 +18,7 @@ from scripts.repo_check import (
     validate_required_gate_name,
     validate_roadmap_coverage,
     validate_scheduled_audit,
+    validate_session_bootstrap,
     validate_workflow_push_paths,
 )
 
@@ -252,6 +253,31 @@ def test_the_cheap_checks_run_before_anything_compiles() -> None:
     assert validate_gate_order(ordered) == []
     assert any("first dependency" in error for error in validate_gate_order(compile_first))
     assert any("missing the checks" in error for error in validate_gate_order(incomplete))
+
+
+def test_the_session_start_installs_the_hooks() -> None:
+    wired = (
+        "[tasks]\n"
+        'setup = { depends-on = ["hooks-install"] }\n'
+        'hooks-install = { cmd = "lefthook install" }\n'
+    )
+    # A `setup` that still exists but reaches nothing is the failure worth catching: the
+    # command succeeds, the session thinks the hooks are on, and the first bad commit is the
+    # one that finds out otherwise.
+    no_hooks = (
+        '[tasks]\nsetup = { depends-on = ["fmt"] }\nhooks-install = { cmd = "lefthook install" }\n'
+    )
+    renamed = (
+        '[tasks]\nsetup = { depends-on = ["hooks-install"] }\nhooks-install = { cmd = "true" }\n'
+    )
+
+    assert validate_session_bootstrap(wired) == []
+    assert any(
+        "must depend on `hooks-install`" in error for error in validate_session_bootstrap(no_hooks)
+    )
+    assert any(
+        "must run `lefthook install`" in error for error in validate_session_bootstrap(renamed)
+    )
 
 
 def test_ci_keeps_a_job_named_gates() -> None:
