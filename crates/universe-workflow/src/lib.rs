@@ -334,7 +334,17 @@ fn to_identifier(text: &str) -> String {
 fn checkout_and_pixi(job: Job) -> Job {
     let mut steps = vec![
         Step::uses(universe_assets::CHECKOUT),
-        Step::uses(universe_assets::SETUP_PIXI),
+        // The version is named rather than left to the action: unpinned, every job waits on a
+        // GitHub API lookup for the newest Pixi, and that lookup failing fails the job before
+        // the repository runs anything. The lockfile is enforced by the `--frozen` the rendered
+        // commands already carry, so it is not repeated here.
+        Step::uses_with(
+            universe_assets::SETUP_PIXI,
+            &[
+                ("pixi-version", universe_assets::PIXI_VERSION),
+                ("cache", "true"),
+            ],
+        ),
     ];
     steps.extend(job.steps);
     Job { steps, ..job }
@@ -887,6 +897,48 @@ format = "cargo fmt --check"
             .replace("writable = true\n", "writable = false\n");
         let manifest = Manifest::from_toml(&text).expect("manifest parses");
         (manifest, text)
+    }
+
+    #[test]
+    fn every_pixi_setup_names_the_version_it_installs() {
+        // An unpinned setup asks the GitHub API for the newest Pixi on every run, so the job
+        // can fail before it reads the repository at all — which is what happened twice on
+        // `main`. A generated workflow that names the version cannot.
+        let rendered = render(&manifest(), MANIFEST).expect("renders").files;
+        let mut setups = 0;
+        for file in &rendered {
+            let lines: Vec<&str> = file.content.lines().collect();
+            for (index, line) in lines.iter().enumerate() {
+                if !line
+                    .trim_start()
+                    .starts_with("- uses: prefix-dev/setup-pixi@")
+                {
+                    continue;
+                }
+                setups += 1;
+                // The inputs live in the step's own `with:` block, so the block has to be read
+                // until the next step starts: a `pixi-version` belonging to a later step would
+                // otherwise satisfy this.
+                let block: String = lines[index + 1..]
+                    .iter()
+                    .take_while(|next| !next.trim_start().starts_with("- "))
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                assert!(
+                    block.contains("pixi-version:"),
+                    "a setup step installs whatever Pixi is newest: {line}\n{block}"
+                );
+                assert!(
+                    block.contains(universe_assets::PIXI_VERSION),
+                    "the setup step names a version the repository does not build with: {block}"
+                );
+            }
+        }
+        assert!(
+            setups > 0,
+            "no job sets Pixi up, so this test asserted nothing"
+        );
     }
 
     #[test]
