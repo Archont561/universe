@@ -234,13 +234,13 @@ def test_the_cheap_checks_run_before_anything_compiles() -> None:
     ordered = (
         "[tasks]\n"
         'check-fast = { depends-on = ["fmt-check", "backlog-check", "repo-check", '
-        '"skills-check", "alint-check", "crate-check", "lint-gherkin"] }\n'
+        '"skills-check", "alint-check", "crate-check", "lint-gherkin", "lint-prose"] }\n'
         'check = { depends-on = ["check-fast", "lint", "typecheck"] }\n'
     )
     compile_first = (
         "[tasks]\n"
         'check-fast = { depends-on = ["fmt-check", "backlog-check", "repo-check", '
-        '"skills-check", "alint-check", "crate-check", "lint-gherkin"] }\n'
+        '"skills-check", "alint-check", "crate-check", "lint-gherkin", "lint-prose"] }\n'
         'check = { depends-on = ["lint", "check-fast"] }\n'
     )
     incomplete = (
