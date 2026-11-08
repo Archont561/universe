@@ -31,6 +31,15 @@ pub const CHECKOUT: &str = "actions/checkout@3d3c42e5aac5ba805825da76410c181273b
 pub const SETUP_PIXI: &str =
     "prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2";
 
+/// The Pixi version a generated workflow installs.
+///
+/// Pinning the action is not enough: without `pixi-version` the action resolves "latest"
+/// against the GitHub API on every run, which makes a job depend on a lookup that can fail on
+/// its own — twice on `main` it returned `504`, and the job died before running a single
+/// repository command. Every hand-written workflow in this repository already names this
+/// version, so the generated one is the odd one out without it.
+pub const PIXI_VERSION: &str = "v0.83.0";
+
 /// `actions/upload-artifact`, pinned.
 ///
 /// A build that produces an artifact on one runner and audits it on another needs the bytes
@@ -46,9 +55,35 @@ pub const DOWNLOAD_ARTIFACT: &str =
 #[cfg(test)]
 mod tests {
     use super::{
-        CHECKOUT, DOWNLOAD_ARTIFACT, SETUP_PIXI, UPLOAD_ARTIFACT, VERSION, WORKFLOW_TEMPLATE,
-        portal_assets,
+        CHECKOUT, DOWNLOAD_ARTIFACT, PIXI_VERSION, SETUP_PIXI, UPLOAD_ARTIFACT, VERSION,
+        WORKFLOW_TEMPLATE, portal_assets,
     };
+
+    /// The figures this repository builds its environment with, read at compile time.
+    const PIXI_TOML: &str = include_str!("../../../pixi.toml");
+    const SANDBOX_TOML: &str = include_str!("../../../.pixi-sandbox.toml");
+
+    #[test]
+    fn the_pinned_pixi_version_matches_the_toolchain_this_repository_builds_with() {
+        // Three places name Pixi — the sandbox that provisions the developer environment, the
+        // workspace's floor, and now the generated workflow. A version that drifted here would
+        // fail a job in a way that looks like an infrastructure fault, which is exactly how the
+        // unpinned setup failed before this existed.
+        assert!(
+            SANDBOX_TOML.contains(&format!("pixi_version = \"{PIXI_VERSION}\"")),
+            "the sandbox provisions a different Pixi than the generated workflow installs"
+        );
+        let floor = PIXI_TOML
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("requires-pixi = "))
+            .expect("pixi.toml declares requires-pixi");
+        let floor = floor.trim().trim_matches('"').trim_start_matches(">=");
+        assert_eq!(
+            PIXI_VERSION.trim_start_matches('v'),
+            floor,
+            "the workspace floor and the pinned version disagree: {floor}"
+        );
+    }
 
     #[test]
     fn version_matches_the_package_manifest() {
