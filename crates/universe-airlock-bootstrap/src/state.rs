@@ -25,8 +25,8 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use crate::diagnostics::Finding;
-use crate::payload::{Artifact, Report};
 use crate::hash::Hasher;
+use crate::payload::{Artifact, Report};
 
 /// The receipt a materialised environment carries, so a later `doctor` can describe it without
 /// the payload it came from.
@@ -531,8 +531,8 @@ pub fn inspect(layout: &Layout) -> Status {
 #[cfg(test)]
 mod tests {
     use super::{Layout, Receipt, Status, activate, default_root, inspect};
-    use crate::payload::verify;
     use crate::hash::sha256_hex;
+    use crate::payload::verify;
     use crate::signature::Lane;
 
     const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -617,8 +617,11 @@ mod tests {
         );
         std::fs::write(second.path().join("universe-release.json"), manifest).expect("manifest");
         let report = verify(second.path(), Lane::Developer, None).expect("verifies");
-        std::fs::write(second.path().join("airlock-0.1.0.conda"), b"tampered after verification\n")
-            .expect("tamper");
+        std::fs::write(
+            second.path().join("airlock-0.1.0.conda"),
+            b"tampered after verification\n",
+        )
+        .expect("tamper");
 
         let failure = activate(&layout, second.path(), &report).expect_err("must refuse");
 
@@ -643,7 +646,7 @@ mod tests {
     fn a_second_restore_records_what_it_replaced() {
         let state = tempfile::TempDir::new().expect("a scratch directory");
         let layout = Layout::new(state.path().join("state"));
-        let first_payload = payload("previous-first");
+        let first_payload = payload();
         let first = activate(
             &layout,
             first_payload.path(),

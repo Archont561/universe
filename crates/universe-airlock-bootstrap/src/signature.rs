@@ -155,7 +155,10 @@ fn assess_with_keys(
     let bytes = std::fs::read(&manifest).map_err(|error| {
         vec![Finding::error(
             "airlock.payload.manifest",
-            format!("cannot read {} for verification: {error}", manifest.display()),
+            format!(
+                "cannot read {} for verification: {error}",
+                manifest.display()
+            ),
         )]
     })?;
 
@@ -175,6 +178,20 @@ fn assess_with_keys(
         };
         match public_key.verify(&bytes, &signature, false) {
             Ok(()) => return Ok((Verdict::Verified, Vec::new())),
+            Err(minisign_verify::Error::UnexpectedAlgorithm) => {
+                // A legacy minisign signature covers the file itself instead of its BLAKE2b
+                // prehash. Refused, and said as refusals go: calling it a mismatch would
+                // blame tampering for what is only an old signing mode.
+                refused = Some(Finding::error(
+                    "airlock.signature.algorithm",
+                    format!(
+                        "{} is a legacy-mode minisign signature (the kind that signs the file \
+                         rather than its prehash); this bootstrap accepts only modern, \
+                         prehashed signatures — re-sign the payload with a current minisign",
+                        path.display()
+                    ),
+                ));
+            }
             Err(minisign_verify::Error::UnexpectedKeyId) => {
                 // Not this key's signature. Another key in the set may still match, which is
                 // what makes a rotation (old key and new key both compiled in) work.
@@ -230,29 +247,29 @@ mod tests {
     use std::path::Path;
     use tempfile::TempDir;
 
-    /// A published minisign key and a signature over the bytes `test`.
+    /// A minisign key and a prehashed (`ED`) signature over the bytes `test`.
     ///
-    /// Taken from the verifier crate's own documentation example, so it is a genuine signed
-    /// vector rather than something this repository produced and could agree with by being
-    /// wrong in the same way. It exercises the wiring: key decoding, key-id matching, and the
-    /// prehashed algorithm.
-    const FIXTURE_KEY: &str = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3";
-    const FIXTURE_SIGNATURE: &str = "untrusted comment: signature from minisign secret key\n\
-RWQf6LRCGA9i59SLOFxz6NxvASXDJeRtuZykwQepbDEGt87ig1BNpWaVWuNrm73YiIiJbq71Wi+dP9eKL8OC351vwIasSSbXxwA=\n\
-trusted comment: timestamp:1555779966\tfile:test\n\
-QtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfNQUaOAA==\n";
-    /// A second, unrelated published key: its id matches nothing in the fixture signature.
-    const OTHER_KEY: &str = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLnb3R7GFO4";
+    /// `tests/fixtures/minisign/README.md` records where these come from: throwaway key
+    /// pairs, signed with an implementation independent of this crate, so the vector is
+    /// genuine rather than something this repository could agree with by being wrong in the
+    /// same way. It exercises the wiring — key decoding, key-id matching, the prehash, and
+    /// the global signature over the trusted comment.
+    const FIXTURE_KEY: &str = include_str!("../tests/fixtures/minisign/release-key.pub");
+    const FIXTURE_SIGNATURE: &str =
+        include_str!("../tests/fixtures/minisign/universe-release.json.minisig");
+    /// A second, unrelated key: its id matches nothing the fixture signature names, which is
+    /// the case a rotation set has to tolerate.
+    const OTHER_KEY: &str = include_str!("../tests/fixtures/minisign/rotation-key.pub");
+    /// The same key in legacy mode: it signs the file itself rather than its prehash.
+    const LEGACY_SIGNATURE: &str =
+        include_str!("../tests/fixtures/minisign/legacy-universe-release.json.minisig");
 
     fn payload_with(manifest: &[u8], signature: Option<&str>) -> TempDir {
         let directory = TempDir::new().expect("a temporary payload");
         std::fs::write(directory.path().join("universe-release.json"), manifest).expect("manifest");
         if let Some(text) = signature {
-            std::fs::write(
-                directory.path().join("universe-release.json.minisig"),
-                text,
-            )
-            .expect("signature");
+            std::fs::write(directory.path().join("universe-release.json.minisig"), text)
+                .expect("signature");
         }
         directory
     }
@@ -280,7 +297,11 @@ QtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfN
             assess(payload.path(), Lane::Developer).expect("allowed on this lane");
         assert_eq!(verdict, Verdict::Unsigned);
         assert_eq!(warnings[0].code(), "airlock.signature.absent");
-        assert!(warnings[0].message().contains("nothing proves who wrote it"));
+        assert!(
+            warnings[0]
+                .message()
+                .contains("nothing proves who wrote it")
+        );
     }
 
     #[test]
@@ -316,12 +337,32 @@ QtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfN
     }
 
     #[test]
+    fn a_legacy_signature_is_named_as_an_old_signing_mode_not_as_tampering() {
+        // The key id matches, so this is not a key question: the payload really was signed by
+        // a key we carry, just in the mode that predates prehashing. Reporting it as a
+        // mismatch would send someone hunting for an alteration that never happened.
+        let payload = payload_with(b"test", Some(LEGACY_SIGNATURE));
+        let findings = assess_with_keys(payload.path(), Lane::Sealed, &[FIXTURE_KEY])
+            .expect_err("must refuse");
+        assert_eq!(findings[0].code(), "airlock.signature.algorithm");
+        assert!(
+            findings[0].message().contains("prehashed"),
+            "{}",
+            findings[0].message()
+        );
+    }
+
+    #[test]
     fn a_signature_from_an_unknown_key_is_named_as_an_unknown_key() {
         let payload = payload_with(b"test", Some(FIXTURE_SIGNATURE));
-        let findings = assess_with_keys(payload.path(), Lane::Sealed, &[OTHER_KEY])
-            .expect_err("must refuse");
+        let findings =
+            assess_with_keys(payload.path(), Lane::Sealed, &[OTHER_KEY]).expect_err("must refuse");
         assert_eq!(findings[0].code(), "airlock.signature.unknown-key");
-        assert!(findings[0].message().contains("rotation"), "{}", findings[0].message());
+        assert!(
+            findings[0].message().contains("rotation"),
+            "{}",
+            findings[0].message()
+        );
     }
 
     #[test]
@@ -329,8 +370,9 @@ QtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfN
         // `decision-131` §4: rotation publishes a bootstrap carrying both the old key and the
         // new one. An unrelated key beside the matching one must not break verification.
         let payload = payload_with(b"test", Some(FIXTURE_SIGNATURE));
-        let (verdict, _) = assess_with_keys(payload.path(), Lane::Sealed, &[OTHER_KEY, FIXTURE_KEY])
-            .expect("one of the keys matches");
+        let (verdict, _) =
+            assess_with_keys(payload.path(), Lane::Sealed, &[OTHER_KEY, FIXTURE_KEY])
+                .expect("one of the keys matches");
         assert_eq!(verdict, Verdict::Verified);
     }
 
@@ -342,7 +384,9 @@ QtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfN
         assert_eq!(findings[0].code(), "airlock.signature.malformed");
 
         assert!(looks_like_a_minisign_container(FIXTURE_SIGNATURE));
-        assert!(!looks_like_a_minisign_container("untrusted comment: only one line"));
+        assert!(!looks_like_a_minisign_container(
+            "untrusted comment: only one line"
+        ));
         assert!(!looks_like_a_minisign_container(
             "untrusted comment: x\nsig\ntrusted comment: y\n"
         ));
