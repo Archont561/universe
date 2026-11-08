@@ -1,0 +1,32 @@
+test_version: 1
+name: an AGENTS.md that checks for Pixi and restores it but never installs the hooks is refused
+tags: [check, agents, session, structure, failing]
+
+docs:
+  title: a restored environment with no hooks is the failure the rule exists to prevent
+  case: fail
+  kind: file_content_matches
+
+given:
+  tree:
+    AGENTS.md: |
+      14. **A session starts with the environment, not with the Backlog.**
+
+          ```bash
+          command -v pixi >/dev/null || PIXI_SANDBOX_USER_TOOLS=skip bash scripts/restore.sh
+          ```
+  config: |
+    version: 1
+    rules:
+      - id: agents-md-installs-the-hooks-at-session-start
+        kind: file_content_matches
+        paths: "AGENTS.md"
+        pattern: "pixi run setup"
+        level: error
+
+when: [check]
+
+expect:
+  - exit: policy_failure
+    violations:
+      - {rule: agents-md-installs-the-hooks-at-session-start, level: error}

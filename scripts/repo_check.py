@@ -301,6 +301,39 @@ def validate_gate_order(pixi_config: str) -> list[str]:
     return errors
 
 
+def validate_session_bootstrap(pixi_config: str) -> list[str]:
+    """Ensure the documented start of a session really installs the hooks.
+
+    `AGENTS.md` rule 14 tells an agent to run `pixi run setup` before it reads anything else,
+    and the whole value of that instruction is the hooks it wires. So `setup` has to reach
+    `hooks-install`, and `hooks-install` has to be `lefthook install`: a rename on either side
+    leaves a command that exits zero and installs nothing, which is the failure mode that
+    looks like success.
+    """
+    try:
+        tasks = tomllib.loads(pixi_config).get("tasks", {})
+    except tomllib.TOMLDecodeError as exc:
+        return [f"cannot parse Pixi tasks for the session bootstrap: {exc}"]
+
+    errors: list[str] = []
+    hooks_install = tasks.get("hooks-install", {})
+    command = hooks_install.get("cmd") if isinstance(hooks_install, dict) else None
+    if not isinstance(command, str) or "lefthook install" not in command:
+        errors.append(
+            "`hooks-install` must run `lefthook install`; otherwise `pixi run setup` reports "
+            "success and installs no hooks"
+        )
+
+    setup = tasks.get("setup", {})
+    dependencies = setup.get("depends-on") if isinstance(setup, dict) else None
+    if not isinstance(dependencies, list) or "hooks-install" not in dependencies:
+        errors.append(
+            "`setup` must depend on `hooks-install`: the first command of a session is where "
+            "the hooks have to be installed"
+        )
+    return errors
+
+
 def validate_required_gate_name(ci_workflow: str) -> list[str]:
     """Ensure CI still reports a job called `gates`.
 
@@ -675,6 +708,7 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
         )
         errors.extend(validate_audit_gate(pixi_config.read_text(encoding="utf-8")))
         errors.extend(validate_gate_order(pixi_config.read_text(encoding="utf-8")))
+        errors.extend(validate_session_bootstrap(pixi_config.read_text(encoding="utf-8")))
         errors.extend(
             validate_workflow_push_paths(
                 sandbox_config.read_text(encoding="utf-8"),
