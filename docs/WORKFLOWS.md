@@ -9,14 +9,14 @@ refuses to let the result drift.
 
 $ universe ci render
   universe.yml          plan · validate · build(6×3) · audit · verify-artifact · verdict
-  universe-publish.yml  publish/releases · publish/conda-static · publish/conda-prefix
-                        publish/conda-anaconda · publish/pypi · publish/pypi-static
-                        publish/npm · publish/github-packages · publish/crates-io
-                        verify-index · verdict
+  universe-publish.yml  build(6×3) · publish/releases · publish/conda-static
+                        publish/conda-prefix · publish/conda-anaconda · publish/pypi
+                        publish/pypi-static · publish/npm · publish/github-packages
+                        publish/crates-io · verify-index · verdict
   universe-airlock.yml  mirror/pixi · mirror/bun · mirror/cargo · render-airlock · verdict
 ```
 
-Two things are worth noticing, because they are the design:
+Four things are worth noticing, because they are the design:
 
 - **Publishing is split by destination, not by ecosystem.** Each job holds exactly one write
   scope and one secret. Within a destination, packages publish serially — two writers racing on
@@ -26,6 +26,10 @@ Two things are worth noticing, because they are the design:
   yanked, never deleted, and a release that fails late has already written the earlier ones.
 - **A file is generated only if you declared the capability.** No stores, no publish file; no
   lock adapters, no airlock file. A consumer repository gets one file.
+- **The publish file builds what it publishes.** A workflow artifact belongs to the run that
+  uploaded it, so a publish job that downloaded one would find nothing unless its own file
+  built it first. The cost is a second compilation during a release, paid on purpose: a
+  release should not depend on another run's artifacts still existing.
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.

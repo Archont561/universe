@@ -76,9 +76,17 @@ a repository check rather than a release-time computation.
   path exists for the mock: what is exercised is what the workflow runs.
 - **What the rehearsal cannot prove, and therefore does not tick AC#4:** that prefix.dev
   accepts the artifact and that GitHub's OIDC exchange mints a token at all. Both need the
-  real destination. It also cannot exercise `universe-publish.yml` end to end, because that
-  workflow has no build job and downloads an artifact the tag's own run never uploaded — see
-  the finding recorded with this task's slice.
+  real destination.
+- **2026-11-08 — fixed: the publish file builds what it publishes.** The finding that made a
+  tag meaningless is closed. `universe-publish.yml` had no build job, and
+  `actions/download-artifact` reads only its own run's artifacts, so every publish job would
+  have downloaded an empty directory: a green pipeline that published nothing. The renderer
+  now emits the same build job in both files (`build_job` in
+  `crates/universe-workflow/src/lib.rs`), every store job carries `needs: [build]`, and the
+  publish verdict counts the build, so a failed build cannot read as a successful release.
+  `the_publish_file_builds_what_it_publishes` fails without it — verified by removing the
+  build and watching it fail. A tag run can now be exercised end to end against the mock
+  destination from the rehearsal above.
 - **A layout fact the rehearsal surfaced:** for `kind = "prefix-dev"`, `Target::location`
   addresses everything at `api/v1/upload/<channel>`, so `apply`'s per-artifact existence check
   degenerates to one check per channel. With one package in the channel that is exact; with

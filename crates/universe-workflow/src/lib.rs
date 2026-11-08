@@ -457,6 +457,41 @@ fn verb(arguments: &str) -> String {
     format!("pixi run --frozen universe -- {arguments}")
 }
 
+/// The job that produces `output/` and hands it to every later job.
+///
+/// A job's filesystem does not outlive it, so a build hands its bytes on as a workflow
+/// artifact and a consumer downloads them. It lives in one place because two files now need
+/// it: the main file audits and verifies what it builds, and the publish file publishes it.
+///
+/// `workflow` is the file's name in the rendered header, so the same job reads `universe /
+/// build` in one file and `publish / build` in the other.
+///
+/// This is also why the publish file builds instead of downloading the tag's artifacts from a
+/// different workflow run: `actions/download-artifact` only sees its own run, and a release
+/// that depends on another run's retention is a release that can fail for a reason nobody
+/// changed. A rebuild costs minutes on the one run where being self-contained matters.
+fn build_job(manifest: &Manifest, workflow: &str) -> Job {
+    checkout_and_pixi(
+        Job::new("build", workflow, Vec::new())
+            .with_timeout(25)
+            .with_matrix("platform", manifest.project.platforms.clone())
+            .with_step(Step::Run {
+                label: "Build the declared packages".to_owned(),
+                command: verb(&format!(
+                    "build --json --receipts {ARTIFACT_PATH}/.receipts"
+                )),
+            })
+            .with_step(Step::uses_with(
+                universe_assets::UPLOAD_ARTIFACT,
+                &[
+                    ("name", ARTIFACT_NAME),
+                    ("path", ARTIFACT_PATH),
+                    ("if-no-files-found", "error"),
+                ],
+            )),
+    )
+}
+
 fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     let checks = manifest.workflow.checks.declared();
     let mut view = Job::new("view", "universe", Vec::new())
@@ -484,28 +519,7 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     }
     validate = checkout_and_pixi(validate);
 
-    // A job's filesystem does not outlive it, so the build hands its bytes to the jobs that
-    // audit and verify them. Without this the audit job audits an empty tree — and, because
-    // audit fails closed, says so.
-    let build = checkout_and_pixi(
-        Job::new("build", "universe", Vec::new())
-            .with_timeout(25)
-            .with_matrix("platform", manifest.project.platforms.clone())
-            .with_step(Step::Run {
-                label: "Build the declared packages".to_owned(),
-                command: verb(&format!(
-                    "build --json --receipts {ARTIFACT_PATH}/.receipts"
-                )),
-            })
-            .with_step(Step::uses_with(
-                universe_assets::UPLOAD_ARTIFACT,
-                &[
-                    ("name", ARTIFACT_NAME),
-                    ("path", ARTIFACT_PATH),
-                    ("if-no-files-found", "error"),
-                ],
-            )),
-    );
+    let build = build_job(manifest, "universe");
 
     let audit = checkout_and_pixi(
         Job::new("audit", "universe", vec!["build".to_owned()])
@@ -553,11 +567,15 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
 }
 
 fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
-    let mut jobs = Vec::new();
+    // The publish file has its own build. `actions/download-artifact` reads the artifacts of
+    // *its own* run, so a publish job that downloads `universe-*` while this workflow has no
+    // build of its own finds nothing — which is what the first tag would have done, silently:
+    // a green pipeline that published no artifact.
+    let mut jobs = vec![build_job(manifest, "publish")];
     let mut publishes_anonymously = false;
 
     for store in manifest.stores.iter().filter(|store| store.writable) {
-        let mut job = Job::new(&store.name, "publish", Vec::new()).with_timeout(30);
+        let mut job = Job::new(&store.name, "publish", vec!["build".to_owned()]).with_timeout(30);
         if let Some(scope) = store_write_scope(store.kind) {
             job = job.with_permissions(&[(scope, "write")]);
         }
@@ -1154,6 +1172,53 @@ format = "cargo fmt --check"
             !publish.contains("secrets.CONDA_PREFIX"),
             "oidc holds no secret"
         );
+    }
+
+    #[test]
+    fn the_publish_file_builds_what_it_publishes() {
+        // The bug this pins: `download-artifact` reads only its own run's artifacts, so a
+        // publish job that downloads `universe-*` while the file has no build of its own
+        // finds nothing. The first tag would have published an empty directory and reported
+        // success — the failure mode that looks like a release.
+        let output = render(&manifest(), MANIFEST).expect("renders");
+        let publish = &output
+            .files
+            .iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+
+        assert!(
+            publish.contains("name: publish / build"),
+            "the publish file has no build job to produce `output/`"
+        );
+        // The build must upload, and the upload must be the artifact the publishers ask for
+        // by name; a build that keeps its bytes on its own runner publishes nothing.
+        let build = publish
+            .split("name: publish / conda-prefix")
+            .next()
+            .expect("the build job precedes the stores");
+        assert!(build.contains("actions/upload-artifact"));
+        assert!(build.contains("name: universe-${{ matrix.platform }}"));
+
+        // Every job that downloads the artifact has to wait for the build.
+        for store in ["conda-prefix", "conda-static"] {
+            let job = publish
+                .split(&format!("name: publish / {store}"))
+                .nth(1)
+                .expect("the store's job");
+            let job = job.split("name: publish /").next().expect("the job's body");
+            assert!(
+                job.contains("needs: [build]"),
+                "`{store}` downloads the artifact without waiting for the build"
+            );
+        }
+        // And the verdict counts it, so a failed build cannot read as a successful release.
+        let verdict = publish
+            .split("name: publish / verdict")
+            .nth(1)
+            .expect("the verdict job");
+        assert!(verdict.contains("build"));
     }
 
     #[test]
