@@ -151,4 +151,10 @@ publishes is proved usable by a real client.
   asks for `noarch` whatever the project builds.
 - **Still open in this task:** the `.conda.json` fragment commit to a dedicated `index_branch`
   for a release/hosted store, S3, Quetz and Artifactory upload paths.
+- **The upload path is now exercised end to end, not only per store.** The `wiremock` suites
+  in `universe-channel` prove what each store sends; `crates/universe-kit/tests/publish_mock.rs`
+  proves the verb around them, from `universe.toml` to the bytes on a socket, against a
+  destination the test owns. The mock needs no dependency: a loopback `TcpListener` records
+  the method, path and body, and answers a canned status. That keeps `Cargo.lock` untouched,
+  which matters because the lock is written by the relock workflow rather than by hand.
 <!-- SECTION:NOTES:END -->
