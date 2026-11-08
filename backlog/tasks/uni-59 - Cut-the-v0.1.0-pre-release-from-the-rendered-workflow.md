@@ -62,3 +62,26 @@ a repository check rather than a release-time computation.
 - [ ] #2 `pixi run gates` passes on the tagged commit.
 - [ ] #3 The task records both destination URLs and the restore transcript.
 <!-- DOD.END -->
+
+## Notes
+<!-- SECTION:NOTES.BEGIN -->
+- **2026-11-08 — the publish path can be rehearsed without a tag, and how far that goes.**
+  `crates/universe-kit/tests/publish_mock.rs` runs the real `publish-artifacts` verb against a
+  destination the test owns: the manifest is parsed, the fragment is read, the artifact's
+  digest is verified, the endpoint comes from the store's `url`, and the upload goes over a
+  loopback socket. It proves the three properties a tag run depends on — the bytes are posted
+  to the address the manifest declares, a destination reporting the same digest receives no
+  upload, and a destination holding a different digest is refused rather than overwritten.
+  Because `Target` takes its endpoint from `store.url` when one is present, no second code
+  path exists for the mock: what is exercised is what the workflow runs.
+- **What the rehearsal cannot prove, and therefore does not tick AC#4:** that prefix.dev
+  accepts the artifact and that GitHub's OIDC exchange mints a token at all. Both need the
+  real destination. It also cannot exercise `universe-publish.yml` end to end, because that
+  workflow has no build job and downloads an artifact the tag's own run never uploaded — see
+  the finding recorded with this task's slice.
+- **A layout fact the rehearsal surfaced:** for `kind = "prefix-dev"`, `Target::location`
+  addresses everything at `api/v1/upload/<channel>`, so `apply`'s per-artifact existence check
+  degenerates to one check per channel. With one package in the channel that is exact; with
+  two, the second artifact's digest is compared against the first's answer. Worth deciding
+  before the channel holds more than one package.
+<!-- SECTION:NOTES.END -->
