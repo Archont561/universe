@@ -100,15 +100,22 @@ jobs:
               printf '%s' "$message" | base64 --decode | pixi run lint-commit
             done
 
-  heavy:
-    name: build and test
+  # Two jobs rather than one, because the work is two complete compilations and they do not
+  # share a single artifact: clippy builds every target with the ordinary flags, and
+  # `cargo llvm-cov` rebuilds the same graph with `-C instrument-coverage`. Measured in the
+  # development sandbox on two cores, the pair cost 112s + 264s; run in one job they are
+  # additions, run in two they are a maximum. The names are kept (`build and test` for the
+  # compile-heavy half) so a required check that answers to one of them keeps reporting.
+  lint:
+    name: lint and typecheck
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    # Without a bound, a stalled step holds the runner for the job's default six hours before
-    # anything is reported, and the pull request shows `pending` rather than a failure. A hung
-    # gate is a failure, and should read as one.
-    timeout-minutes: 25
+    timeout-minutes: 15
+    # Incremental artefacts are never restored from the cache, so producing them buys the
+    # runner nothing and costs it disk.
+    env:
+      CARGO_INCREMENTAL: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -127,17 +134,57 @@ jobs:
       - name: Restore the Rust build cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          shared-key: universe
+          # A key of its own. GitHub's caches are immutable per key, so two jobs sharing one
+          # key means whichever saves first decides what the other restores — and the loser
+          # rebuilds from scratch on every run.
+          shared-key: universe-lint
 
       # `check-fast` already ran in its own lane, so this is the compile-based remainder
       # rather than the whole of `check`: the cheap half must not be paid for twice.
-      - name: Lint, type-check, and cover
+      - name: Lint, type-check, and check the generated files
         run: |
           pixi run --frozen lint
           pixi run --frozen typecheck
           pixi run --frozen ci-check
           pixi run --frozen airlock-check
-          pixi run --frozen coverage
+
+  heavy:
+    name: build and test
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    # Without a bound, a stalled step holds the runner for the job's default six hours before
+    # anything is reported, and the pull request shows `pending` rather than a failure. A hung
+    # gate is a failure, and should read as one.
+    timeout-minutes: 25
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Pixi environment
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.83.0
+          environments: default
+          cache: true
+          locked: true
+
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          # The instrumentation flags are part of the fingerprint, so this cache holds the
+          # build `cargo llvm-cov` produces and nothing else.
+          shared-key: universe-coverage
+
+      # The whole test suite runs here, through `cargo llvm-cov nextest`, and the thresholds
+      # are enforced by the task rather than by this file.
+      - name: Cover
+        run: pixi run --frozen coverage
 
       - name: Build
         run: pixi run --frozen build
@@ -178,7 +225,7 @@ jobs:
   gates:
     name: gates
     if: always()
-    needs: [changes, fast, heavy, web]
+    needs: [changes, fast, lint, heavy, web]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -186,6 +233,7 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           FAST: ${{ needs.fast.result }}
+          LINT: ${{ needs.lint.result }}
           HEAVY: ${{ needs.heavy.result }}
           WEB: ${{ needs.web.result }}
           CODE: ${{ needs.changes.outputs.code }}
@@ -197,6 +245,7 @@ jobs:
           [[ "$FAST" == success ]] || { echo "fast checks did not pass: $FAST" >&2; exit 1; }
           # A lane that was not selected reports `skipped`, which is a pass only when the
           # diff says it had nothing to check.
+          [[ "$CODE" == true ]] && { [[ "$LINT" == success ]] || { echo "lint and typecheck did not pass: $LINT" >&2; exit 1; }; }
           [[ "$CODE" == true ]] && { [[ "$HEAVY" == success ]] || { echo "build and test did not pass: $HEAVY" >&2; exit 1; }; }
           [[ "$WEB_CHANGED" == true ]] && { [[ "$WEB" == success ]] || { echo "web workspace did not pass: $WEB" >&2; exit 1; }; }
           echo "every selected lane passed (code=$CODE web=$WEB_CHANGED)"
