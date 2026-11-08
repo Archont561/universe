@@ -17,13 +17,10 @@
 //! publishes. The payload is *read*; producing one is the connected host's job.
 
 pub mod diagnostics;
+pub mod hash;
 pub mod payload;
-pub mod sha256;
 pub mod signature;
 pub mod state;
-
-#[cfg(test)]
-mod testing;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

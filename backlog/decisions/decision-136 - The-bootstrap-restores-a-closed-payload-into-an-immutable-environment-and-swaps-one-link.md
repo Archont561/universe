@@ -40,13 +40,19 @@ name is derived from the manifest's bytes rather than from a clock or a run id.
 can describe what is active without the payload it came from. The bootstrap has no JSON
 writer and adds no dependency for one; this record is written and read by the bootstrap alone.
 
-**The signature policy is implemented; the verifier is not.** `signature::RELEASE_KEYS` is
-empty and `signature::assess` refuses *any* signature it cannot check, on both lanes, with
-`airlock.signature.no-key`. Sealed mode refuses an unsigned payload outright; the developer
-lane proceeds and says, in a warning, that nothing proves who wrote the payload. That is
-`decision-131`'s split, and it is the only ordering that cannot be mistaken for verification.
-The Ed25519 arithmetic lands with `UNI-55`, which ships the key and owns rotation — a key
-without a verifier is a claim, and a verifier without a trusted key is a suggestion.
+**The signature policy and its verifier are implemented; the key is not.** Verification is
+minisign-compatible Ed25519 through `minisign-verify` — chosen for `decision-131`'s constraint
+and because it carries no dependencies of its own, so the bootstrap's dependency tree stays at
+one crypto crate. Key decoding, key-id matching, the prehashed algorithm, a mismatched
+manifest, and a rotation set carrying two keys are each tested against a published signed
+vector.
+
+`signature::RELEASE_KEYS` is still empty, so `assess` refuses *any* signature it cannot check,
+on both lanes, with `airlock.signature.no-key`. Sealed mode refuses an unsigned payload
+outright; the developer lane proceeds and says, in a warning, that nothing proves who wrote the
+payload. That is `decision-131`'s split, and it is the only ordering that cannot be mistaken
+for verification. `UNI-55` adds the key and the rotation procedure; shipping it is now a
+constant edit plus a ceremony, not a change of behaviour.
 
 ## Consequences
 
@@ -85,5 +91,9 @@ without a verifier is a claim, and a verifier without a trusted key is a suggest
 - **Allow the developer lane to accept an unverifiable *signature*.** Rejected. An unsigned
   payload is a known state; a signature this binary cannot check is an unknown one, and
   treating the two the same is how "it has a signature" becomes a reason to stop looking.
+- **Carry a hand-written SHA-256 rather than a crate.** Rejected once the transport could be
+  relocked: a security-critical binary should not hold bespoke cryptography, and `sha2` is
+  already in the workspace's dependency graph. The earlier local hasher existed only because a
+  mid-slice relock was not possible.
 - **Refuse to run `verify` on the developer lane without a key.** Rejected: `verify` is how a
   builder confirms their own payload, and refusing it would push them to `restore`.

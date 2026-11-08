@@ -62,10 +62,11 @@ why, so the next slice does not have to rediscover it:
   verifier are both worse than an honest refusal. `decision-136` records the split.
 - **No Pixi handover.** The payload is materialised as files; nothing yet creates a Pixi
   environment from it. That needs the payload shape `UNI-51` publishes.
-- **No dependency was added.** The SHA-256 the payload needs is a streaming implementation in
-  `src/sha256.rs`, checked against the FIPS vectors, because adding `sha2` (or `tempfile` for
-  tests) would have required a relock of the transport mid-slice. `UNI-55` will need real
-  cryptography and should decide the dependency question deliberately rather than inherit it.
+- **Dependencies went in through the relock bot, not around it.** The first cut carried a
+  hand-written SHA-256 and a scratch-directory helper to avoid a relock mid-slice; both were
+  removed in favour of `sha2` and `tempfile` (dev-only) once the manifests could be edited for
+  the bot to lock, and the signature verifier came with them as `minisign-verify` — zero
+  transitive dependencies, which is why it is the only crypto crate here.
 - **The end-to-end loop is covered in two halves**, not one process tree: the rendered
   entrypoint is executed against a real bare repository in `universe-kit` (with a stub
   bootstrapper, because a test cannot portably reach another crate's binary path), and the real

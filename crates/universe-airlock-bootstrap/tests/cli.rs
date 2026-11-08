@@ -93,7 +93,7 @@ struct Output {
 
 /// SHA-256 of the fixture bytes, taken from the crate so the fixture and the check agree.
 fn digest(bytes: &[u8]) -> String {
-    universe_airlock_bootstrap::sha256::sha256_hex(bytes)
+    universe_airlock_bootstrap::hash::sha256_hex(bytes)
 }
 
 #[test]
