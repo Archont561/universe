@@ -22,6 +22,7 @@
 //! [`decision-127`]: https://github.com/Archont561/universe/blob/main/backlog/decisions/decision-127%20-%20Manifest-facets-packages-stores-and-airlock-scopes.md
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -558,6 +559,12 @@ pub struct AirlockDeveloper {
 /// depth-one clone has to ask for it by name, and because two refs that agree is a fact a
 /// reader can check.
 ///
+/// `dir` is where the generated scripts land. It belongs in the manifest rather than only on
+/// the command line because the files are *committed and drift-checked*: a check that reads its
+/// location from a flag nobody passed compares the wrong file and reports agreement with a
+/// manifest it no longer describes. A `--output` on the command line still overrides, for a
+/// scratch render, but the committed location is the manifest's.
+///
 /// Every field here is interpolated into a generated shell script and a generated PowerShell
 /// script, so the validator holds them to a charset those scripts can carry in single quotes.
 /// Escaping at render time would be a second place to get it wrong.
@@ -573,6 +580,9 @@ pub struct AirlockRestore {
     /// Path to the bootstrapper inside the checkout, when it is not the default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bootstrap: Option<String>,
+    /// Directory the rendered entrypoints land in, when it is not the default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dir: Option<String>,
 }
 
 impl AirlockRestore {
@@ -581,10 +591,45 @@ impl AirlockRestore {
     pub fn bootstrap(&self) -> &str {
         self.bootstrap.as_deref().unwrap_or(DEFAULT_BOOTSTRAP)
     }
+
+    /// The directory the rendered entrypoints land in, relative to the project root.
+    #[must_use]
+    pub fn directory(&self) -> &str {
+        self.dir.as_deref().unwrap_or(DEFAULT_RESTORE_DIR)
+    }
 }
 
 /// Where the bootstrapper sits in a published ref when the manifest does not say.
 pub const DEFAULT_BOOTSTRAP: &str = "universe-airlock-bootstrap";
+
+/// Where the rendered entrypoints land when the manifest does not say.
+pub const DEFAULT_RESTORE_DIR: &str = ".universe-airlock";
+
+/// Why `dir` is not a directory a render may write into, if it is not.
+///
+/// The path is not interpolated into a script, so this is not the quoting rule; it is the rule
+/// that a render may not write outside the project. A generated file that escapes the root is
+/// a file nobody reviewed.
+#[must_use]
+pub fn restore_dir_problem(dir: &str) -> Option<String> {
+    if dir.trim().is_empty() {
+        return Some("it is empty".to_owned());
+    }
+    if Path::new(dir).is_absolute() {
+        return Some(format!(
+            "'{dir}' is absolute; a rendered path is relative to the project root"
+        ));
+    }
+    if dir.split(['/', '\\']).any(|segment| segment == "..") {
+        return Some(format!("'{dir}' climbs out of the project root"));
+    }
+    if !is_script_safe(dir) {
+        return Some(format!(
+            "'{dir}' holds characters an entrypoint cannot carry; allowed are letters, digits, and . - _ ~ : / @ +"
+        ));
+    }
+    None
+}
 
 /// Whether `text` is a full lowercase hex commit id.
 #[must_use]
@@ -835,6 +880,18 @@ impl Manifest {
                     ),
                 )
                 .with_path("airlock.developer.restore.commit"),
+            );
+        }
+        if let Some(dir) = &restore.dir
+            && let Some(problem) = restore_dir_problem(dir)
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.airlock.restore.dir",
+                    format!("`[airlock.developer.restore] dir` is refused: {problem}"),
+                )
+                .with_path("airlock.developer.restore.dir"),
             );
         }
         if let Some(bootstrap) = &restore.bootstrap
@@ -1676,9 +1733,10 @@ fn value_to_json(value: &toml_edit::Value) -> Result<serde_json::Value, String> 
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_BOOTSTRAP, KNOWN_PLATFORMS, LockAdapter, MANIFEST_SCHEMA_VERSION, Manifest,
-        PackageKind, RELEASE_MANIFEST_SCHEMA_VERSION, ReadAuth, ReleaseManifest, SkipExisting,
-        StoreAuth, StoreKind, Verifier, has_duplicates, is_commit, is_script_safe,
+        DEFAULT_BOOTSTRAP, DEFAULT_RESTORE_DIR, KNOWN_PLATFORMS, LockAdapter,
+        MANIFEST_SCHEMA_VERSION, Manifest, PackageKind, RELEASE_MANIFEST_SCHEMA_VERSION, ReadAuth,
+        ReleaseManifest, SkipExisting, StoreAuth, StoreKind, Verifier, has_duplicates, is_commit,
+        is_script_safe, restore_dir_problem,
     };
     use crate::diagnostic::Diagnostic;
 
@@ -2225,6 +2283,55 @@ channel = "someone/channel"
             diagnostics[0].path(),
             Some("airlock.developer.restore.remote")
         );
+    }
+
+    #[test]
+    fn a_restore_directory_defaults_and_may_be_named() {
+        let default = parsed(&with_restore(&format!("commit = \"{A_COMMIT}\"\n")));
+        let restore = default
+            .airlock
+            .expect("airlock")
+            .developer
+            .expect("developer")
+            .restore
+            .expect("restore");
+        assert_eq!(restore.directory(), DEFAULT_RESTORE_DIR);
+
+        let named = parsed(&with_restore(&format!(
+            "commit = \"{A_COMMIT}\"\ndir = \"scripts/airlock\"\n"
+        )));
+        let restore = named
+            .airlock
+            .expect("airlock")
+            .developer
+            .expect("developer")
+            .restore
+            .expect("restore");
+        assert_eq!(restore.directory(), "scripts/airlock");
+    }
+
+    #[test]
+    fn a_restore_directory_that_leaves_the_project_is_refused() {
+        for dir in [
+            "/etc/airlock",
+            "../airlock",
+            "a/../../airlock",
+            " ",
+            "with space",
+        ] {
+            let text = with_restore(&format!("commit = \"{A_COMMIT}\"\ndir = \"{dir}\"\n"));
+            let diagnostics = problems(&text);
+            assert_eq!(
+                codes(&diagnostics),
+                ["manifest.airlock.restore.dir"],
+                "{dir}"
+            );
+            assert_eq!(diagnostics[0].path(), Some("airlock.developer.restore.dir"));
+        }
+        // And the shapes a project actually uses are accepted.
+        for dir in [".universe-airlock", "scripts/airlock", "dist/restore_v1"] {
+            assert!(restore_dir_problem(dir).is_none(), "{dir}");
+        }
     }
 
     #[test]

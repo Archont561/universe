@@ -25,19 +25,16 @@ use std::path::{Path, PathBuf};
 
 use serde_json::json;
 use universe_core::diagnostic::{Diagnostic, Envelope, Severity};
-use universe_core::manifest::{AirlockRestore, Manifest};
+use universe_core::manifest::{AirlockRestore, DEFAULT_RESTORE_DIR, Manifest};
 use universe_core::{CommandOutput, STDOUT_SCHEMA_VERSION};
 
 /// Default manifest file name, read from the project root.
 const MANIFEST_FILE: &str = "universe.toml";
 
-/// Where the rendered entrypoints live, relative to the project root.
-const OUTPUT_DIR: &str = ".universe-airlock";
-
-/// The POSIX entrypoint's file name inside [`OUTPUT_DIR`].
+/// The POSIX entrypoint's file name inside the restore directory.
 const POSIX_SCRIPT: &str = "restore.sh";
 
-/// The PowerShell entrypoint's file name inside [`OUTPUT_DIR`].
+/// The PowerShell entrypoint's file name inside the restore directory.
 const POWERSHELL_SCRIPT: &str = "restore.ps1";
 
 /// The project README, whose usage block is rendered from the same source.
@@ -80,6 +77,8 @@ enum Verb {
 struct Invocation {
     verb: Verb,
     root: PathBuf,
+    /// Where to write instead of the directory the manifest names.
+    output: Option<PathBuf>,
     print_stdout: bool,
     json: bool,
 }
@@ -88,14 +87,15 @@ struct Invocation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct UsageError(String);
 
-const USAGE_LINE: &str =
-    "usage: universe airlock render [--check] [--root <dir>] [--stdout] [--json]";
+const USAGE_LINE: &str = "usage: universe airlock render [--check] [--output <dir>] \
+                          [--root <dir>] [--stdout] [--json]";
 
 impl Invocation {
     fn parse(args: &[String]) -> Result<Self, UsageError> {
         let mut invocation = Self {
             verb: Verb::Render,
             root: PathBuf::from("."),
+            output: None,
             print_stdout: false,
             json: false,
         };
@@ -108,6 +108,12 @@ impl Invocation {
                     verb_seen = true;
                 }
                 "--check" => invocation.verb = Verb::Check,
+                "--output" => {
+                    let value = rest
+                        .next()
+                        .ok_or_else(|| UsageError("--output needs a directory".to_owned()))?;
+                    invocation.output = Some(PathBuf::from(value));
+                }
                 "--stdout" => invocation.print_stdout = true,
                 "--json" => invocation.json = true,
                 "--root" => {
@@ -190,11 +196,43 @@ fn execute(invocation: &Invocation) -> CommandOutput {
         return settled(invocation, &manifest);
     };
 
+    let directory = invocation.directory(restore);
     let readme = std::fs::read_to_string(invocation.root.join(README)).ok();
-    let rendered = render(&manifest, &text, restore, readme.as_deref());
+    let rendered = render(&manifest, &text, restore, &directory, readme.as_deref());
+    let note = invocation.override_note(restore);
     match invocation.verb {
-        Verb::Render => write(invocation, &manifest, &rendered),
+        Verb::Render => write(invocation, &manifest, &rendered, note.as_deref()),
         Verb::Check => check(invocation, &manifest, &rendered),
+    }
+}
+
+impl Invocation {
+    /// The directory the rendered entrypoints land in.
+    ///
+    /// The manifest decides, because the files are committed and `--check` has to compare the
+    /// files a reader will find. `--output` is the one-off escape: a scratch render, a preview
+    /// in a temporary directory, or a render into a tree that is not this checkout.
+    fn directory(&self, restore: &AirlockRestore) -> String {
+        match &self.output {
+            Some(output) => output.display().to_string(),
+            None => restore.directory().to_owned(),
+        }
+    }
+
+    /// What to tell the caller when `--output` moves a render away from the committed location.
+    ///
+    /// Silent divergence is the failure mode that makes a drift check untrustworthy: the
+    /// committed file stays as it was, `airlock-check` still compares it, and nothing said so.
+    fn override_note(&self, restore: &AirlockRestore) -> Option<String> {
+        let output = self.output.as_ref()?;
+        let declared = restore.directory();
+        (output.display().to_string() != declared).then(|| {
+            format!(
+                "wrote to '{}' instead of the manifest's '{declared}'; the committed entrypoint \
+                 there is unchanged, and `airlock-check` still compares it",
+                output.display()
+            )
+        })
     }
 }
 
@@ -204,10 +242,17 @@ fn execute(invocation: &Invocation) -> CommandOutput {
 /// would report agreement with a manifest that no longer describes them. So they are named:
 /// rendering deletes them, checking fails on them.
 fn settled(invocation: &Invocation, manifest: &Manifest) -> CommandOutput {
+    // With no scope there is no `dir` to read, so the search is where a scope would have put
+    // them by default — plus wherever `--output` points, since that is where a render in this
+    // invocation would have written.
+    let directory = match &invocation.output {
+        Some(output) => output.display().to_string(),
+        None => DEFAULT_RESTORE_DIR.to_owned(),
+    };
     let stale: Vec<Rendered> = [POSIX_SCRIPT, POWERSHELL_SCRIPT]
         .iter()
         .map(|name| Rendered {
-            path: format!("{OUTPUT_DIR}/{name}"),
+            path: format!("{directory}/{name}"),
             content: String::new(),
             executable: false,
         })
@@ -258,17 +303,19 @@ fn render(
     manifest: &Manifest,
     manifest_text: &str,
     restore: &AirlockRestore,
+    directory: &str,
     readme: Option<&str>,
 ) -> Vec<Rendered> {
     let stamp = stamp(manifest, manifest_text);
+    let directory = directory.trim_end_matches('/');
     let mut files = vec![
         Rendered {
-            path: format!("{OUTPUT_DIR}/{POSIX_SCRIPT}"),
+            path: format!("{directory}/{POSIX_SCRIPT}"),
             content: posix(manifest, restore, &stamp),
             executable: true,
         },
         Rendered {
-            path: format!("{OUTPUT_DIR}/{POWERSHELL_SCRIPT}"),
+            path: format!("{directory}/{POWERSHELL_SCRIPT}"),
             content: powershell(manifest, restore, &stamp),
             executable: false,
         },
@@ -463,7 +510,12 @@ fn with_block(readme: &str, block: &str) -> String {
     }
 }
 
-fn write(invocation: &Invocation, manifest: &Manifest, rendered: &[Rendered]) -> CommandOutput {
+fn write(
+    invocation: &Invocation,
+    manifest: &Manifest,
+    rendered: &[Rendered],
+    note: Option<&str>,
+) -> CommandOutput {
     if invocation.print_stdout {
         let body: String = rendered.iter().map(|file| file.content.as_str()).collect();
         return success(invocation, manifest, rendered, &body);
@@ -498,7 +550,16 @@ fn write(invocation: &Invocation, manifest: &Manifest, rendered: &[Rendered]) ->
         }
         report.push_str(&format!("{}\n", file.path));
     }
-    success(invocation, manifest, rendered, &report)
+    let output = success(invocation, manifest, rendered, &report);
+    match note {
+        // stdout is the file list, so a note about where they went belongs on stderr.
+        Some(note) => CommandOutput::new(
+            output.stdout().to_owned(),
+            format!("warning: {note}\n"),
+            output.exit_code(),
+        ),
+        None => output,
+    }
 }
 
 /// Give a generated script the execute bit, where the platform has one.
@@ -662,7 +723,7 @@ fn failure(exit_code: u8, diagnostics: Vec<Diagnostic>) -> CommandOutput {
 #[cfg(test)]
 mod tests {
     use super::{difference, render, run, with_block};
-    use universe_core::manifest::{AirlockRestore, Manifest};
+    use universe_core::manifest::{AirlockRestore, DEFAULT_RESTORE_DIR, Manifest};
 
     const MANIFEST: &str = r#"
 schema = 1
@@ -705,10 +766,15 @@ commit = "0123456789abcdef0123456789abcdef01234567"
             .expect("the fixture declares a restore scope")
     }
 
+    /// The directory the fixture's render writes into.
+    fn restore_dir() -> &'static str {
+        DEFAULT_RESTORE_DIR
+    }
+
     /// Render with the fixture manifest, optionally against a README.
     fn rendered(readme: Option<&str>) -> Vec<super::Rendered> {
         let text = manifest_text();
-        render(&manifest(), &text, &restore(), readme)
+        render(&manifest(), &text, &restore(), restore_dir(), readme)
     }
 
     fn file<'a>(files: &'a [super::Rendered], name: &str) -> &'a str {
@@ -842,6 +908,194 @@ commit = "0123456789abcdef0123456789abcdef01234567"
         assert_eq!(difference(committed, expected), " a\n b\n+inserted\n c\n");
         assert_eq!(difference("a\nc\n", "a\nb\nc\n"), " a\n+b\n c\n");
         assert_eq!(difference("a\nb\n", "a\n"), " a\n-b\n");
+    }
+
+    /// The fixture manifest, with `dir` added to its restore scope.
+    fn manifest_with_dir(dir: &str) -> String {
+        format!("{MANIFEST}dir = \"{dir}\"\n")
+    }
+
+    #[test]
+    fn the_manifest_chooses_where_the_entrypoints_land() {
+        let directory = tempfile::tempdir().expect("a temporary project");
+        std::fs::write(
+            directory.path().join("universe.toml"),
+            manifest_with_dir("scripts/airlock"),
+        )
+        .expect("manifest");
+        let root = directory.path().display().to_string();
+
+        let output = run(&["render".to_owned(), "--root".to_owned(), root.clone()]);
+
+        assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
+        assert!(
+            directory.path().join("scripts/airlock/restore.sh").exists(),
+            "the declared directory was ignored: {}",
+            output.stdout()
+        );
+        assert!(!directory.path().join(".universe-airlock").exists());
+        assert!(
+            output.stderr().is_empty(),
+            "a declared directory is not a note"
+        );
+
+        // And the check follows the manifest, which is the whole reason `dir` is in it: a
+        // position only the command line knew would be checked at the wrong path.
+        assert_eq!(
+            run(&[
+                "render".to_owned(),
+                "--check".to_owned(),
+                "--root".to_owned(),
+                root.clone()
+            ])
+            .exit_code(),
+            0
+        );
+        std::fs::write(
+            directory.path().join("scripts/airlock/restore.sh"),
+            "# hand edit\n",
+        )
+        .expect("edit");
+        assert_eq!(
+            run(&[
+                "render".to_owned(),
+                "--check".to_owned(),
+                "--root".to_owned(),
+                root
+            ])
+            .exit_code(),
+            1
+        );
+    }
+
+    #[test]
+    fn the_flag_overrides_the_manifest_and_says_what_it_left_behind() {
+        let directory = tempfile::tempdir().expect("a temporary project");
+        std::fs::write(directory.path().join("universe.toml"), MANIFEST).expect("manifest");
+        let root = directory.path().display().to_string();
+        assert_eq!(
+            run(&["render".to_owned(), "--root".to_owned(), root.clone()]).exit_code(),
+            0
+        );
+
+        let scratch = directory.path().join("scratch");
+        let output = run(&[
+            "render".to_owned(),
+            "--output".to_owned(),
+            scratch.display().to_string(),
+            "--root".to_owned(),
+            root.clone(),
+        ]);
+
+        assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
+        assert!(
+            scratch.join("restore.sh").exists(),
+            "the override was ignored"
+        );
+        // The committed entrypoint is untouched, so the note is the only thing standing between
+        // a caller and a silent divergence.
+        assert!(output.stderr().contains("warning:"), "{}", output.stderr());
+        assert!(
+            output.stderr().contains(DEFAULT_RESTORE_DIR),
+            "{}",
+            output.stderr()
+        );
+        assert!(
+            output.stderr().contains("airlock-check"),
+            "{}",
+            output.stderr()
+        );
+
+        // The manifest's file still matches its manifest, so the check is still green — the
+        // override changed where bytes went, not what the repository claims.
+        assert_eq!(
+            run(&[
+                "render".to_owned(),
+                "--check".to_owned(),
+                "--root".to_owned(),
+                root
+            ])
+            .exit_code(),
+            0
+        );
+    }
+
+    #[test]
+    fn an_override_that_matches_the_manifest_is_not_a_note() {
+        let directory = tempfile::tempdir().expect("a temporary project");
+        std::fs::write(directory.path().join("universe.toml"), MANIFEST).expect("manifest");
+
+        let output = run(&[
+            "render".to_owned(),
+            "--output".to_owned(),
+            DEFAULT_RESTORE_DIR.to_owned(),
+            "--root".to_owned(),
+            directory.path().display().to_string(),
+        ]);
+
+        assert_eq!(output.exit_code(), 0);
+        assert!(
+            output.stderr().is_empty(),
+            "agreeing with the manifest is not worth a warning: {}",
+            output.stderr()
+        );
+    }
+
+    #[test]
+    fn a_directory_that_escapes_the_project_is_refused() {
+        for dir in ["/etc/airlock", "../outside", "a/../../b"] {
+            let directory = tempfile::tempdir().expect("a temporary project");
+            std::fs::write(
+                directory.path().join("universe.toml"),
+                manifest_with_dir(dir),
+            )
+            .expect("manifest");
+
+            let output = run(&[
+                "render".to_owned(),
+                "--root".to_owned(),
+                directory.path().display().to_string(),
+            ]);
+
+            assert_eq!(output.exit_code(), 2, "{dir}: {}", output.stderr());
+            assert!(
+                output.stderr().contains("manifest.airlock.restore.dir"),
+                "{dir}: {}",
+                output.stderr()
+            );
+        }
+    }
+
+    #[test]
+    fn a_scope_removed_after_a_render_at_a_declared_directory_is_reported_where_it_was() {
+        // The stale search cannot know a directory the manifest no longer names, so it looks
+        // where a render would have put them — the flag first, then the default.
+        let directory = tempfile::tempdir().expect("a temporary project");
+        let moved = directory.path().join("out");
+        std::fs::create_dir_all(&moved).expect("directory");
+        std::fs::write(moved.join("restore.sh"), "# generated once\n").expect("stale file");
+        let without = MANIFEST
+            .split("[airlock.developer.restore]")
+            .next()
+            .expect("head")
+            .to_owned();
+        std::fs::write(directory.path().join("universe.toml"), &without).expect("manifest");
+
+        let checked = run(&[
+            "render".to_owned(),
+            "--check".to_owned(),
+            "--output".to_owned(),
+            moved.display().to_string(),
+            "--root".to_owned(),
+            directory.path().display().to_string(),
+        ]);
+
+        assert_eq!(checked.exit_code(), 1, "stderr: {}", checked.stderr());
+        assert!(
+            checked.stderr().contains("airlock.render.stale"),
+            "{}",
+            checked.stderr()
+        );
     }
 
     #[test]

@@ -89,3 +89,20 @@ new surface rather than invented defaults.
   entrypoint's contract with the bootstrapper is fixed at `restore --commit <pin>`, which is the
   seam those tasks implement against.
 <!-- SECTION:NOTES:END -->
+2026-11-08 — the output location is configurable, and the split between the two places is
+deliberate.
+
+- **`[airlock.developer.restore] dir`** (default `.universe-airlock`) is where both entrypoints
+  land. It lives in the manifest rather than only on the command line because the files are
+  committed and drift-checked: `airlock-check` has to compare the files a reader will find, and
+  a check whose path came from a flag nobody passed would report agreement with a manifest it no
+  longer describes. The value must be relative, must not climb out of the project root, and
+  holds the same conservative charset as the pin (`manifest.airlock.restore.dir`).
+- **`--output <dir>`** overrides it for one invocation — a scratch render, a preview into a
+  temporary directory. When the override differs from the manifest's `dir`, the render prints a
+  warning on stderr naming what it left behind, because the committed entrypoint is then
+  unchanged while `airlock-check` still compares it. Silent divergence is what would make the
+  drift check untrustworthy; an override that agrees with the manifest says nothing.
+- The README stays at `README.md`; only the scripts move. Its block is prose aimed at a reader
+  of the repository's front page, and a per-project path for it would be a second location to
+  keep in step for no gain.
