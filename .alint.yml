@@ -270,3 +270,54 @@ rules:
     equals: 1
     message: "skills-lock.json schema version is 1"
     level: error
+
+  # --- Behaviour-test layout ---------------------------------------------
+  # Every workspace unit — a Rust crate or a Bun package — carries the same three
+  # directories. `features/` is at the unit's root, not under `tests/`, so that the
+  # specification sits beside the code it describes rather than inside the harness that
+  # runs it, and so `scripts/gherkin_lint.py` can find it by name alone.
+  #
+  # `when_iter` keeps the rule honest about what a unit is: `crates/` and `packages/`
+  # also hold directories that are not units (nothing today, but a stray directory must
+  # not force a features/ tree). A unit is a directory that declares itself with a
+  # manifest.
+  - id: workspace-unit-layout
+    kind: for_each_dir
+    select: ["crates/*", "packages/*"]
+    when_iter: 'iter.has_file("Cargo.toml") or iter.has_file("package.json")'
+    require:
+      - kind: dir_exists
+        paths: "{path}/src"
+        message: "a workspace unit keeps its sources in src/"
+      - kind: dir_exists
+        paths: "{path}/tests"
+        message: "a workspace unit keeps its tests in tests/, never in src/"
+      - kind: dir_exists
+        paths: "{path}/features"
+        message: "a workspace unit states its behaviour in features/"
+
+    level: error
+
+  # A features/ directory with no scenario in it satisfies the layout rule and specifies
+  # nothing, so the documents themselves are required.
+  - id: features-directory-holds-scenarios
+    kind: dir_contains
+    select: "{crates,packages}/*/features"
+    require: ["*.feature"]
+    message: "features/ must hold at least one .feature document"
+    level: error
+
+  # The harness that binds the steps has to exist too, or the scenarios are prose.
+  - id: rust-tests-directory-holds-tests
+    kind: dir_contains
+    select: "crates/*/tests"
+    require: ["*.rs"]
+    message: "tests/ must hold at least one integration test"
+    level: error
+
+  - id: package-tests-directory-holds-tests
+    kind: dir_contains
+    select: "packages/*/tests"
+    require: ["*.ts"]
+    message: "tests/ must hold at least one test module"
+    level: error

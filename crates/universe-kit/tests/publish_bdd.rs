@@ -260,7 +260,7 @@ fn publish_is_a_usage_error(publish: &Publish) {
 // One binding per scenario. `#[scenario]` without a name takes the first scenario it finds,
 // so each function names the one it drives.
 #[scenario(
-    path = "tests/features/publish.feature",
+    path = "features/publish.feature",
     name = "An artifact is published to the store under its subdir"
 )]
 fn an_artifact_is_published(publish: Publish) {
@@ -268,7 +268,7 @@ fn an_artifact_is_published(publish: Publish) {
 }
 
 #[scenario(
-    path = "tests/features/publish.feature",
+    path = "features/publish.feature",
     name = "Publishing the same build twice uploads nothing the second time"
 )]
 fn a_republish_is_a_no_op(publish: Publish) {
@@ -276,23 +276,20 @@ fn a_republish_is_a_no_op(publish: Publish) {
 }
 
 #[scenario(
-    path = "tests/features/publish.feature",
+    path = "features/publish.feature",
     name = "A changed build under an occupied name is refused"
 )]
 fn a_changed_build_is_refused(publish: Publish) {
     let _ = publish;
 }
 
-#[scenario(
-    path = "tests/features/publish.feature",
-    name = "A dry run writes nothing"
-)]
+#[scenario(path = "features/publish.feature", name = "A dry run writes nothing")]
 fn a_dry_run_writes_nothing(publish: Publish) {
     let _ = publish;
 }
 
 #[scenario(
-    path = "tests/features/publish.feature",
+    path = "features/publish.feature",
     name = "A branch store cannot be uploaded to"
 )]
 fn a_branch_store_is_refused(publish: Publish) {

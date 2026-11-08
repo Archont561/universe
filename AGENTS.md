@@ -118,6 +118,36 @@ not replace the Python repository scripts.
     `updated_date`, and append notes/summary using the task's existing section
     markers. Unimplemented ideas belong in a Backlog draft/task, not in code
     comments or status documents.
+12. **Every workspace unit is a three-directory unit.** A unit is a directory
+    under `crates/` or `packages/` that declares itself with a manifest
+    (`Cargo.toml` or `package.json`), and every unit carries exactly this shape:
+
+    - `src/` — the implementation and its unit tests. A `#[cfg(test)]` module or
+      a `describe` block here is a unit test: it is allowed, and it is never the
+      only coverage of a behaviour a user or a consuming repository can observe.
+    - `tests/` — the harness that binds the scenarios: `*_bdd.rs` for Rust,
+      `*.steps.ts` next to the runner's entry point for Bun. Tests never live
+      under `src/`, and a test directory holds at least one test module.
+    - `features/` — the Gherkin documents, **at the unit's root, never under
+      `tests/`**. A `.feature` document is the specification and the harness is
+      what runs it, so the specification is where a reader looking at the unit
+      finds it without knowing how the harness is wired. At least one
+      `.feature` file per unit.
+
+    The Rust harness is `rstest` + `rstest-bdd` (+ `rstest-bdd-macros`), whose
+    `#[scenario(path = "features/<name>.feature", name = "…")]` binds each
+    scenario in `tests/*_bdd.rs`. The Bun harness is
+    `@aboviq/bun-test-cucumber`: `bunfig.toml` preloads `tests/cucumber.ts`,
+    `tests/features.test.ts` loads `features/**/*.feature`, and step definitions
+    live in `tests/*.steps.ts`. A step hands the scenario state back — the Bun
+    runner replaces the state with whatever a step returns, `Then` included.
+
+    `.alint.yml`'s `workspace-unit-layout` rule enforces the three directories,
+    `features-directory-holds-scenarios` and the two
+    `*-tests-directory-holds-tests` rules enforce that they are not empty, and
+    each rule's own policy test lives under `alint-tests/behaviour-layout/`.
+    `pixi run alint-check` and `pixi run alint-test` are the commands that say
+    whether a unit complies.
 
 ## Commands
 
@@ -133,6 +163,8 @@ pixi run coverage
 pixi run backlog-check
 pixi run repo-check
 pixi run skills-check
+pixi run alint-check
+pixi run alint-test
 pixi run lint-actions
 pixi run audit
 pixi run build

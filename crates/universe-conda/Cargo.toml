@@ -27,6 +27,10 @@ thiserror = { workspace = true }
 universe-core = { workspace = true }
 
 [dev-dependencies]
+# Scenario harness: `features/*.feature` states the behaviour, `tests/*_bdd.rs` binds the steps.
+rstest = { workspace = true }
+rstest-bdd = { workspace = true }
+rstest-bdd-macros = { workspace = true }
 # Fixtures are built, not downloaded: a `.conda` is a zip of two zstd tars, and a
 # fixture builder that spells that out is a specification of the format the reader
 # has to satisfy. Neither crate needs a compression feature: the outer zip stores

@@ -22,6 +22,10 @@ sha2 = { workspace = true }
 universe-core = { workspace = true }
 
 [dev-dependencies]
+# Scenario harness: `features/*.feature` states the behaviour, `tests/*_bdd.rs` binds the steps.
+rstest = { workspace = true }
+rstest-bdd = { workspace = true }
+rstest-bdd-macros = { workspace = true }
 tempfile = { workspace = true }
 
 [[bin]]

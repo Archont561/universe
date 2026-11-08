@@ -130,6 +130,7 @@ airlock-check = { cmd = "cargo run --quiet --locked -p universe-kit -- airlock r
 audit = { cmd = "python -m scripts.audit check", description = "Audit locked Rust dependencies and supply-chain policy offline when the advisory cache exists" }
 audit-sync = { cmd = "python -m scripts.audit sync", description = "Refresh the RustSec advisory and crates.io index caches (needs network)" }
 alint-check = { cmd = "alint check", description = "Validate repository structure, naming, and cross-file rules from .alint.yml" }
+alint-test = { cmd = "alint test", description = "Run the versioned policy tests under alint-tests/ in isolated temporary repositories" }
 crate-check = { cmd = "python -m scripts.crate_check", description = "Validate that universe-core depends on nothing ecosystem, UI, or network related" }
 
 check-fast = { depends-on = [
@@ -138,6 +139,7 @@ check-fast = { depends-on = [
   "repo-check",
   "skills-check",
   "alint-check",
+  "alint-test",
   "crate-check",
   "lint-gherkin",
 ], description = "Everything that reports in seconds, first: no compile, no network, no bun" }
