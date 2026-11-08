@@ -24,7 +24,7 @@ import sys
 from collections.abc import Iterable, Sequence
 
 #: Paths under these prefixes cannot affect a Rust, Python, or workflow gate.
-PROSE_PREFIXES = ("backlog/", "docs/", "web/")
+PROSE_PREFIXES = ("backlog/", "docs/")
 
 #: Prose at the repository root, by exact name.
 PROSE_FILES = (
@@ -34,15 +34,38 @@ PROSE_FILES = (
     "AGENTS.md",
 )
 
-#: Paths that only the Bun workspace can fail on.
-WEB_PREFIXES = ("web/",)
+#: Paths the Bun workspace owns.
+#:
+#: The workspace is `packages/*` (`bunfig` in the root manifest), so a change under it can
+#: break `web-check` and nothing else. This used to name `web/`, a directory the workspace
+#: no longer has, which meant a package change selected no Bun lane at all — a skip, not a
+#: pass, and invisible in the run.
+WEB_PREFIXES = ("packages/",)
+
+#: Root files that configure every Bun package.
+#:
+#: `pixi.toml` and `pixi.lock` are here because `web-check` is a Pixi task and the Pixi
+#: manifest pins the Bun version it runs under.
+WEB_ROOT_FILES = frozenset(
+    {
+        "biome.json",
+        "bun.lock",
+        "bun.lockb",
+        "package.json",
+        "pixi.lock",
+        "pixi.toml",
+        "tsconfig.json",
+        "turbo.json",
+    }
+)
 
 
 def is_prose(path: str) -> bool:
     """Return whether `path` is documentation that no compiled gate reads.
 
-    `web/` is prose for the Rust lanes but code for the Bun lane, so the two questions are
-    asked separately rather than folding "not Rust" into "needs nothing".
+    `packages/` is code for the Bun lane and also selects the Rust lanes, so the two
+    questions are asked separately rather than one being the negation of the other. Running a
+    lane that did not need to be run costs minutes; skipping one that did is invisible.
     """
     normalized = path.replace("\\", "/")
     if normalized in PROSE_FILES:
@@ -58,10 +81,7 @@ def code_changed(paths: Iterable[str]) -> bool:
 def web_changed(paths: Iterable[str]) -> bool:
     """Whether any changed path can affect the Bun workspace."""
     normalized = {path.replace("\\", "/") for path in paths}
-    return any(
-        path.startswith(WEB_PREFIXES) or path in {"bun.lock", "package.json", "bun.lockb"}
-        for path in normalized
-    )
+    return any(path.startswith(WEB_PREFIXES) or path in WEB_ROOT_FILES for path in normalized)
 
 
 def changed_paths(base: str, head: str, event: str, cwd: str | None = None) -> list[str] | None:
