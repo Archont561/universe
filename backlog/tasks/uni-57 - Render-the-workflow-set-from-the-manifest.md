@@ -69,3 +69,11 @@ inferred from a workflow's YAML.
 - [x] #1 Rendered workflow combinations are asserted in `TESTS/`, and the fixtures fail when a template changes without the manifest changing. — 2026-10-31: `TESTS/test_rendered_workflows.py` covers the variants; a template change without a matching manifest change is caught by `ci-check` inside `pixi run check`, and both defect classes were confirmed by mutating the renderer and watching the suites go red.
 - [x] #2 The `ci-check` task is in `pixi run check` from the commit that adds the first rendered workflow onwards. — 2026-10-31: added in the same change as the rendered files.
 <!-- DOD:END -->
+
+## Notes
+
+- **2026-11-08 — the build job is shared by two files.** It was written for the main file
+  alone, which meant the publish file downloaded an artifact nothing had uploaded.
+  `build_job` now takes the workflow's name and both files emit it;
+  `the_publish_file_builds_what_it_publishes` pins the coupling, and `docs/WORKFLOWS.md` names
+  it as part of the design.

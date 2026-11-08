@@ -692,8 +692,12 @@ fn publish_file_has_a_separate_reader(project: &Project) {
         reader.contains("verify --index"),
         "the reader job does not re-read the destinations:\n{publish}"
     );
+    let needs = reader
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("needs:"))
+        .expect("the reader subscribes to the work it reads");
     assert!(
-        reader.contains("needs: [conda-static]"),
+        needs.contains("conda-static"),
         "the reader must run after the publish it reads:\n{publish}"
     );
 }

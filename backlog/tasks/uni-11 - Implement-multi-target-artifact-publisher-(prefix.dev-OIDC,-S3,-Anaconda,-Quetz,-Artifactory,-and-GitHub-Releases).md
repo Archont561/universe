@@ -157,4 +157,8 @@ publishes is proved usable by a real client.
   destination the test owns. The mock needs no dependency: a loopback `TcpListener` records
   the method, path and body, and answers a canned status. That keeps `Cargo.lock` untouched,
   which matters because the lock is written by the relock workflow rather than by hand.
+- **The workflow around the verb now hands it artifacts.** `universe-publish.yml` builds in
+  the same run before publishing, because a workflow artifact belongs to the run that uploaded
+  it (`2026-11-08`). Without that, every store job below would have received an empty tree —
+  the publisher was exercised, the pipeline around it was not.
 <!-- SECTION:NOTES:END -->
