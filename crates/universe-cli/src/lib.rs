@@ -6,8 +6,12 @@
 
 use std::ffi::OsString;
 
-/// Facade version, tracked in the package `VERSIONS` file like every versioned package.
-pub const VERSION: &str = "0.1.0";
+/// Facade version, read by the compiler from this crate's manifest.
+///
+/// The manifest inherits `[workspace.package] version`, so a release promotes one literal in
+/// the root `Cargo.toml`. The `VERSIONS` file beside this crate is a packaging mirror, and a
+/// test holds it equal to this constant.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Select the component executable and arguments for the public `universe` facade.
 ///

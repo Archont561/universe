@@ -1,0 +1,59 @@
+test_version: 1
+name: a crate that reads its manifest version passes both checks
+tags: [check, version, content, structure, passing]
+
+# The whole chain in one tree: the crate inherits the workspace version and its entrypoint
+# reads it back with `env!`. Two crates, because the rule has to hold for every unit rather
+# than for the first one it looks at.
+docs:
+  title: Every crate reads the one version the workspace declares
+  case: pass
+  kind: every_matching_has
+
+given:
+  tree:
+    Cargo.toml: |
+      [workspace.package]
+      version = "0.1.0"
+    crates:
+      foo:
+        Cargo.toml: |
+          [package]
+          name = "foo"
+          version.workspace = true
+        src:
+          lib.rs: |
+            pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+      bar:
+        Cargo.toml: |
+          [package]
+          name = "bar"
+          version.workspace = true
+        src:
+          lib.rs: |
+            //! Library surface.
+            pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+  config: |
+    version: 1
+    rules:
+      - id: crate-manifests-inherit-the-workspace-version
+        kind: toml_path_equals
+        paths: "crates/*/Cargo.toml"
+        path: "$.package.version.workspace"
+        equals: true
+        level: error
+      - id: crate-entrypoint-reads-its-manifest-version
+        kind: every_matching_has
+        select: "crates/*"
+        when_iter: 'iter.has_file("Cargo.toml")'
+        require:
+          - kind: file_content_matches
+            paths: "{path}/src/lib.rs"
+            pattern: 'pub const VERSION: &str = env!\("CARGO_PKG_VERSION"\);'
+        level: error
+
+when: [check]
+
+expect:
+  - exit: success
+    violations: []

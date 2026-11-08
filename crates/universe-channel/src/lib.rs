@@ -17,6 +17,10 @@
 //! a tree of files; how it travels is the transport's business, and which store it travels to
 //! is `universe-kit`'s.
 
+/// Version of this component, equal to the workspace version the whole artifact set
+/// is released under (`decision-122`: one tag, one version train).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub mod channel;
 pub mod fragment;
 pub mod readme;

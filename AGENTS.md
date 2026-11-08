@@ -102,6 +102,15 @@ not replace the Python repository scripts.
    use their own `VERSIONS` files and package manifests. Keep shared domain contracts in
    `universe-core` ecosystem-neutral, and keep Conda/Rattler dependencies in adapters or
    product crates.
+
+   **One version, written once.** `[workspace.package] version` in the root `Cargo.toml` is
+   the only literal a release promotes. A crate manifest carries
+   `version = { workspace = true }` instead of a number of its own, and every crate's
+   library entrypoint exports
+   `pub const VERSION: &str = env!("CARGO_PKG_VERSION");` — the compiler reads that from the
+   crate's own manifest, so a crate cannot report a version it does not declare. The two
+   `crate-*` rules in `.alint.yml` refuse a manifest that spells its own version and an
+   entrypoint that spells one, and their policy tests live under `alint-tests/version/`.
 6. **Stdout is data.** Logs, prompts, progress, and diagnostics go to stderr.
    JSON mode emits one versioned envelope; JSONL emits structured events and a
    final result. Non-TTY/CI/`--json` execution never prompts or opens a TUI.
