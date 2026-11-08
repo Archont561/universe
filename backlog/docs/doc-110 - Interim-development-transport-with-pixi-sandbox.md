@@ -56,7 +56,8 @@ Three different things must not be conflated:
    not versioned with any Universe release.
 2. **`universe-airlock-bootstrap` and `UNI-33`** own sealed-snapshot verify and
    restore. That path verifies a manifest, content-addressed payloads, and the
-   restored tree for a *user's* universe, with no Pixi and no network. The
+   restored tree for a *user's* universe, with no Pixi and no network. Since
+   2026-11-08 it does the first two: `verify` and `restore` (`decision-136`). The
    `scripts/restore.sh` launcher deliberately reuses the same shape — verify the
    branch, restore, verify the restored tree — precisely so the sealed model is
    exercised early, but its payload, trust root, and audience are not the sealed

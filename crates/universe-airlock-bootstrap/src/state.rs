@@ -1,0 +1,745 @@
+//! Activating a verified payload, transactionally.
+//!
+//! The state root holds immutable environments and two symlinks:
+//!
+//! ```text
+//! <state>/envs/<version>-<manifest prefix>/   one materialised payload, never edited
+//! <state>/current -> envs/<...>               the environment in use
+//! <state>/previous -> envs/<...>              what `current` pointed at before the last change
+//! ```
+//!
+//! A restore builds the new environment under `envs/.staging-<pid>` — the same filesystem, so
+//! the final `rename` is atomic — and only then repoints `current`. Two rules follow, and both
+//! are tested:
+//!
+//! - **Nothing is written where `current` points.** The environment is populated somewhere
+//!   else and moved into place in one step, so a failure mid-copy cannot leave a half-written
+//!   environment that `current` already names.
+//! - **A failure changes nothing.** The staging directory is removed on the way out, `current`
+//!   is untouched, and the previous environment remains complete and usable.
+//!
+//! Linux-only, deliberately and in line with `decision-132`: atomic replacement of a symlink
+//! is `rename(2)`, and the Windows equivalent needs privileges this tool does not ask for.
+
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+
+use crate::diagnostics::Finding;
+use crate::payload::{Artifact, Report};
+use crate::sha256::Sha256;
+
+/// The receipt a materialised environment carries, so a later `doctor` can describe it without
+/// the payload it came from.
+pub const RECEIPT_FILE: &str = "receipt";
+
+/// Receipt format version, so a future change can refuse an old receipt instead of misreading
+/// it.
+pub const RECEIPT_SCHEMA: &str = "1";
+
+/// Where state lives when the caller does not say.
+#[must_use]
+pub fn default_root(working_directory: &Path, environment: Option<&str>) -> PathBuf {
+    match environment {
+        Some(configured) if !configured.trim().is_empty() => PathBuf::from(configured),
+        _ => working_directory.join(".universe-airlock").join("state"),
+    }
+}
+
+/// The layout of a state root.
+#[derive(Clone, Debug)]
+pub struct Layout {
+    root: PathBuf,
+}
+
+/// What a successful activation did.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Outcome {
+    /// The environment that is now active.
+    pub env: PathBuf,
+    /// Whether the environment already existed, so nothing was copied.
+    pub reused: bool,
+    /// What `current` pointed at before this run, when it pointed anywhere.
+    pub previous: Option<PathBuf>,
+}
+
+/// A materialised environment's own description of itself.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Receipt {
+    /// Version the payload published.
+    pub version: String,
+    /// Commit the payload was built from.
+    pub commit: String,
+    /// The payload's identity.
+    pub manifest_sha256: String,
+    /// What the payload's authenticity amounted to.
+    pub signature: String,
+    /// The artifacts this environment holds.
+    pub artifacts: Vec<Artifact>,
+}
+
+impl Receipt {
+    /// Render the receipt's bytes.
+    #[must_use]
+    pub fn render(&self) -> String {
+        let mut text = String::new();
+        text.push_str(&format!("schema={RECEIPT_SCHEMA}\n"));
+        text.push_str(&format!("version={}\n", self.version));
+        text.push_str(&format!("commit={}\n", self.commit));
+        text.push_str(&format!("manifest_sha256={}\n", self.manifest_sha256));
+        text.push_str(&format!("signature={}\n", self.signature));
+        for artifact in &self.artifacts {
+            text.push_str(&format!(
+                "artifact={} {} {}\n",
+                artifact.filename, artifact.sha256, artifact.size
+            ));
+        }
+        text
+    }
+
+    /// Read a receipt back.
+    ///
+    /// The format is line-oriented `key=value` rather than JSON because the bootstrap carries
+    /// no JSON *writer*, and this record is written and read by this binary alone — it is not
+    /// a published artifact. An unknown key is ignored; an unknown schema is not.
+    ///
+    /// # Errors
+    ///
+    /// Returns a finding when the text is not a receipt this build understands.
+    pub fn parse(text: &str) -> Result<Self, Finding> {
+        let mut schema: Option<&str> = None;
+        let mut version: Option<&str> = None;
+        let mut commit: Option<&str> = None;
+        let mut manifest_sha256: Option<&str> = None;
+        let mut signature: Option<&str> = None;
+        let mut artifacts: Vec<Artifact> = Vec::new();
+
+        for line in text.lines() {
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+            match key {
+                "schema" => schema = Some(value),
+                "version" => version = Some(value),
+                "commit" => commit = Some(value),
+                "manifest_sha256" => manifest_sha256 = Some(value),
+                "signature" => signature = Some(value),
+                "artifact" => {
+                    let mut parts = value.split(' ');
+                    let (Some(filename), Some(sha256), Some(size)) =
+                        (parts.next(), parts.next(), parts.next())
+                    else {
+                        return Err(Finding::error(
+                            "airlock.state.receipt",
+                            format!("the receipt's artifact line is malformed: `{value}`"),
+                        ));
+                    };
+                    let Ok(size) = size.parse::<u64>() else {
+                        return Err(Finding::error(
+                            "airlock.state.receipt",
+                            format!("the receipt's artifact size is not a number: `{size}`"),
+                        ));
+                    };
+                    artifacts.push(Artifact {
+                        filename: filename.to_owned(),
+                        sha256: sha256.to_owned(),
+                        size,
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        let missing = |field: &str| {
+            Finding::error(
+                "airlock.state.receipt",
+                format!("the receipt names no `{field}`"),
+            )
+        };
+        if schema != Some(RECEIPT_SCHEMA) {
+            return Err(Finding::error(
+                "airlock.state.receipt",
+                format!(
+                    "the receipt is schema {} and this bootstrap writes schema {RECEIPT_SCHEMA}",
+                    schema.unwrap_or("<absent>")
+                ),
+            ));
+        }
+        Ok(Self {
+            version: version.ok_or_else(|| missing("version"))?.to_owned(),
+            commit: commit.ok_or_else(|| missing("commit"))?.to_owned(),
+            manifest_sha256: manifest_sha256
+                .ok_or_else(|| missing("manifest_sha256"))?
+                .to_owned(),
+            signature: signature.unwrap_or("unknown").to_owned(),
+            artifacts,
+        })
+    }
+}
+
+impl Layout {
+    /// A layout rooted at `root`.
+    #[must_use]
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self { root: root.into() }
+    }
+
+    /// The state root itself.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Where materialised environments live.
+    #[must_use]
+    pub fn envs(&self) -> PathBuf {
+        self.root.join("envs")
+    }
+
+    /// The symlink naming the active environment.
+    #[must_use]
+    pub fn current(&self) -> PathBuf {
+        self.root.join("current")
+    }
+
+    /// The symlink naming what was active before.
+    #[must_use]
+    pub fn previous(&self) -> PathBuf {
+        self.root.join("previous")
+    }
+
+    /// The environment `current` points at, resolved against the state root.
+    ///
+    /// The link is stored relative (`envs/<name>`) so the root can be moved or copied without
+    /// every link inside it breaking.
+    #[must_use]
+    pub fn current_env(&self) -> Option<PathBuf> {
+        resolve(&self.current(), &self.root)
+    }
+
+    /// The environment `previous` points at.
+    #[must_use]
+    pub fn previous_env(&self) -> Option<PathBuf> {
+        resolve(&self.previous(), &self.root)
+    }
+}
+
+fn resolve(link: &Path, root: &Path) -> Option<PathBuf> {
+    let target = std::fs::read_link(link).ok()?;
+    Some(if target.is_absolute() {
+        target
+    } else {
+        root.join(target)
+    })
+}
+
+/// Materialise `report`'s payload under `layout` and make it current.
+///
+/// `payload_root` is read again as the bytes are copied, and every copy is hashed as it is
+/// written: the artifact verified a moment ago is the artifact that lands, rather than a file
+/// that was replaced in between.
+///
+/// # Errors
+///
+/// Returns a finding and leaves `current` untouched, with no staging directory behind.
+pub fn activate(layout: &Layout, payload_root: &Path, report: &Report) -> Result<Outcome, Finding> {
+    let artifacts = match report.artifacts() {
+        Ok(artifacts) => artifacts,
+        Err(mut errors) => {
+            return Err(if errors.is_empty() {
+                Finding::error(
+                    "airlock.payload",
+                    "the manifest names no artifact a payload directory could hold",
+                )
+            } else {
+                // The caller has already reported the whole set once; activation repeats the
+                // first because it runs immediately after and must not assume a clean report.
+                errors.remove(0)
+            });
+        }
+    };
+
+    let name = report.identity();
+    let target = layout.envs().join(&name);
+    let envs = layout.envs();
+    std::fs::create_dir_all(&envs).map_err(|error| {
+        Finding::error(
+            "airlock.state.root",
+            format!("cannot create {}: {error}", envs.display()),
+        )
+    })?;
+
+    let mut reused = false;
+    if target.join(RECEIPT_FILE).exists() {
+        // The same payload was restored before. Its environment is immutable, so the run is a
+        // pointer move rather than a second copy.
+        reused = true;
+    } else {
+        let staging = Staging::create(&envs)?;
+        for artifact in &artifacts {
+            copy_verified(
+                &payload_root.join(&artifact.filename),
+                &staging.path.join(&artifact.filename),
+                artifact,
+            )?;
+        }
+        let receipt = Receipt {
+            version: report.manifest.version.clone(),
+            commit: report.manifest.commit.clone(),
+            manifest_sha256: report.manifest_digest.clone(),
+            signature: report.verdict.as_str().to_owned(),
+            artifacts,
+        };
+        write_receipt(&staging.path, &receipt)?;
+        staging.commit(&target)?;
+    }
+
+    let previous = layout.current_env();
+    point_at(&layout.current(), &layout.root, &name)?;
+    if let Some(previous) = previous.as_ref()
+        && Some(previous.clone()) != Some(target.clone())
+    {
+        let relative = previous.strip_prefix(&layout.root).unwrap_or(previous);
+        write_link(&layout.previous(), relative).map_err(|error| {
+            Finding::error(
+                "airlock.state.activate",
+                format!("cannot record the previous environment: {error}"),
+            )
+        })?;
+    }
+
+    Ok(Outcome {
+        env: target,
+        reused,
+        previous,
+    })
+}
+
+/// A staging directory that deletes itself unless it was promoted.
+struct Staging {
+    path: PathBuf,
+    promoted: bool,
+}
+
+impl Staging {
+    fn create(envs: &Path) -> Result<Self, Finding> {
+        let path = envs.join(format!(".staging-{}", std::process::id()));
+        // A previous run that was killed leaves its staging behind; it is ours to replace.
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).map_err(|error| {
+            Finding::error(
+                "airlock.state.staging",
+                format!("cannot create {}: {error}", path.display()),
+            )
+        })?;
+        Ok(Self {
+            path,
+            promoted: false,
+        })
+    }
+
+    fn commit(mut self, target: &Path) -> Result<(), Finding> {
+        if target.exists() {
+            // Another restore of the same payload won the race; both wrote identical bytes, so
+            // the existing environment is the one to use.
+            return Ok(());
+        }
+        std::fs::rename(&self.path, target).map_err(|error| {
+            Finding::error(
+                "airlock.state.staging",
+                format!("cannot move the staged environment into place: {error}"),
+            )
+        })?;
+        self.promoted = true;
+        Ok(())
+    }
+}
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        if !self.promoted {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+}
+
+/// Copy one artifact, hashing what is written rather than what was read.
+fn copy_verified(source: &Path, destination: &Path, artifact: &Artifact) -> Result<(), Finding> {
+    let mut input = std::fs::File::open(source).map_err(|error| {
+        Finding::error(
+            "airlock.payload.missing",
+            format!("cannot open {}: {error}", source.display()),
+        )
+    })?;
+    let mut output = std::fs::File::create(destination).map_err(|error| {
+        Finding::error(
+            "airlock.state.activate",
+            format!("cannot create {}: {error}", destination.display()),
+        )
+    })?;
+
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 64 * 1024];
+    let mut written: u64 = 0;
+    loop {
+        let read = input.read(&mut buffer).map_err(|error| {
+            Finding::error(
+                "airlock.payload.unreadable",
+                format!("cannot read {}: {error}", source.display()),
+            )
+        })?;
+        if read == 0 {
+            break;
+        }
+        output.write_all(&buffer[..read]).map_err(|error| {
+            Finding::error(
+                "airlock.state.activate",
+                format!("cannot write {}: {error}", destination.display()),
+            )
+        })?;
+        hasher.update(&buffer[..read]);
+        written += read as u64;
+    }
+    output.flush().map_err(|error| {
+        Finding::error(
+            "airlock.state.activate",
+            format!("cannot flush {}: {error}", destination.display()),
+        )
+    })?;
+
+    let digest = hasher.finish();
+    if written != artifact.size || digest != artifact.sha256 {
+        return Err(Finding::error(
+            "airlock.payload.changed",
+            format!(
+                "{} changed while it was being restored: copied {written} bytes hashing to \
+                 {digest}, expected {} bytes hashing to {}",
+                artifact.filename, artifact.size, artifact.sha256
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn write_receipt(environment: &Path, receipt: &Receipt) -> Result<(), Finding> {
+    let path = environment.join(RECEIPT_FILE);
+    std::fs::write(&path, receipt.render()).map_err(|error| {
+        Finding::error(
+            "airlock.state.activate",
+            format!("cannot write {}: {error}", path.display()),
+        )
+    })
+}
+
+/// Replace `link` with a symlink to `target`, in one step.
+fn write_link(link: &Path, target: &Path) -> std::io::Result<()> {
+    let temporary = link.with_extension("replacing");
+    let _ = std::fs::remove_file(&temporary);
+    make_symlink(target, &temporary)?;
+    std::fs::rename(&temporary, link)
+}
+
+fn point_at(link: &Path, root: &Path, name: &str) -> Result<(), Finding> {
+    let target = Path::new("envs").join(name);
+    // The link is only ever stored relative to the root, so this cannot escape it.
+    debug_assert!(!target.is_absolute(), "{} {}", root.display(), name);
+    write_link(link, &target).map_err(|error| {
+        Finding::error(
+            "airlock.state.activate",
+            format!(
+                "cannot point {} at {}: {error}",
+                link.display(),
+                target.display()
+            ),
+        )
+    })
+}
+
+#[cfg(unix)]
+fn make_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(not(unix))]
+fn make_symlink(_target: &Path, _link: &Path) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "activating an environment needs symlinks, which this build does not support",
+    ))
+}
+
+/// What `doctor` reports about a state root.
+#[derive(Clone, Debug)]
+pub struct Status {
+    /// Whether the state root exists at all.
+    pub root_exists: bool,
+    /// The environment `current` names.
+    pub current: Option<PathBuf>,
+    /// Whether that environment still exists.
+    pub current_exists: bool,
+    /// Its receipt, when it has a readable one.
+    pub receipt: Option<Receipt>,
+    /// Anything inconsistent, as findings that explain themselves.
+    pub problems: Vec<Finding>,
+}
+
+/// Inspect a state root without changing it.
+#[must_use]
+pub fn inspect(layout: &Layout) -> Status {
+    let root_exists = layout.root().is_dir();
+    let current = layout.current_env();
+    let current_exists = current.as_ref().is_some_and(|path| path.is_dir());
+    let mut problems = Vec::new();
+
+    let mut receipt = None;
+    match (&current, current_exists) {
+        (Some(path), true) => match std::fs::read_to_string(path.join(RECEIPT_FILE)) {
+            Ok(text) => match Receipt::parse(&text) {
+                Ok(parsed) => receipt = Some(parsed),
+                Err(finding) => problems.push(finding),
+            },
+            Err(error) => problems.push(Finding::error(
+                "airlock.state.receipt",
+                format!("cannot read the receipt in {}: {error}", path.display()),
+            )),
+        },
+        (Some(path), false) => problems.push(Finding::error(
+            "airlock.state.dangling",
+            format!(
+                "`current` names {}, which does not exist; the last restore did not complete or \
+                 its environment was deleted",
+                path.display()
+            ),
+        )),
+        (None, _) => problems.push(Finding::warning(
+            "airlock.state.empty",
+            format!(
+                "{} holds no active environment; run `restore` to activate one",
+                layout.root().display()
+            ),
+        )),
+    }
+
+    Status {
+        root_exists,
+        current,
+        current_exists,
+        receipt,
+        problems,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Layout, Receipt, Status, activate, default_root, inspect};
+    use crate::payload::verify;
+    use crate::sha256::sha256_hex;
+    use crate::signature::Lane;
+    use crate::testing::Scratch;
+
+    const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
+
+    fn payload(label: &str) -> Scratch {
+        let scratch = Scratch::new(label);
+        let bytes = b"the only artifact\n";
+        scratch.write("airlock-0.1.0.conda", bytes);
+        let manifest = format!(
+            r#"{{"schema":1,"version":"0.1.0","commit":"{COMMIT}","packages":[
+                 {{"name":"universe-airlock","kind":"conda","version":"0.1.0","artifacts":[
+                   {{"filename":"airlock-0.1.0.conda","sha256":"{}","size":{},"stores":["conda-static"]}}]}}]}}"#,
+            sha256_hex(bytes),
+            bytes.len()
+        );
+        scratch.write("universe-release.json", manifest.as_bytes());
+        scratch
+    }
+
+    #[test]
+    fn activation_materialises_the_payload_and_points_current_at_it() {
+        let payload = payload("activate");
+        let state = Scratch::new("activate-state");
+        let layout = Layout::new(state.path().join("state"));
+        let report = verify(payload.path(), Lane::Developer, Some(COMMIT)).expect("verifies");
+
+        let outcome = activate(&layout, payload.path(), &report).expect("activates");
+
+        assert!(!outcome.reused);
+        assert_eq!(outcome.previous, None);
+        assert_eq!(layout.current_env().as_deref(), Some(outcome.env.as_path()));
+        assert_eq!(
+            std::fs::read(outcome.env.join("airlock-0.1.0.conda")).expect("the artifact"),
+            b"the only artifact\n"
+        );
+        let receipt = Receipt::parse(
+            &std::fs::read_to_string(outcome.env.join(super::RECEIPT_FILE)).expect("a receipt"),
+        )
+        .expect("parses");
+        assert_eq!(receipt.version, "0.1.0");
+        assert_eq!(receipt.commit, COMMIT);
+        assert_eq!(receipt.signature, "unsigned");
+        assert_eq!(receipt.artifacts.len(), 1);
+    }
+
+    #[test]
+    fn restoring_the_same_payload_twice_copies_nothing_the_second_time() {
+        let payload = payload("twice");
+        let state = Scratch::new("twice-state");
+        let layout = Layout::new(state.path().join("state"));
+        let report = verify(payload.path(), Lane::Developer, None).expect("verifies");
+
+        let first = activate(&layout, payload.path(), &report).expect("activates");
+        let second = activate(&layout, payload.path(), &report).expect("activates again");
+
+        assert!(!first.reused);
+        assert!(second.reused);
+        assert_eq!(first.env, second.env);
+        assert_eq!(second.previous, Some(first.env.clone()));
+    }
+
+    #[test]
+    fn a_failure_leaves_the_previous_environment_active_and_intact() {
+        // The heart of `UNI-33` #3. The payload is valid when verified and corrupted before
+        // the copy, which is the window a transactional restore has to survive.
+        let payload = payload("failure");
+        let state = Scratch::new("failure-state");
+        let layout = Layout::new(state.path().join("state"));
+        let report = verify(payload.path(), Lane::Developer, None).expect("verifies");
+        let first = activate(&layout, payload.path(), &report).expect("activates");
+
+        // Publish a different, larger payload as a staging target, then corrupt it mid-flight.
+        let second = Scratch::new("failure-second");
+        let bytes = b"a different artifact\n";
+        second.write("airlock-0.1.0.conda", bytes);
+        let manifest = format!(
+            r#"{{"schema":1,"version":"0.2.0","commit":"{COMMIT}","packages":[
+                 {{"name":"universe-airlock","kind":"conda","version":"0.2.0","artifacts":[
+                   {{"filename":"airlock-0.1.0.conda","sha256":"{}","size":{},"stores":["conda-static"]}}]}}]}}"#,
+            sha256_hex(bytes),
+            bytes.len()
+        );
+        second.write("universe-release.json", manifest.as_bytes());
+        let report = verify(second.path(), Lane::Developer, None).expect("verifies");
+        second.write("airlock-0.1.0.conda", b"tampered after verification\n");
+
+        let failure = activate(&layout, second.path(), &report).expect_err("must refuse");
+
+        assert_eq!(failure.code(), "airlock.payload.changed");
+        // `current` still names the first environment, and that environment is untouched.
+        assert_eq!(layout.current_env().as_deref(), Some(first.env.as_path()));
+        assert_eq!(
+            std::fs::read(first.env.join("airlock-0.1.0.conda")).expect("still there"),
+            b"the only artifact\n"
+        );
+        // And nothing was left behind by the abandoned staging.
+        let leftovers: Vec<String> = std::fs::read_dir(layout.envs())
+            .expect("envs")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(".staging"))
+            .collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
+    }
+
+    #[test]
+    fn a_second_restore_records_what_it_replaced() {
+        let state = Scratch::new("previous-state");
+        let layout = Layout::new(state.path().join("state"));
+        let first_payload = payload("previous-first");
+        let first = activate(
+            &layout,
+            first_payload.path(),
+            &verify(first_payload.path(), Lane::Developer, None).expect("verifies"),
+        )
+        .expect("activates");
+
+        let second = Scratch::new("previous-second");
+        let bytes = b"a different artifact\n";
+        second.write("airlock-0.1.0.conda", bytes);
+        let manifest = format!(
+            r#"{{"schema":1,"version":"0.2.0","commit":"{COMMIT}","packages":[
+                 {{"name":"universe-airlock","kind":"conda","version":"0.2.0","artifacts":[
+                   {{"filename":"airlock-0.1.0.conda","sha256":"{}","size":{},"stores":["conda-static"]}}]}}]}}"#,
+            sha256_hex(bytes),
+            bytes.len()
+        );
+        second.write("universe-release.json", manifest.as_bytes());
+        let outcome = activate(
+            &layout,
+            second.path(),
+            &verify(second.path(), Lane::Developer, None).expect("verifies"),
+        )
+        .expect("activates");
+
+        assert_eq!(outcome.previous, Some(first.env.clone()));
+        assert_eq!(layout.previous_env(), Some(first.env));
+        assert_eq!(layout.current_env(), Some(outcome.env));
+    }
+
+    #[test]
+    fn doctor_describes_an_empty_and_a_populated_root_without_changing_either() {
+        let state = Scratch::new("doctor-state");
+        let layout = Layout::new(state.path().join("state"));
+        let empty: Status = inspect(&layout);
+        assert!(!empty.root_exists);
+        assert!(!empty.problems.is_empty(), "an absent root is worth saying");
+
+        let payload = payload("doctor");
+        activate(
+            &layout,
+            payload.path(),
+            &verify(payload.path(), Lane::Developer, None).expect("verifies"),
+        )
+        .expect("activates");
+
+        let populated = inspect(&layout);
+        assert!(populated.root_exists);
+        assert!(populated.current_exists);
+        assert!(populated.problems.is_empty(), "{:?}", populated.problems);
+        assert_eq!(populated.receipt.expect("a receipt").version, "0.1.0");
+    }
+
+    #[test]
+    fn doctor_names_a_current_that_points_nowhere() {
+        let state = Scratch::new("dangling");
+        let layout = Layout::new(state.path().join("state"));
+        std::fs::create_dir_all(layout.envs()).expect("envs");
+        std::os::unix::fs::symlink("envs/gone", layout.current()).expect("link");
+
+        let status = inspect(&layout);
+        assert!(!status.current_exists);
+        assert_eq!(status.problems[0].code(), "airlock.state.dangling");
+    }
+
+    #[test]
+    fn the_default_root_is_the_project_unless_the_environment_says_otherwise() {
+        let project = std::path::Path::new("/project");
+        assert_eq!(
+            default_root(project, None),
+            std::path::Path::new("/project/.universe-airlock/state")
+        );
+        assert_eq!(
+            default_root(project, Some("/var/lib/airlock")),
+            std::path::Path::new("/var/lib/airlock")
+        );
+    }
+
+    #[test]
+    fn a_receipt_round_trips_and_an_unknown_schema_is_refused() {
+        let receipt = Receipt {
+            version: "0.1.0".to_owned(),
+            commit: COMMIT.to_owned(),
+            manifest_sha256: "a".repeat(64),
+            signature: "unsigned".to_owned(),
+            artifacts: vec![crate::payload::Artifact {
+                filename: "airlock-0.1.0.conda".to_owned(),
+                sha256: "b".repeat(64),
+                size: 19,
+            }],
+        };
+        assert_eq!(Receipt::parse(&receipt.render()), Ok(receipt));
+
+        let future = "schema=2\nversion=0.1.0\ncommit=x\nmanifest_sha256=y\n";
+        let finding = Receipt::parse(future).expect_err("refuses");
+        assert_eq!(finding.code(), "airlock.state.receipt");
+        assert!(finding.message().contains("schema 2"));
+    }
+}
