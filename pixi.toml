@@ -41,6 +41,9 @@ rattler-build = ">=0.77.0,<0.78"
 # the local task and the CI task lint the same surface.
 shellcheck = "*"
 taplo = ">=0.10.0,<0.11"
+# Prose linter behind `lint-prose` (`decision-138`). It is a conda-forge build of the
+# upstream Go binary, so the gate runs the same version locally and on the runner.
+vale = ">=3.26,<4"
 
 [feature.dev.dependencies]
 actionlint = { workspace = true }
@@ -64,6 +67,7 @@ ruff = { workspace = true }
 rust = { workspace = true }
 shellcheck = { workspace = true }
 taplo = { workspace = true }
+vale = { workspace = true }
 
 [feature.dev.pypi-dependencies]
 # Static repository linter; the wheel embeds the binary, so no toolchain is needed.
@@ -121,6 +125,7 @@ skills-check = { cmd = "python -m scripts.skills_check", description = "Validate
 skills-check-write = { cmd = "python -m scripts.skills_check --write", description = "Refresh agent-skill content hashes after a deliberate skill edit" }
 lint-actions = { cmd = "actionlint .github/workflows/*.yml", description = "Lint GitHub Actions workflows" }
 lint-gherkin = { cmd = "python -m scripts.gherkin_lint", description = "Lint every features/*.feature file with gherlint, failing when there is none" }
+lint-prose = { cmd = "python -m scripts.prose_lint", description = "Lint the published documentation with Vale, failing when a document has a finding" }
 lint-commit = { cmd = "convco check --config .versionrc --from-stdin", description = "Validate one conventional commit message" }
 lint-commits = { cmd = "convco check --config .versionrc", description = "Validate a conventional commit range" }
 ci-render = { cmd = "cargo run --quiet --locked -p universe-kit -- ci render", description = "Regenerate the GitHub workflows from universe.toml (the manifest is the only source of truth)" }
@@ -142,6 +147,7 @@ check-fast = { depends-on = [
   "alint-test",
   "crate-check",
   "lint-gherkin",
+  "lint-prose",
 ], description = "Everything that reports in seconds, first: no compile, no network, no bun" }
 check = { depends-on = [
   "check-fast",

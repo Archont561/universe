@@ -1,0 +1,33 @@
+test_version: 1
+name: a project style directory with no rule file is flagged
+tags: [check, vale, prose, structure, failing]
+
+# `.vale.ini` names the style in `BasedOnStyles`. An empty style directory leaves that name
+# pointing at nothing, and Vale reports the corpus clean.
+docs:
+  title: a style name must resolve to rules
+  case: fail
+  kind: dir_contains
+
+given:
+  tree:
+    .vale:
+      styles:
+        Universe:
+          README.txt: "no rule here\n"
+  config: |
+    version: 1
+    rules:
+      - id: vale-style-directory-holds-a-rule
+        kind: dir_contains
+        select: ".vale/styles/Universe"
+        require: ["*.yml"]
+        message: "the project style must hold at least one rule file"
+        level: error
+
+when: [check]
+
+expect:
+  - exit: policy_failure
+    violations:
+      - {rule: vale-style-directory-holds-a-rule, level: error, path: .vale/styles/Universe}

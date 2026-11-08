@@ -148,6 +148,27 @@ not replace the Python repository scripts.
     each rule's own policy test lives under `alint-tests/behaviour-layout/`.
     `pixi run alint-check` and `pixi run alint-test` are the commands that say
     whether a unit complies.
+13. **Three linters, three questions, and none of them answers another's.**
+    Ruff owns Python style, Vale owns prose, and alint owns repository shape.
+    Putting one of these in the wrong tool is how a gate ends up checking
+    something nobody reads.
+
+    - `.vale.ini` and `.vale/styles/Universe/` hold the rules about how this
+      repository *writes*: the spellings it never uses, the filler it refuses,
+      and the names it spells one way. A term that must never appear is a Vale
+      rule; a file that must exist is an alint rule.
+    - `pixi run lint-prose` runs Vale over the documentation this repository
+      publishes — the four root documents and `docs/`. The corpus is decided by
+      `scripts/prose_lint.py`, not by `.vale.ini`, which cannot say "these files
+      and not those"; the module names what it excludes and why
+      (`decision-138`).
+    - A finding is fixed by improving the sentence. Turning a rule off to make a
+      document pass is the one change that needs a decision record, because the
+      next writer inherits the silence. A word that is legitimately part of this
+      domain goes in
+      `.vale/styles/config/vocabularies/Universe/accept.txt`, and a casing
+      variant that is correct in some context stays out of the vocabulary
+      entirely — an accepted term is enforced everywhere.
 
 ## Commands
 
@@ -165,6 +186,7 @@ pixi run repo-check
 pixi run skills-check
 pixi run alint-check
 pixi run alint-test
+pixi run lint-prose
 pixi run lint-actions
 pixi run audit
 pixi run build

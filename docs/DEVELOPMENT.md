@@ -27,6 +27,7 @@ pixi run fmt-check
 pixi run lint
 pixi run typecheck
 pixi run test
+pixi run lint-prose
 pixi run web-check
 pixi run web-build
 pixi run audit
@@ -54,6 +55,24 @@ pixi run --environment packaging package-airlock
 ```
 
 Each recipe builds only its corresponding workspace binary and smoke-tests its version command. Airlock has no package runtime dependency on Conda or a network service.
+
+## Documentation quality
+
+Prose is linted by Vale, repository shape by alint, and Python style by Ruff; each owns one
+question and none of them reads another's rules.
+
+- `.vale.ini` names the styles and the vocabulary; `.vale/styles/Universe/` holds this
+  repository's rules.
+- `pixi run lint-prose` runs Vale over `README.md`, `CONTRIBUTING.md`, `AGENTS.md`,
+  `CHANGELOG.md`, and `docs/`. `scripts/prose_lint.py` decides that corpus and exits non-zero
+  on a finding; under GitHub Actions it also emits the findings as check annotations, so a
+  failing pull request names the sentence in its summary rather than only in a log.
+- The Backlog and `.agents/skills/` are outside the corpus: records name commands and other
+  records in whatever case those need, and the vendored skills arrive with a content hash that
+  a "fix" would break. `decision-138` records the boundary and what would reopen it.
+- A word this project genuinely uses goes in
+  `.vale/styles/config/vocabularies/Universe/accept.txt`. A rule is switched off in
+  `.vale.ini` only with a recorded reason, because the next writer inherits the silence.
 
 ## Workspace boundaries
 

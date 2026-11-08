@@ -1,0 +1,16 @@
+# Names this repository spells one way.
+#
+# Vale applies this list twice: as an exception in every rule of every style above, and as a
+# substitution that enforces the exact spelling. Only names with one accepted form belong
+# here, which is why `Pixi`, `Conda`, `Cargo` and `Bun` are absent — in this corpus they are
+# command names and adapter kinds, written in lower case as often as not, and a rule that
+# insisted on the capital would flag correct prose.
+Rust
+Python
+Turbo
+Vale
+alint
+CEP-15
+CEP-16
+Universe Airlock
+Universe Kit
