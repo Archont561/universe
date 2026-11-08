@@ -42,9 +42,13 @@ pub(crate) struct Verified {
 }
 
 /// Read every fragment under `directory`, recursively, in a stable order.
+///
+/// A symlink is refused rather than followed. A channel is a tree of plain files — that is
+/// what a Git branch stores and what a transport pushes — so a payload that reaches outside
+/// itself through a link would publish either a dangling path or a file nobody audited.
 pub(crate) fn read_fragments(directory: &Path) -> Result<Vec<Audited>, Diagnostic> {
     let mut paths = Vec::new();
-    collect(directory, &mut paths);
+    collect(directory, &mut paths)?;
     paths.sort();
 
     let mut fragments = Vec::new();
@@ -78,14 +82,22 @@ pub(crate) fn read_fragments(directory: &Path) -> Result<Vec<Audited>, Diagnosti
     Ok(fragments)
 }
 
-fn collect(directory: &Path, found: &mut Vec<PathBuf>) {
+fn collect(directory: &Path, found: &mut Vec<PathBuf>) -> Result<(), Diagnostic> {
     let Ok(entries) = std::fs::read_dir(directory) else {
-        return;
+        return Ok(());
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_dir() {
-            collect(&path, found);
+        // `file_type` is the entry's own type, not the target's, which is exactly the
+        // distinction a symlink refusal needs.
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() {
+            return Err(symlink(&path, "a fragment"));
+        }
+        if file_type.is_dir() {
+            collect(&path, found)?;
         } else if path
             .extension()
             .is_some_and(|extension| extension == "json")
@@ -93,6 +105,21 @@ fn collect(directory: &Path, found: &mut Vec<PathBuf>) {
             found.push(path);
         }
     }
+    Ok(())
+}
+
+/// The refusal for a payload entry a transport cannot carry as itself.
+fn symlink(path: &Path, what: &str) -> Diagnostic {
+    Diagnostic::new(
+        Severity::Error,
+        "channel.payload.symlink",
+        format!(
+            "{} is {what} that resolves through a symlink; a channel is published as plain \
+             files, so a link would publish a path outside the payload — replace it with the \
+             file it points at",
+            path.display()
+        ),
+    )
 }
 
 /// Prove every fragment against the bytes it names.
@@ -128,6 +155,12 @@ pub(crate) fn verify(root: &Path, fragments: &[Audited]) -> Result<Vec<Verified>
             ));
         }
         let path = root.join(&fragment.path);
+        // Checked before the read, because `read` follows the link and would happily hash a
+        // file from anywhere on the host.
+        if std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink())
+        {
+            return Err(symlink(&path, "an artifact"));
+        }
         let bytes = std::fs::read(&path).map_err(|error| {
             Diagnostic::new(
                 Severity::Error,

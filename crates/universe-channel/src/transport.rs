@@ -235,6 +235,12 @@ pub enum TransportError {
 }
 
 /// A destination that holds exactly one channel snapshot.
+///
+/// Three methods, and all three are needed by `universe publish`: it reads what is there
+/// (`current`), it stages the snapshot to learn the identity the destination would give it
+/// (`staged_tree`), and it moves it (`push`). Keeping staging in the seam is what lets the
+/// command itself be written against the trait rather than against Git — `--check` compares a
+/// staged tree, and a fake that only knew how to push could not be used to test that path.
 pub trait Transport {
     /// The tree the destination currently holds, if it holds one.
     ///
@@ -242,6 +248,13 @@ pub trait Transport {
     ///
     /// Returns [`TransportError`] when the destination cannot be read.
     fn current(&self) -> Result<Option<TreeIdentity>, TransportError>;
+
+    /// The identity `tree` would have at this destination, without publishing it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TransportError`] when the tree cannot be staged.
+    fn staged_tree(&self, tree: &ChannelTree) -> Result<String, TransportError>;
 
     /// Force-push one snapshot, or report that it is already there.
     ///
@@ -291,6 +304,12 @@ impl MemoryTransport {
 }
 
 impl Transport for MemoryTransport {
+    fn staged_tree(&self, tree: &ChannelTree) -> Result<String, TransportError> {
+        // The identity is the content digest, which is the only tree id this double has —
+        // and the one a test can compute for itself.
+        Ok(format!("memory-tree:{}", tree.digest()))
+    }
+
     fn current(&self) -> Result<Option<TreeIdentity>, TransportError> {
         Ok(self.held.borrow().as_ref().map(|(digest, _)| TreeIdentity {
             commit: format!("memory:{}", &digest[..12]),
@@ -333,7 +352,9 @@ fn universe_workflow_digest(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{BudgetError, Budgets, ChannelTree, MemoryTransport, PushOutcome, Transport};
+    use super::{
+        BLOB_CEILING, BudgetError, Budgets, ChannelTree, MemoryTransport, PushOutcome, Transport,
+    };
 
     fn tree(bytes: &[u8]) -> ChannelTree {
         let mut tree = ChannelTree::default();
@@ -398,6 +419,35 @@ mod tests {
             }
         ));
         assert!(error.to_string().contains("budgets"));
+    }
+
+    #[test]
+    fn the_real_blob_ceiling_splits_a_file_of_ninety_five_mebibytes() {
+        // The 2 KiB ceilings elsewhere drive the same code, but they cannot show that the
+        // number production uses is the number a client's limit needs: 95 MiB is chosen
+        // against GitHub's 100 MiB refusal, so the test states the boundary rather than a
+        // scaled-down version of it.
+        let path = "linux-64/pkg-0.1.0-0.conda";
+        let mut tree = ChannelTree::default();
+        tree.insert(path, vec![7_u8; BLOB_CEILING as usize + 1]);
+
+        let split = tree.split_oversized(BLOB_CEILING);
+
+        assert_eq!(
+            split.paths().map(String::as_str).collect::<Vec<&str>>(),
+            [
+                "linux-64/pkg-0.1.0-0.conda.part001",
+                "linux-64/pkg-0.1.0-0.conda.part002"
+            ]
+        );
+        let sizes: Vec<u64> = split.files().map(|(_, bytes)| bytes.len() as u64).collect();
+        assert_eq!(sizes, [BLOB_CEILING, 1]);
+        // A whole-file ceiling of 95 MiB leaves the artifact that fits untouched.
+        assert_eq!(
+            tree.split_oversized(BLOB_CEILING + 1).paths().count(),
+            1,
+            "a file inside the ceiling must not be cut"
+        );
     }
 
     #[test]

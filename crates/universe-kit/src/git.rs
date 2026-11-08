@@ -30,6 +30,67 @@ use universe_channel::transport::{
     ChannelTree, PushOutcome, Transport, TransportError, TreeIdentity,
 };
 
+/// How one `git` invocation is executed.
+///
+/// The transport's shape is its argv, so the argv needs to be observable without a repository:
+/// a recorder implements this trait, the transport cannot tell it from the real thing, and a
+/// test can assert exactly what a publish would run. Without the seam the only evidence of
+/// "one parentless commit, force-pushed" would be a passing test against a real remote, which
+/// says it worked but not that it worked the way the design claims.
+pub(crate) trait GitRunner: std::fmt::Debug {
+    /// Run `arguments` in `scratch` with `environment` set, returning trimmed stdout.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TransportError::Failed`] when git cannot be started or exits non-zero.
+    fn run(
+        &self,
+        scratch: &Path,
+        arguments: &[&str],
+        environment: &[(String, String)],
+    ) -> Result<String, TransportError>;
+}
+
+/// The real thing: a `git` process.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct ProcessGit;
+
+impl GitRunner for ProcessGit {
+    fn run(
+        &self,
+        scratch: &Path,
+        arguments: &[&str],
+        environment: &[(String, String)],
+    ) -> Result<String, TransportError> {
+        let mut command = Command::new("git");
+        // Global options come before the subcommand: `git -c a=b init` is config, `git init
+        // -c a=b` is an unknown switch.
+        command.arg("-C").arg(scratch);
+        for (name, value) in environment {
+            // The dates are environment and the identity is config; each mechanism ignores
+            // the other's variables, so both travel here as environment and only the config
+            // entries become `-c`.
+            if name.starts_with("GIT_") {
+                command.env(name, value);
+            } else {
+                command.arg("-c").arg(format!("{name}={value}"));
+            }
+        }
+        command.args(arguments);
+        let output = command.output().map_err(|error| TransportError::Failed {
+            operation: "git".to_owned(),
+            message: format!("cannot run git: {error}"),
+        })?;
+        if !output.status.success() {
+            return Err(TransportError::Failed {
+                operation: format!("git {}", arguments.join(" ")),
+                message: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+            });
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    }
+}
+
 /// A channel held on a Git branch, reached through an existing remote.
 #[derive(Debug)]
 pub(crate) struct GitTransport {
@@ -40,6 +101,8 @@ pub(crate) struct GitTransport {
     identity: [(&'static str, &'static str); 4],
     /// A token to present, when the caller supplied one rather than leaving git to find it.
     credential: Option<PushCredential>,
+    /// How a `git` command is executed: a process, or a recorder in a test.
+    runner: Box<dyn GitRunner>,
 }
 
 impl GitTransport {
@@ -56,7 +119,18 @@ impl GitTransport {
                 ("GIT_COMMITTER_DATE", "2000-01-01T00:00:00 +0000"),
             ],
             credential: None,
+            runner: Box::new(ProcessGit),
         }
+    }
+
+    /// The same transport, executing commands through `runner`.
+    ///
+    /// Tests only: a production publish has no reason to choose an executor, and an executor
+    /// that fabricated git's answers would be a way to publish nothing and report success.
+    #[cfg(test)]
+    pub(crate) fn with_runner(mut self, runner: Box<dyn GitRunner>) -> Self {
+        self.runner = runner;
+        self
     }
 
     /// The same transport, presenting `token` to the remote when it speaks HTTPS.
@@ -70,34 +144,15 @@ impl GitTransport {
 
     /// Run one git command in the scratch repository.
     fn run(&self, arguments: &[&str]) -> Result<String, TransportError> {
-        let mut command = Command::new("git");
-        // Global options come before the subcommand: `git -c a=b init` is config, `git init
-        // -c a=b` is an unknown switch.
-        command.arg("-C").arg(&self.scratch);
-        for (name, value) in self.identity {
-            // The dates are environment and the identity is config; each mechanism ignores
-            // the other's variables.
-            if name.starts_with("GIT_") {
-                command.env(name, value);
-            } else {
-                command.arg("-c").arg(format!("{name}={value}"));
-            }
-        }
+        let mut environment: Vec<(String, String)> = self
+            .identity
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+            .collect();
         if let Some(credential) = &self.credential {
-            credential.apply(&mut command);
+            environment.extend(credential.environment());
         }
-        command.args(arguments);
-        let output = command.output().map_err(|error| TransportError::Failed {
-            operation: "git".to_owned(),
-            message: format!("cannot run git: {error}"),
-        })?;
-        if !output.status.success() {
-            return Err(TransportError::Failed {
-                operation: format!("git {}", arguments.join(" ")),
-                message: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-            });
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+        self.runner.run(&self.scratch, arguments, &environment)
     }
 
     fn prepare(&self) -> Result<(), TransportError> {
@@ -131,14 +186,6 @@ impl GitTransport {
         }
         self.run(&["add", "--all", "--force"])?;
         self.run(&["write-tree"])
-    }
-
-    /// The git tree the given snapshot produces, without pushing it.
-    ///
-    /// `--check` compares *this* with the remote, not the snapshot's content digest: the
-    /// question is whether git would write a different tree, and only git can answer it.
-    pub(crate) fn staged_tree(&self, tree: &ChannelTree) -> Result<String, TransportError> {
-        self.write_tree(tree)
     }
 
     /// The tree hash the remote branch currently holds, if it holds one.
@@ -210,11 +257,12 @@ impl PushCredential {
     /// `GIT_CONFIG_COUNT` plus a numbered key and value is git's supported way of adding
     /// config for one command without a file, and it is inherited by the `git-remote-https`
     /// helper that actually speaks the protocol.
-    fn apply(&self, command: &mut Command) {
-        command
-            .env("GIT_CONFIG_COUNT", "1")
-            .env("GIT_CONFIG_KEY_0", &self.key)
-            .env("GIT_CONFIG_VALUE_0", &self.header);
+    fn environment(&self) -> Vec<(String, String)> {
+        vec![
+            ("GIT_CONFIG_COUNT".to_owned(), "1".to_owned()),
+            ("GIT_CONFIG_KEY_0".to_owned(), self.key.clone()),
+            ("GIT_CONFIG_VALUE_0".to_owned(), self.header.clone()),
+        ]
     }
 }
 
@@ -290,6 +338,14 @@ fn base64(bytes: &[u8]) -> String {
 }
 
 impl Transport for GitTransport {
+    /// The git tree the given snapshot produces, without pushing it.
+    ///
+    /// `--check` compares *this* with the remote, not the snapshot's content digest: the
+    /// question is whether git would write a different tree, and only git can answer it.
+    fn staged_tree(&self, tree: &ChannelTree) -> Result<String, TransportError> {
+        self.write_tree(tree)
+    }
+
     fn current(&self) -> Result<Option<TreeIdentity>, TransportError> {
         self.prepare()?;
         match self.remote_tree()? {
@@ -321,11 +377,182 @@ impl Transport for GitTransport {
 
 #[cfg(test)]
 mod tests {
-    use super::{GitTransport, PushCredential, base64, is_github, origin_of};
+    use super::{GitRunner, GitTransport, PushCredential, base64, is_github, origin_of};
+    use std::collections::BTreeMap;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::path::Path;
     use std::thread;
-    use universe_channel::transport::Transport;
+    use universe_channel::transport::{ChannelTree, PushOutcome, Transport, TransportError};
+
+    /// A runner that records what it was asked and answers from a script.
+    ///
+    /// It never invokes git: the question these tests ask is what argv the transport would
+    /// issue, and a real repository could only answer it by inference. Cloning shares the
+    /// record, so the transport keeps the boxed copy and the test keeps the handle.
+    #[derive(Debug, Clone, Default)]
+    struct Recorder {
+        inner: std::sync::Arc<RecorderState>,
+    }
+
+    #[derive(Debug, Default)]
+    struct RecorderState {
+        calls: std::cell::RefCell<Vec<Vec<String>>>,
+        environments: std::cell::RefCell<Vec<Vec<String>>>,
+        answers: std::cell::RefCell<BTreeMap<&'static str, &'static str>>,
+    }
+
+    impl Recorder {
+        fn answering(answers: &[(&'static str, &'static str)]) -> Self {
+            let recorder = Self::default();
+            *recorder.inner.answers.borrow_mut() = answers.iter().copied().collect();
+            recorder
+        }
+
+        fn arguments(&self) -> Vec<Vec<String>> {
+            self.inner.calls.borrow().clone()
+        }
+
+        fn environments(&self) -> Vec<Vec<String>> {
+            self.inner.environments.borrow().clone()
+        }
+    }
+
+    impl GitRunner for Recorder {
+        fn run(
+            &self,
+            _scratch: &Path,
+            arguments: &[&str],
+            environment: &[(String, String)],
+        ) -> Result<String, TransportError> {
+            self.inner
+                .calls
+                .borrow_mut()
+                .push(arguments.iter().map(|value| (*value).to_owned()).collect());
+            self.inner.environments.borrow_mut().push(
+                environment
+                    .iter()
+                    .map(|(name, value)| format!("{name}={value}"))
+                    .collect(),
+            );
+            let verb = arguments.first().copied().unwrap_or_default();
+            let answers = self.inner.answers.borrow();
+            Ok(answers.get(verb).copied().unwrap_or_default().to_owned())
+        }
+    }
+
+    #[test]
+    fn a_publish_issues_one_orphan_commit_and_a_forced_push() {
+        let scratch = tempfile::tempdir().expect("a scratch directory");
+        let recorder = Recorder::answering(&[
+            ("write-tree", "4b825dc642cb6eb9a060e54bf8d69288fbee4904"),
+            ("commit-tree", "c0ffee0000000000000000000000000000000000"),
+        ]);
+        let transport = GitTransport::new(
+            "https://example.invalid/repo.git",
+            "channel",
+            scratch.path(),
+        )
+        .with_runner(Box::new(recorder.clone()));
+
+        let mut tree = ChannelTree::default();
+        tree.insert_slice("linux-64/a.conda", b"bytes");
+
+        assert_eq!(
+            transport.push(&tree, "channel fixture").expect("pushes"),
+            PushOutcome::Published {
+                commit: "c0ffee0000000000000000000000000000000000".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn the_exact_argv_a_publish_issues_is_one_init_one_commit_tree_and_one_forced_push() {
+        let scratch = tempfile::tempdir().expect("a scratch directory");
+        let recorder = Recorder::answering(&[
+            ("write-tree", "4b825dc642cb6eb9a060e54bf8d69288fbee4904"),
+            ("commit-tree", "c0ffee0000000000000000000000000000000000"),
+        ]);
+        let transport = GitTransport::new(
+            "https://example.invalid/repo.git",
+            "channel",
+            scratch.path(),
+        )
+        .with_runner(Box::new(recorder.clone()));
+
+        let mut tree = ChannelTree::default();
+        tree.insert_slice("linux-64/a.conda", b"bytes");
+        transport.push(&tree, "channel fixture").expect("pushes");
+
+        assert_eq!(
+            recorder.arguments(),
+            vec![
+                vec!["init", "--quiet"],
+                vec!["rm", "-r", "--cached", "--quiet", "."],
+                vec!["add", "--all", "--force"],
+                vec!["write-tree"],
+                vec![
+                    "ls-remote",
+                    "https://example.invalid/repo.git",
+                    "refs/heads/channel"
+                ],
+                vec![
+                    "commit-tree",
+                    "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+                    "-m",
+                    "channel fixture"
+                ],
+                vec![
+                    "push",
+                    "--quiet",
+                    "--force",
+                    "https://example.invalid/repo.git",
+                    "c0ffee0000000000000000000000000000000000:refs/heads/channel"
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn a_token_travels_in_the_environment_and_never_in_argv() {
+        let scratch = tempfile::tempdir().expect("a scratch directory");
+        let recorder = Recorder::answering(&[]);
+        let transport = GitTransport::new(
+            "https://example.invalid/repo.git",
+            "channel",
+            scratch.path(),
+        )
+        .with_runner(Box::new(recorder.clone()))
+        .authenticated(Some("s3cret-token"));
+
+        let mut tree = ChannelTree::default();
+        tree.insert_slice("linux-64/a.conda", b"bytes");
+        transport.push(&tree, "channel fixture").expect("pushes");
+
+        let (argv, environment) = (recorder.arguments(), recorder.environments());
+        for call in &argv {
+            for argument in call {
+                assert!(
+                    !argument.contains("s3cret-token"),
+                    "the token reached argv: {call:?}"
+                );
+            }
+        }
+        assert!(
+            environment
+                .iter()
+                .flatten()
+                .any(|entry| entry == "GIT_CONFIG_KEY_0=http.https://example.invalid/.extraheader"),
+            "the credential was not scoped to the remote's origin: {environment:?}"
+        );
+        assert!(
+            environment
+                .iter()
+                .flatten()
+                .any(|entry| entry == "GIT_CONFIG_VALUE_0=Authorization: Bearer s3cret-token"),
+            "the credential did not travel as config: {environment:?}"
+        );
+    }
 
     #[test]
     fn base64_matches_the_padding_rules() {

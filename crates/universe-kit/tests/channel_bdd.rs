@@ -77,16 +77,23 @@ impl Channel {
     /// The store is named because the ceiling belongs to the destination, and because this
     /// is the invocation the rendered publish job issues.
     fn publish(&mut self) -> &CommandOutput {
+        self.publish_with(&[])
+    }
+
+    /// Publish with extra flags, in the order the rendered job would pass them.
+    fn publish_with(&mut self, extra: &[&str]) -> &CommandOutput {
         let remote = self.remote().display().to_string();
-        self.run(&[
+        let mut arguments = vec![
             "publish",
             "--remote",
-            &remote,
+            remote.as_str(),
             "--branch",
             BRANCH,
             "--store",
             "channel-branch",
-        ])
+        ];
+        arguments.extend_from_slice(extra);
+        self.run(&arguments)
     }
 
     fn branch_exists(&self) -> bool {
@@ -207,6 +214,36 @@ fn an_audited_package(channel: &mut Channel) {
     *channel = audited("");
 }
 
+#[given("an audited package with a channel branch store and two builds of one version")]
+fn an_audited_package_with_two_builds(channel: &mut Channel) {
+    *channel = audited("");
+    let bytes = b"a second build";
+    let relative = "output/example-airlock-1.0.0-1.conda";
+    std::fs::write(channel.path(relative), bytes).expect("the second artifact");
+    std::fs::write(
+        channel.path("output/fragments/example-airlock-1-linux-64.json"),
+        format!(
+            r#"{{
+  "package": "{PACKAGE}",
+  "version": "1.0.0",
+  "build": "1",
+  "build_number": 1,
+  "subdir": "linux-64",
+  "digest": "{}",
+  "size_bytes": {},
+  "depends": [],
+  "license": "MIT",
+  "license_files": [],
+  "path": "{relative}"
+}}
+"#,
+            universe_workflow::sha256::sha256_hex(bytes),
+            bytes.len()
+        ),
+    )
+    .expect("the second fragment");
+}
+
 #[given("a channel whose store refuses snapshots above four bytes")]
 fn a_channel_with_a_tiny_budget(channel: &mut Channel) {
     *channel = audited("\n[stores.budgets]\ntransport = 4\n");
@@ -261,6 +298,11 @@ fn rebuild_the_package_during_the_scenario(channel: &Channel) {
 #[when("the channel is published")]
 fn publish(channel: &mut Channel) {
     channel.publish();
+}
+
+#[when("the channel is published keeping one build per version")]
+fn publish_keeping_one(channel: &mut Channel) {
+    channel.publish_with(&["--keep", "1"]);
 }
 
 #[when("the channel is published again")]
@@ -383,6 +425,44 @@ fn clone_receipt_matches_the_bytes(channel: &Channel) {
     assert_eq!(receipt["size_bytes"], bytes.len());
 }
 
+#[then("the branch holds only the newest build")]
+fn only_the_newest_build(channel: &Channel) {
+    assert_eq!(
+        channel.output().exit_code(),
+        0,
+        "the publish failed: {}",
+        channel.output().stderr()
+    );
+    let listing = Command::new("git")
+        .args(["-C"])
+        .arg(channel.remote())
+        .args(["ls-tree", "-r", "--name-only", BRANCH])
+        .output()
+        .expect("git is installed");
+    let paths = String::from_utf8_lossy(&listing.stdout);
+    assert!(
+        paths.contains("linux-64/example-airlock-1.0.0-1.conda"),
+        "the newest build is missing:\n{paths}"
+    );
+    assert!(
+        !paths.contains("linux-64/example-airlock-1.0.0-0.conda"),
+        "a build retention left out is in the tree:\n{paths}"
+    );
+}
+
+#[then("the publish says the branch bounds what it serves rather than what it stores")]
+fn retention_is_stated_honestly(channel: &Channel) {
+    let stdout = channel.output().stdout();
+    assert!(
+        stdout.contains("bounds what it serves"),
+        "the report does not say what a force-push bounds: {stdout}"
+    );
+    assert!(
+        stdout.contains("does not delete"),
+        "the report implies it reclaimed storage: {stdout}"
+    );
+}
+
 #[then("the branch holds exactly one commit")]
 fn one_commit(channel: &Channel) {
     assert_eq!(
@@ -482,6 +562,14 @@ fn a_tampered_artifact_refuses_publication(channel: Channel) {
     name = "A store that refuses snapshots above four bytes publishes nothing"
 )]
 fn a_budget_refuses_a_snapshot(channel: Channel) {
+    let _ = channel;
+}
+
+#[scenario(
+    path = "tests/features/channel.feature",
+    name = "Retention keeps the newest builds and says what that bounded"
+)]
+fn retention_is_declared(channel: Channel) {
     let _ = channel;
 }
 

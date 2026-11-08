@@ -25,7 +25,7 @@ pub(crate) struct VerbSpec {
     pub(crate) channel_inputs: bool,
     /// `--base-url <url>` and `--package <name>` (repeatable).
     pub(crate) channel_shape: bool,
-    /// `--remote <name>`, `--branch <name>`, `--check`, and `--dry-run`.
+    /// `--remote <name>`, `--branch <name>`, `--keep <n>`, `--check`, and `--dry-run`.
     pub(crate) transport: bool,
     /// `--force`, and the `--store`/`--dry-run` an upload needs.
     pub(crate) upload: bool,
@@ -159,7 +159,8 @@ impl VerbSpec {
         }
         if self.transport {
             usage.push_str(
-                " [--remote <name>] [--branch <name>] [--store <name>] [--check] [--dry-run]",
+                " [--remote <name>] [--branch <name>] [--store <name>] [--keep <n>] [--check] \
+                 [--dry-run]",
             );
         }
         if self.upload {
@@ -203,6 +204,9 @@ pub(crate) struct Options {
     pub(crate) branch: Option<String>,
     /// Store whose budgets and channel the publish is measured against.
     pub(crate) store: Option<String>,
+    /// How many builds of one version the snapshot keeps; `None` means the store's own rule,
+    /// and no rule there means every build.
+    pub(crate) keep: Option<usize>,
     /// Whether to only compare the branch with what the fragments render to.
     pub(crate) check: bool,
     /// Whether to describe the publish without performing it.
@@ -235,6 +239,7 @@ impl Options {
             remote: None,
             branch: None,
             store: None,
+            keep: None,
             check: false,
             dry_run: false,
             force: false,
@@ -285,6 +290,12 @@ impl Options {
                 "--branch" if spec.transport => {
                     options.branch = Some(value(rest.next(), "--branch")?.clone());
                 }
+                "--keep" if spec.transport => {
+                    let raw = value(rest.next(), "--keep")?;
+                    options.keep = Some(raw.parse().map_err(|_| {
+                        format!("--keep takes a whole number of builds, not '{raw}'")
+                    })?);
+                }
                 "--check" if spec.transport => options.check = true,
                 "--dry-run" if spec.transport || spec.upload => options.dry_run = true,
                 "--receipts" if spec.build_controls => {
@@ -330,6 +341,8 @@ mod tests {
                 "a",
                 "--package",
                 "b",
+                "--keep",
+                "2",
                 "--check",
                 "--dry-run",
                 "--json",
@@ -342,6 +355,7 @@ mod tests {
         assert_eq!(options.branch.as_deref(), Some("channel"));
         assert_eq!(options.store.as_deref(), Some("conda-branch"));
         assert_eq!(options.packages, ["a", "b"]);
+        assert_eq!(options.keep, Some(2));
         assert!(options.check && options.dry_run && options.json);
     }
 
@@ -350,6 +364,14 @@ mod tests {
         // A flag that silently did nothing would make a script believe it had published.
         let error = parse(&["--remote", "origin"], VerbSpec::index()).expect_err("refused");
         assert!(error.contains("usage: universe index"), "{error}");
+    }
+
+    #[test]
+    fn a_keep_that_is_not_a_number_is_refused_with_the_flag_named() {
+        let error = parse(&["--keep", "some"], VerbSpec::publish()).expect_err("refused");
+        assert!(error.contains("--keep takes a whole number"), "{error}");
+        // `index` renders a channel but pushes nothing, so retention is not its business.
+        assert!(parse(&["--keep", "2"], VerbSpec::index()).is_err());
     }
 
     #[test]

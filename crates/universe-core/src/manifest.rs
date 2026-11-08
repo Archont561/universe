@@ -289,11 +289,13 @@ pub struct Store {
     /// owner default, so it is the same for every project.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tag_prefix: Option<String>,
-    /// How many builds of one version a release store keeps.
+    /// How many builds of one version a store keeps.
     ///
     /// A GitHub release holds at most 1,000 assets, so a channel that publishes every build
-    /// eventually cannot publish at all. Retention keeps the highest build numbers of each
-    /// `(package, version)` and prunes the rest; absent means no pruning.
+    /// eventually cannot publish at all. A Git branch does not have that cap, but it has a
+    /// serviceable-size one, and a snapshot that keeps every build grows past it. Retention
+    /// keeps the highest build numbers of each `(package, version)` and leaves the rest out;
+    /// absent means no pruning, and `universe publish --keep` overrides it for one run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_builds_per_version: Option<usize>,
 }
@@ -1063,14 +1065,17 @@ impl Manifest {
                 );
             }
             if let Some(max_builds) = store.max_builds_per_version {
-                if store.kind != StoreKind::Releases {
+                // A release store prunes against GitHub's asset cap; a branch store prunes
+                // against its own snapshot, which is `universe publish --keep`. Any other
+                // kind has no list of builds to prune, so saying so is the useful answer.
+                if store.kind != StoreKind::Releases && !store.kind.is_git_branch() {
                     diagnostics.push(
                         Diagnostic::new(
                             Severity::Warning,
                             "manifest.store.retention.unused",
                             format!(
                                 "store '{}' declares max_builds_per_version but is a '{}' store, \
-                                 which has no per-release asset cap to prune against",
+                                 which keeps no list of builds to prune",
                                 store.name,
                                 store.kind.as_str()
                             ),

@@ -1014,3 +1014,341 @@ fn a_digest_that_disagrees_stops_a_publish_as_well_as_an_index() {
     );
     assert!(!branch_exists(&remote, "channel"));
 }
+
+// ---------------------------------------------------------------------------------------
+// A payload a transport can carry: no symlinks, and staging outside it.
+// ---------------------------------------------------------------------------------------
+
+#[test]
+fn an_artifact_that_is_a_symlink_is_refused_before_anything_is_staged() {
+    let fixture = Fixture::new();
+    let remote = remote(fixture.root());
+    let artifact = fixture.root().join("output/example-airlock-1.0.0-0.conda");
+    // The link points at real bytes, so only a refusal that looks at the *entry* catches it:
+    // a read would follow the link and hash a file from outside the payload.
+    let elsewhere = fixture.root().join("elsewhere.conda");
+    std::fs::write(&elsewhere, b"conda bytes").expect("the target");
+    std::fs::remove_file(&artifact).expect("the original artifact");
+    std::os::unix::fs::symlink(&elsewhere, &artifact).expect("a symlink in the payload");
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+    ]);
+
+    assert_eq!(output.exit_code(), 1, "stderr: {}", output.stderr());
+    assert!(
+        output.stderr().contains("channel.payload.symlink"),
+        "{}",
+        output.stderr()
+    );
+    assert!(
+        output.stderr().contains("example-airlock-1.0.0-0.conda"),
+        "the refusal must name the link: {}",
+        output.stderr()
+    );
+    assert!(!branch_exists(&remote, "channel"));
+}
+
+#[test]
+fn a_fragment_reached_through_a_symlink_is_refused() {
+    let fixture = Fixture::new();
+    let remote = remote(fixture.root());
+    let fragment = fixture
+        .root()
+        .join("output/fragments/example-airlock-linux-64.json");
+    let target = fixture.root().join("elsewhere.json");
+    std::fs::rename(&fragment, &target).expect("the fragment moved out of the way");
+    std::os::unix::fs::symlink(&target, &fragment).expect("a symlinked fragment");
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+    ]);
+
+    assert_eq!(output.exit_code(), 1, "stderr: {}", output.stderr());
+    assert!(
+        output.stderr().contains("channel.payload.symlink"),
+        "{}",
+        output.stderr()
+    );
+    assert!(!branch_exists(&remote, "channel"));
+}
+
+#[test]
+fn staging_inside_the_directory_that_holds_the_artifacts_is_refused() {
+    let fixture = Fixture::new();
+    let remote = remote(fixture.root());
+    let inside = fixture.root().join("output/publish");
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+        "--output",
+        inside.to_str().expect("utf-8"),
+    ]);
+
+    assert_eq!(output.exit_code(), 2, "stderr: {}", output.stderr());
+    assert!(
+        output.stderr().contains("publish.scratch.inside-payload"),
+        "{}",
+        output.stderr()
+    );
+    assert!(!branch_exists(&remote, "channel"));
+}
+
+#[test]
+fn a_publish_stages_outside_the_project_and_leaves_nothing_behind() {
+    let fixture = Fixture::new();
+    let remote = remote(fixture.root());
+    let scratch = fixture.root().join("staging");
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+        "--output",
+        scratch.to_str().expect("utf-8"),
+    ]);
+
+    assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
+    // The directory was created by this run, so it is this run's to remove.
+    assert!(
+        !scratch.exists(),
+        "a publish that succeeded left its staging tree behind"
+    );
+    assert!(
+        !fixture.root().join("output/publish").exists(),
+        "the default scratch must not land inside the payload"
+    );
+}
+
+// ---------------------------------------------------------------------------------------
+// Retention: which builds a snapshot keeps, and what that claim does not mean.
+// ---------------------------------------------------------------------------------------
+
+/// A fixture holding `builds` builds of one package and version.
+///
+/// Every build has its own bytes, so the artifacts are genuinely distinct rather than three
+/// names for one file.
+fn with_builds(builds: &[(&str, u64)]) -> Fixture {
+    let fixture = Fixture::new();
+    // The default fixture's artifact and fragment are replaced by the build set.
+    std::fs::remove_file(fixture.root().join("output/example-airlock-1.0.0-0.conda"))
+        .expect("the default artifact");
+    std::fs::remove_file(
+        fixture
+            .root()
+            .join("output/fragments/example-airlock-linux-64.json"),
+    )
+    .expect("the default fragment");
+
+    for (build, build_number) in builds {
+        let relative = format!("output/example-airlock-1.0.0-{build}.conda");
+        let bytes = format!("conda bytes for {build}").into_bytes();
+        std::fs::write(fixture.root().join(&relative), &bytes).expect("artifact");
+        let digest = universe_workflow::sha256::sha256_hex(&bytes);
+        let fragment = format!(
+            r#"{{
+  "package": "example-airlock",
+  "version": "1.0.0",
+  "build": "{build}",
+  "build_number": {build_number},
+  "subdir": "linux-64",
+  "digest": "{digest}",
+  "size_bytes": {},
+  "depends": [],
+  "license": "MIT",
+  "license_files": [],
+  "path": "{relative}"
+}}
+"#,
+            bytes.len()
+        );
+        std::fs::write(
+            fixture
+                .root()
+                .join(format!("output/fragments/example-airlock-{build}.json")),
+            fragment,
+        )
+        .expect("fragment");
+    }
+    fixture
+}
+
+/// The file names a branch holds under `linux-64`, without their directory.
+fn branch_packages(remote: &Path, branch: &str) -> Vec<String> {
+    let listing = Command::new("git")
+        .args([
+            "-C",
+            remote.to_str().expect("utf-8"),
+            "ls-tree",
+            "-r",
+            "--name-only",
+        ])
+        .arg(branch)
+        .output()
+        .expect("git runs");
+    String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter_map(|line| line.strip_prefix("linux-64/"))
+        .filter(|name| name.ends_with(".conda"))
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn keep_n_publishes_the_newest_builds_and_says_what_that_did_not_reclaim() {
+    let fixture = with_builds(&[("h0000001", 1), ("h0000002", 2), ("h0000003", 3)]);
+    let remote = remote(fixture.root());
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+        "--keep",
+        "2",
+    ]);
+
+    assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
+    assert_eq!(
+        branch_packages(&remote, "channel"),
+        [
+            "example-airlock-1.0.0-h0000002.conda",
+            "example-airlock-1.0.0-h0000003.conda"
+        ]
+    );
+    // What the flag means, in the flag's own output: a force-push bounds what is served.
+    assert!(
+        output.stdout().contains("bounds what it serves"),
+        "the report must not imply it reclaimed storage: {}",
+        output.stdout()
+    );
+    assert!(
+        output.stdout().contains("does not delete"),
+        "the report must say what it did not do: {}",
+        output.stdout()
+    );
+    assert!(
+        output
+            .stdout()
+            .contains("example-airlock-1.0.0-h0000001.conda"),
+        "the pruned artifact must be named: {}",
+        output.stdout()
+    );
+}
+
+#[test]
+fn the_dry_run_reports_retention_and_denies_reclaiming_storage() {
+    let fixture = with_builds(&[("h0000001", 1), ("h0000002", 2)]);
+    let remote = remote(fixture.root());
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--dry-run",
+        "--json",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+        "--keep",
+        "1",
+    ]);
+
+    assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
+    let envelope: serde_json::Value =
+        serde_json::from_str(output.stdout()).expect("one JSON document on stdout");
+    assert_eq!(envelope["result"]["retention"]["keep"], 1);
+    assert_eq!(envelope["result"]["retention"]["reclaims_storage"], false);
+    assert_eq!(
+        envelope["result"]["retention"]["pruned"],
+        serde_json::json!(["linux-64/example-airlock-1.0.0-h0000001.conda"])
+    );
+}
+
+#[test]
+fn a_store_that_declares_retention_applies_it_without_the_flag() {
+    let manifest = MANIFEST.replace(
+        "writable = true",
+        "writable = true\nmax_builds_per_version = 1",
+    );
+    let fixture = Fixture::with_manifest(&manifest);
+    std::fs::remove_file(fixture.root().join("output/example-airlock-1.0.0-0.conda"))
+        .expect("the default artifact");
+    std::fs::remove_file(
+        fixture
+            .root()
+            .join("output/fragments/example-airlock-linux-64.json"),
+    )
+    .expect("the default fragment");
+    for (build, build_number) in [("h0000001", 1), ("h0000002", 2)] {
+        let relative = format!("output/example-airlock-1.0.0-{build}.conda");
+        let bytes = format!("conda bytes for {build}").into_bytes();
+        std::fs::write(fixture.root().join(&relative), &bytes).expect("artifact");
+        let digest = universe_workflow::sha256::sha256_hex(&bytes);
+        std::fs::write(
+            fixture
+                .root()
+                .join(format!("output/fragments/example-airlock-{build}.json")),
+            format!(
+                r#"{{"package":"example-airlock","version":"1.0.0","build":"{build}",
+  "build_number":{build_number},"subdir":"linux-64","digest":"{digest}",
+  "size_bytes":{},"depends":[],"license":"MIT","license_files":[],"path":"{relative}"}}"#,
+                bytes.len()
+            ),
+        )
+        .expect("fragment");
+    }
+    let remote = remote(fixture.root());
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+    ]);
+
+    assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
+    assert_eq!(
+        branch_packages(&remote, "channel"),
+        ["example-airlock-1.0.0-h0000002.conda"]
+    );
+}
+
+#[test]
+fn keeping_nothing_is_refused_rather_than_publishing_an_empty_channel() {
+    let fixture = Fixture::new();
+    let remote = remote(fixture.root());
+
+    let output = fixture.output_of(&[
+        "publish",
+        "--remote",
+        remote.to_str().expect("utf-8"),
+        "--branch",
+        "channel",
+        "--keep",
+        "0",
+    ]);
+
+    assert_eq!(output.exit_code(), 2, "stderr: {}", output.stderr());
+    assert!(
+        output.stderr().contains("publish.retention.zero"),
+        "{}",
+        output.stderr()
+    );
+    assert!(!branch_exists(&remote, "channel"));
+}

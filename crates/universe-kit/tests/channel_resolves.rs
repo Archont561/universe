@@ -81,22 +81,27 @@ impl Fixture {
     /// The fragment is written rather than produced by `universe audit`: the subject here is
     /// the channel a publish leaves behind, and the audit's own output is proved elsewhere.
     fn add_package(&self) {
-        let relative = format!("output/{PACKAGE}-{VERSION}-0.conda");
+        self.add_build("0", 0);
+    }
+
+    /// One build of the package, with its own archive and its own fragment.
+    fn add_build(&self, build: &str, build_number: u64) {
+        let relative = format!("output/{PACKAGE}-{VERSION}-{build}.conda");
         let archive = self.root().join(&relative);
         std::fs::create_dir_all(archive.parent().expect("parent")).expect("output dir");
-        let bytes = conda_archive();
+        let bytes = conda_archive_for(build, build_number);
         std::fs::write(&archive, &bytes).expect("archive");
 
         let fragments = self.root().join("output/fragments");
         std::fs::create_dir_all(&fragments).expect("fragment dir");
         std::fs::write(
-            fragments.join(format!("{PACKAGE}-linux-64.json")),
+            fragments.join(format!("{PACKAGE}-{build}-linux-64.json")),
             format!(
                 r#"{{
   "package": "{PACKAGE}",
   "version": "{VERSION}",
-  "build": "0",
-  "build_number": 0,
+  "build": "{build}",
+  "build_number": {build_number},
   "subdir": "linux-64",
   "digest": "{}",
   "size_bytes": {},
@@ -129,10 +134,10 @@ impl Fixture {
 ///
 /// Built here rather than committed: a binary fixture is opaque, and this spells out the
 /// three members a `conda` 2 format archive is read for.
-fn conda_archive() -> Vec<u8> {
+fn conda_archive_for(build: &str, build_number: u64) -> Vec<u8> {
     let zstd = |data: &[u8]| zstd::encode_all(data, 0).expect("compress");
     let index = format!(
-        r#"{{"name":"{PACKAGE}","version":"{VERSION}","build":"0","build_number":0,"subdir":"linux-64","depends":[],"license":"MIT"}}"#
+        r#"{{"name":"{PACKAGE}","version":"{VERSION}","build":"{build}","build_number":{build_number},"subdir":"linux-64","depends":[],"license":"MIT"}}"#
     );
     let file_list = format!("{BINARY}\n");
     let info = zstd(&tar(&[
@@ -366,5 +371,89 @@ platforms = ["linux-64"]
         runs(&installed).as_deref(),
         Some("example-airlock 1.0.0"),
         "the installed entrypoint does not run"
+    );
+}
+
+#[test]
+fn a_retained_branch_still_solves_and_serves_only_the_build_it_kept() {
+    // Retention's whole justification is that a smaller snapshot is still a usable one. That
+    // claim cannot be made from the metadata alone: the pruned build has to be gone *and* a
+    // client has to resolve and install what is left, offline, from a clone.
+    let fixture = Fixture::new();
+    fixture.add_build("0", 0);
+    fixture.add_build("1", 1);
+    let remote = fixture.remote();
+
+    let output = universe_kit::run([
+        "publish",
+        "--store",
+        "channel-branch",
+        "--keep",
+        "1",
+        "--remote",
+        &remote.display().to_string(),
+        "--root",
+        &fixture.root().display().to_string(),
+    ]);
+    assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
+
+    let checkout = fixture.root().join("checkout");
+    clone_branch(&remote, &checkout);
+    let repodata: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(checkout.join("linux-64/repodata.json")).expect("repodata"),
+    )
+    .expect("repodata is JSON");
+    let published: Vec<&str> = repodata["packages.conda"]
+        .as_object()
+        .expect("packages.conda is an object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        published,
+        [format!("{PACKAGE}-{VERSION}-1.conda")],
+        "the snapshot kept a build other than the newest"
+    );
+    assert!(
+        !checkout
+            .join(format!("linux-64/{PACKAGE}-{VERSION}-0.conda"))
+            .exists(),
+        "a pruned artifact is still in the tree"
+    );
+
+    let project = fixture.root().join("consumer");
+    std::fs::create_dir_all(&project).expect("consumer directory");
+    std::fs::write(
+        project.join("pixi.toml"),
+        format!(
+            r#"[project]
+name = "retained-channel-consumer"
+channels = ["{}"]
+platforms = ["linux-64"]
+
+[dependencies]
+{PACKAGE} = "*"
+"#,
+            checkout.display()
+        ),
+    )
+    .expect("pixi.toml");
+
+    let solved = Command::new(pixi())
+        .args(["install", "--offline"])
+        .current_dir(&project)
+        .output()
+        .expect("run pixi install");
+    assert!(
+        solved.status.success(),
+        "a retained channel did not solve\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&solved.stdout),
+        String::from_utf8_lossy(&solved.stderr)
+    );
+    let installed = project.join(".pixi/envs/default").join(BINARY);
+    assert_eq!(
+        runs(&installed).as_deref(),
+        Some("example-airlock 1.0.0"),
+        "the retained build did not install and run"
     );
 }

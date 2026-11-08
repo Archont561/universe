@@ -20,6 +20,7 @@
 pub mod channel;
 pub mod fragment;
 pub mod readme;
+pub mod retention;
 pub mod store;
 pub mod transport;
 
@@ -27,6 +28,7 @@ pub use channel::{
     BLOB_CEILING, ChannelError, ChannelFile, ChannelSpec, STAGED_CEILING, TRANSPORT_CEILING, render,
 };
 pub use fragment::Fragment;
+pub use retention::{Retained, RetentionError, prune};
 pub use transport::{
     BudgetError, Budgets, ChannelTree, MemoryTransport, PushOutcome, Transport, TransportError,
     TreeIdentity,
