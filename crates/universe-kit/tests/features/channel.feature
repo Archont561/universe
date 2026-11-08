@@ -39,6 +39,12 @@ Feature: Publishing a Conda channel to a branch and restoring it with Git
     Then the publish is refused before anything is pushed
     And the branch does not exist
 
+  Scenario: Retention keeps the newest builds and says what that bounded
+    Given an audited package with a channel branch store and two builds of one version
+    When the channel is published keeping one build per version
+    Then the branch holds only the newest build
+    And the publish says the branch bounds what it serves rather than what it stores
+
   Scenario: A branch that no longer matches its fragments is reported as drift
     Given an audited package with a channel branch store
     When the channel is published

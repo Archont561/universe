@@ -5,9 +5,8 @@
 //! anything leave the machine. A tree that cannot be measured is never pushed, so a failure
 //! costs a rebuild and not a broken channel.
 
-use std::path::{Path, PathBuf};
-
 use serde_json::json;
+use universe_channel::retention::{RetentionError, prune};
 use universe_channel::transport::{Budgets, ChannelTree, PushOutcome, Transport};
 use universe_core::CommandOutput;
 use universe_core::diagnostic::{Diagnostic, Severity};
@@ -19,6 +18,7 @@ use crate::git::GitTransport;
 use crate::options::{Options, VerbSpec};
 use crate::output::{FINDINGS, USAGE, failure, human, json_success};
 use crate::project::Project;
+use crate::scratch::Scratch;
 
 /// Default branch name for the channel.
 const DEFAULT_BRANCH: &str = "channel";
@@ -75,15 +75,61 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
         Err(diagnostic) => return failure(FINDINGS, &[diagnostic]),
     };
 
+    let store = match store_for(&project, options.store.as_deref()) {
+        Ok(store) => store,
+        Err(diagnostic) => return failure(USAGE, &[diagnostic]),
+    };
+
+    // Retention runs on fragments, before a tree exists: a build the snapshot leaves out
+    // should never be written to the staging directory, let alone pushed.
+    let keep = match retention(store, options.keep) {
+        Ok(keep) => keep,
+        Err(diagnostic) => return failure(USAGE, &[diagnostic]),
+    };
+    let mut retained = None;
+    let verified = match keep {
+        None => verified,
+        Some(keep) => {
+            let fragments: Vec<_> = verified
+                .iter()
+                .map(|entry| entry.fragment.clone())
+                .collect();
+            match prune(&fragments, keep) {
+                Ok(outcome) => {
+                    let pruned: Vec<String> = outcome
+                        .pruned
+                        .iter()
+                        .map(|fragment| fragment.channel_path())
+                        .collect();
+                    retained = Some((keep, pruned));
+                    verified
+                        .into_iter()
+                        .filter(|entry| {
+                            outcome
+                                .kept
+                                .iter()
+                                .any(|kept| kept.channel_path() == entry.fragment.channel_path())
+                        })
+                        .collect()
+                }
+                Err(error) => {
+                    return failure(
+                        FINDINGS,
+                        &[Diagnostic::new(
+                            Severity::Error,
+                            retention_code(&error),
+                            error.to_string(),
+                        )],
+                    );
+                }
+            }
+        }
+    };
+
     let spec = spec_for(&project.manifest, options.base_url.as_deref());
     let tree = match build_tree(&verified, &spec) {
         Ok(tree) => tree,
         Err(diagnostic) => return failure(FINDINGS, &[diagnostic]),
-    };
-
-    let store = match store_for(&project, options.store.as_deref()) {
-        Ok(store) => store,
-        Err(diagnostic) => return failure(USAGE, &[diagnostic]),
     };
     let budgets = budgets(store);
     // Whole files are the unit of transport, so git's content addressing can skip an
@@ -101,24 +147,48 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
         );
     }
 
-    let scratch = options
-        .output
-        .clone()
-        .unwrap_or_else(|| scratch_directory(&project.root));
-    let transport =
-        GitTransport::new(&remote, &branch, &scratch).authenticated(push_token(store).as_deref());
-    if options.check {
-        return check(&transport, &tree, &branch, options.json);
-    }
     if options.dry_run {
-        return describe(&tree, &branch, options.json, budgets);
+        return describe(&tree, &branch, options.json, budgets, retained.as_ref());
+    }
+
+    // Nothing is staged until the snapshot is known to fit, and nothing is staged inside the
+    // payload: a scratch tree under `output/` would be read back by the next publish.
+    let artifacts: Vec<std::path::PathBuf> = verified
+        .iter()
+        .map(|entry| std::path::PathBuf::from(&entry.fragment.path))
+        .collect();
+    let scratch = match &options.output {
+        Some(named) => {
+            if let Err(diagnostic) = Scratch::ensure_outside(named, &project.root, &artifacts) {
+                return failure(USAGE, &[diagnostic]);
+            }
+            Scratch::named(named)
+        }
+        None => Scratch::temporary(),
+    };
+    let scratch = match scratch {
+        Ok(scratch) => scratch,
+        Err(diagnostic) => return failure(FINDINGS, &[diagnostic]),
+    };
+
+    // Publication is written against the seam, not against git: the command asks a
+    // destination what it holds, stages the snapshot to learn the identity it would be given,
+    // and pushes. Which destination that is stays the transport's business.
+    let transport: Box<dyn Transport> = Box::new(
+        GitTransport::new(&remote, &branch, scratch.path())
+            .authenticated(push_token(store).as_deref()),
+    );
+    if options.check {
+        return check(transport.as_ref(), &tree, &branch, options.json);
     }
 
     let message = message(&spec.name, &verified, &branch);
     match transport.push(&tree, &message) {
-        Ok(PushOutcome::Unchanged) => report_unchanged(&tree, &branch, options.json),
+        Ok(PushOutcome::Unchanged) => {
+            report_unchanged(&tree, &branch, options.json, retained.as_ref())
+        }
         Ok(PushOutcome::Published { commit }) => {
-            report_published(&tree, &branch, &commit, options.json)
+            report_published(&tree, &branch, &commit, options.json, retained.as_ref())
         }
         Err(error) => failure(
             FINDINGS,
@@ -128,6 +198,32 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
                 error.to_string(),
             )],
         ),
+    }
+}
+
+/// How many builds of each version this publish keeps.
+///
+/// `--keep` wins, because a one-off run is why the flag exists; otherwise the store's own
+/// `max_builds_per_version`, because that is the number the destination was chosen with.
+/// Neither is a default: a channel that has always published every build keeps doing so
+/// until somebody says otherwise.
+fn retention(store: Option<&Store>, flag: Option<usize>) -> Result<Option<usize>, Diagnostic> {
+    if flag == Some(0) {
+        return Err(Diagnostic::new(
+            Severity::Error,
+            "publish.retention.zero",
+            "--keep 0 would leave the channel with no artifact at all; the smallest useful \
+             value is 1",
+        ));
+    }
+    Ok(flag.or_else(|| store.and_then(|store| store.max_builds_per_version)))
+}
+
+/// The finding code one retention refusal carries.
+fn retention_code(error: &RetentionError) -> &'static str {
+    match error {
+        RetentionError::Zero => "publish.retention.zero",
+        RetentionError::Pinned { .. } => "publish.retention.pinned",
     }
 }
 
@@ -237,7 +333,7 @@ fn message(name: &str, verified: &[crate::channel::Verified], branch: &str) -> S
 }
 
 fn check(
-    transport: &GitTransport,
+    transport: &dyn Transport,
     tree: &ChannelTree,
     branch: &str,
     json_output: bool,
@@ -308,11 +404,34 @@ fn check(
     ))
 }
 
+/// What retention did, as the one line every report carries.
+///
+/// It states the limit force-push imposes, because the difference between "the branch serves
+/// two builds" and "the repository stores two builds" is the difference between a claim this
+/// command can make and one it cannot.
+fn retention_note(retained: Option<&(usize, Vec<String>)>) -> Option<String> {
+    retained.map(|(keep, pruned)| {
+        format!(
+            "retention kept the {keep} most recent build(s) of each version and left out {} \
+             artifact(s): {}\n  the branch is force-pushed to one snapshot, so this bounds \
+             what it serves; it does not delete the objects a previous snapshot pushed, and \
+             only a server-side `git gc` reclaims that space\n",
+            pruned.len(),
+            if pruned.is_empty() {
+                "none".to_owned()
+            } else {
+                pruned.join(", ")
+            }
+        )
+    })
+}
+
 fn describe(
     tree: &ChannelTree,
     branch: &str,
     json_output: bool,
     budgets: Budgets,
+    retained: Option<&(usize, Vec<String>)>,
 ) -> CommandOutput {
     if json_output {
         return json_success(
@@ -328,6 +447,13 @@ fn describe(
                     "transport": budgets.transport,
                     "staged": budgets.staged,
                 },
+                "retention": retained.map(|(keep, pruned)| json!({
+                    "keep": keep,
+                    "pruned": pruned,
+                    // Stated in the machine-readable output too, because a script that
+                    // reports "reclaimed 40 MiB" from the other reading would be wrong.
+                    "reclaims_storage": false,
+                })),
             }),
             Vec::new(),
             Vec::new(),
@@ -338,25 +464,47 @@ fn describe(
         tree.len(),
         tree.total_bytes()
     );
+    if let Some(note) = retention_note(retained) {
+        body.push_str(&note);
+    }
     for path in tree.paths() {
         body.push_str(&format!("  {path}\n"));
     }
     human(body)
 }
 
-fn report_unchanged(tree: &ChannelTree, branch: &str, json_output: bool) -> CommandOutput {
+fn report_unchanged(
+    tree: &ChannelTree,
+    branch: &str,
+    json_output: bool,
+    retained: Option<&(usize, Vec<String>)>,
+) -> CommandOutput {
     if json_output {
         return json_success(
             "publish",
-            json!({"branch": branch, "published": false, "reason": "unchanged", "files": tree.len()}),
+            json!({
+                "branch": branch,
+                "published": false,
+                "reason": "unchanged",
+                "files": tree.len(),
+                "retention": retained.map(|(keep, pruned)| json!({
+                    "keep": keep,
+                    "pruned": pruned,
+                    "reclaims_storage": false,
+                })),
+            }),
             Vec::new(),
             Vec::new(),
         );
     }
-    human(format!(
+    let mut body = format!(
         "branch {branch} already holds these {} file(s); nothing pushed\n",
         tree.len()
-    ))
+    );
+    if let Some(note) = retention_note(retained) {
+        body.push_str(&note);
+    }
+    human(body)
 }
 
 fn report_published(
@@ -364,6 +512,7 @@ fn report_published(
     branch: &str,
     commit: &str,
     json_output: bool,
+    retained: Option<&(usize, Vec<String>)>,
 ) -> CommandOutput {
     if json_output {
         return json_success(
@@ -374,19 +523,23 @@ fn report_published(
                 "commit": commit,
                 "files": tree.len(),
                 "bytes": tree.total_bytes(),
+                "retention": retained.map(|(keep, pruned)| json!({
+                    "keep": keep,
+                    "pruned": pruned,
+                    "reclaims_storage": false,
+                })),
             }),
             Vec::new(),
             Vec::new(),
         );
     }
-    human(format!(
+    let mut body = format!(
         "published {} file(s), {} byte(s) to branch {branch} at {commit}\n",
         tree.len(),
         tree.total_bytes()
-    ))
-}
-
-/// Where a publish stages its scratch repository.
-pub(crate) fn scratch_directory(root: &Path) -> PathBuf {
-    root.join("output/publish")
+    );
+    if let Some(note) = retention_note(retained) {
+        body.push_str(&note);
+    }
+    human(body)
 }

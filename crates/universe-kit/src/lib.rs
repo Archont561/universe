@@ -18,6 +18,7 @@ mod paths;
 mod plan;
 mod project;
 mod publish;
+mod scratch;
 
 /// Version of this component, equal to the workspace version the whole artifact set
 /// is released under (`decision-122`: one tag, one version train).
