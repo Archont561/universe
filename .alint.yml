@@ -186,6 +186,30 @@ rules:
     message: "Workspace version must match between Cargo.toml and pixi.toml"
     level: error
 
+  # The version chain `decision-126` implies: the root `Cargo.toml` holds the one literal a
+  # release promotes, a crate manifest may only inherit it, and the crate's entrypoint reads it
+  # back with `env!`, which the compiler resolves from that crate's own manifest. Break either
+  # link and a bump silently misses a crate — which is exactly how `universe-assets` and
+  # `universe-cli` were still spelling `"0.1.0"` by hand.
+  - id: crate-manifests-inherit-the-workspace-version
+    kind: toml_path_equals
+    paths: "crates/*/Cargo.toml"
+    path: "$.package.version.workspace"
+    equals: true
+    message: "A crate manifest must inherit `version.workspace = true` rather than declare its own version"
+    level: error
+
+  - id: crate-entrypoint-reads-its-manifest-version
+    kind: every_matching_has
+    select: "crates/*"
+    when_iter: 'iter.has_file("Cargo.toml")'
+    require:
+      - kind: file_content_matches
+        paths: "{path}/src/lib.rs"
+        pattern: 'pub const VERSION: &str = env!\("CARGO_PKG_VERSION"\);'
+    message: "A crate entrypoint must export `pub const VERSION: &str = env!(\"CARGO_PKG_VERSION\");`"
+    level: error
+
   - id: universe-audit-task-runs-offline-gate
     kind: toml_path_matches
     paths: pixi.toml

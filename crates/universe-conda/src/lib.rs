@@ -6,6 +6,10 @@
 //! a solver reads. `universe-core` owns the neutral vocabulary the results are
 //! reported in, and knows none of this.
 
+/// Version of this component, equal to the workspace version the whole artifact set
+/// is released under (`decision-122`: one tag, one version train).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 mod binary;
 mod licence;
 mod package;

@@ -82,6 +82,7 @@ question and none of them reads another's rules.
 - Put real Conda channel/repodata behavior in a Conda adapter and Cargo registry/index behavior in a Cargo adapter. The proposed `universe-adapter-conda` and `universe-adapter-cargo` crates are a good eventual split, but create them when there is a concrete API and behavior to test—not as empty dependency holders.
 - `crates/universe-assets` embeds the generated static portal when available and retains its committed placeholder as a fresh-checkout fallback.
 - `packages/config`, `packages/schema`, and `packages/portal` are product packages in the Bun/Turbo workspace. They are not repository-maintenance scripts. Every package's `VERSIONS` file must match its manifest; `repo-check` enforces that contract.
+- The version itself is written once. A crate inherits `[workspace.package] version` with `version.workspace = true`, and its `src/lib.rs` exports `pub const VERSION: &str = env!("CARGO_PKG_VERSION")`, which the compiler reads from that manifest. The `crate-manifests-inherit-the-workspace-version` and `crate-entrypoint-reads-its-manifest-version` rules in `.alint.yml` hold both halves, so bumping a release is one edit in the root `Cargo.toml` rather than a hunt for the crate that still spells a version by hand.
 - `universe-airlock` is a finite offline consumer. Developer transport and Cargo vendoring do not constitute sealed Airlock snapshots or Airlock product behavior.
 
 ## Adding or changing dependencies

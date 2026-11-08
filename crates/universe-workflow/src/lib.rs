@@ -25,13 +25,12 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use universe_core::VERSION;
 use universe_core::diagnostic::{Diagnostic, Severity};
 use universe_core::manifest::{Manifest, PackageKind, ReadAuth, Store, StoreAuth, StoreKind};
 
 /// Version of this component, equal to the workspace version the whole artifact set is
 /// released under.
-pub const COMPONENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where rendered files go unless the caller says otherwise.
 pub const DEFAULT_OUTPUT_DIR: &str = ".github/workflows";
@@ -893,7 +892,7 @@ pub fn has_static_surface(kind: PackageKind) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        AIRLOCK_FILE, MAIN_FILE, PUBLISH_FILE, RenderError, derived_files, render, sha256,
+        AIRLOCK_FILE, MAIN_FILE, PUBLISH_FILE, RenderError, VERSION, derived_files, render, sha256,
         to_identifier,
     };
     use universe_core::manifest::Manifest;
@@ -934,6 +933,16 @@ format = "cargo fmt --check"
 
     fn manifest() -> Manifest {
         Manifest::from_toml(MANIFEST).expect("manifest parses")
+    }
+
+    // The renderer stamps its own version into every file it writes, so a version that came
+    // from anywhere but the workspace would label the release with a number no other artifact
+    // carries. `env!` resolves this crate's inherited manifest; the core's constant resolves
+    // the same literal, and the two agreeing is what says the inheritance holds.
+    #[test]
+    fn the_renderer_reports_the_version_the_rest_of_the_train_carries() {
+        assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
+        assert_eq!(VERSION, universe_core::VERSION);
     }
 
     /// The same project with nothing published anywhere: no stores, no smoke commands.

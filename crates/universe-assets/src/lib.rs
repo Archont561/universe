@@ -6,8 +6,12 @@
 
 use include_dir::{Dir, include_dir};
 
-/// Crate version synchronized with the package `VERSIONS` file.
-pub const VERSION: &str = "0.1.0";
+/// Crate version, read by the compiler from this crate's manifest.
+///
+/// The manifest inherits `[workspace.package] version`, so a release promotes one literal in
+/// the root `Cargo.toml` and every crate follows. The `VERSIONS` file beside this crate is a
+/// packaging mirror, and a test holds it equal to this constant.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 static PORTAL_DIST: Dir<'_> = include_dir!("$OUT_DIR/portal-dist");
 

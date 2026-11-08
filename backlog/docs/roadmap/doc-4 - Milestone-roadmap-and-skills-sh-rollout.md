@@ -32,7 +32,7 @@ not a new Backlog record type or date commitment.
 
 | Order | Milestone outcome | Tasks | Exit gate |
 |---:|---|---|---|
-| **M0** | Reproducible developer foundation | `UNI-28`, `UNI-36`, `UNI-39`, `UNI-49`, `UNI-50`, `UNI-60`, `UNI-61`, `UNI-62`, `UNI-63`, `UNI-64`, `UNI-65` | **Complete.** Baseline/backlog foundations, offline gates and restore, the offline audit gate, and the declarative repository-lint layer are all verified. |
+| **M0** | Reproducible developer foundation | `UNI-28`, `UNI-36`, `UNI-39`, `UNI-49`, `UNI-50`, `UNI-60`, `UNI-61`, `UNI-62`, `UNI-63`, `UNI-64`, `UNI-65`, `UNI-71` | **Complete.** Baseline/backlog foundations, offline gates and restore, the offline audit gate, and the declarative repository-lint layer are all verified. |
 | **M1** | Neutral schemas and adapter contracts | `UNI-30`, `UNI-31`, `UNI-41`, `UNI-57` | Neutral schemas, adapter contract, project and pinned release manifests tested, and a workflow set rendered from the manifest. |
 | **M2** | Kit commands, artifact orchestration, and audit | `UNI-7`–`UNI-10`, `UNI-21`, `UNI-22`, `UNI-66`, `UNI-67`, `UNI-68` | External command orchestration and deterministic artifact checks pass; no embedded builder. |
 | **M3** | Conda static channel and consumer initialization | `UNI-11`–`UNI-13` | Real native client resolves/downloads package bytes from standard static channel paths. |
@@ -59,7 +59,7 @@ an execution proposal, not a task hierarchy:
 
 | Sprint | Focus | Tasks |
 |---:|---|---|
-| S0 | Close foundation/transport | `UNI-36`, `UNI-49`, `UNI-50`, `UNI-60`, `UNI-61`, `UNI-62`, `UNI-63`, `UNI-64`, `UNI-65` |
+| S0 | Close foundation/transport | `UNI-36`, `UNI-49`, `UNI-50`, `UNI-60`, `UNI-61`, `UNI-62`, `UNI-63`, `UNI-64`, `UNI-65`, `UNI-71` |
 | S1 | Contracts | `UNI-30`, `UNI-31`, `UNI-41`, `UNI-57` |
 | S2 | Kit core and artifact safety | `UNI-7`, `UNI-8`, `UNI-9`, `UNI-10`, `UNI-21`, `UNI-22`, `UNI-66`, `UNI-67`, `UNI-68` |
 | S3 | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38`, `UNI-51`, `UNI-52`, `UNI-53` |
