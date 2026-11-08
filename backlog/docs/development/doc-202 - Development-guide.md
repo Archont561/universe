@@ -66,7 +66,11 @@ pixi run gates
   network, or package-resolution dependency (UNI-30).
 - `audit` — the offline-first runner: `cargo deny --offline check` plus
   `cargo audit --no-fetch` against a bounded advisory cache (decision-120).
-  `audit-sync` is the one networked task that seeds that cache.
+  `audit-sync` is the one networked task that seeds that cache. **Not part of
+  `gates`**: its input changes without a commit, so it runs daily in
+  `.github/workflows/security.yml` instead (decision-134), and `repo-check`
+  refuses both a return to `gates` and the loss of that schedule. Run it by hand
+  with `pixi run audit`.
 - `alint-check` — the declarative repository layer from `.alint.yml` (71 rules):
   required/forbidden paths and basenames, backlog filename and frontmatter
   conventions, relative-link resolution including links that leave `backlog/`,
@@ -77,7 +81,9 @@ pixi run gates
   inherited from a bundled ruleset at a weaker level are overridden explicitly —
   `gha-pin-actions-to-sha` is `error` here, not the bundled `warning` — so
   retiring a Python check never downgrades a gate.
-- `gates` — all checks plus workflow lint and build.
+- `gates` — all checks plus workflow lint and build. This is the per-diff contract:
+  everything in it is a statement about the change under review. The advisory audit is
+  the one gate that is not, and it lives on a schedule (decision-134).
 
 ## Testing
 

@@ -15,6 +15,7 @@ from scripts.repo_check import (
     validate_offline_cargo_transport,
     validate_repo,
     validate_roadmap_coverage,
+    validate_scheduled_audit,
     validate_workflow_push_paths,
 )
 
@@ -165,6 +166,66 @@ def test_audit_gate_requires_the_offline_first_runner() -> None:
     assert validate_audit_gate(configured) == []
     assert "offline-first" in validate_audit_gate(legacy)[0]
     assert "audit-sync" in validate_audit_gate(without_sync)[0]
+
+
+def test_audit_gate_may_not_return_to_the_per_commit_gates() -> None:
+    in_gates = (
+        "[tasks]\n"
+        'audit = { cmd = "python -m scripts.audit check" }\n'
+        'audit-sync = { cmd = "python -m scripts.audit sync" }\n'
+        'gates = { depends-on = ["check", "audit"] }\n'
+    )
+    per_diff = (
+        "[tasks]\n"
+        'audit = { cmd = "python -m scripts.audit check" }\n'
+        'audit-sync = { cmd = "python -m scripts.audit sync" }\n'
+        'gates = { depends-on = ["check", "build"] }\n'
+    )
+
+    assert validate_audit_gate(per_diff) == []
+    errors = validate_audit_gate(in_gates)
+    assert any("must not depend on `audit`" in error for error in errors), errors
+
+
+def test_a_scheduled_workflow_has_to_run_the_audit(tmp_path: Path) -> None:
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    daily = """name: security
+on:
+  schedule:
+    - cron: '17 5 * * *'
+jobs:
+  audit:
+    steps:
+      - run: pixi run --frozen audit
+"""
+    (workflows / "security.yml").write_text(daily, encoding="utf-8")
+
+    assert validate_scheduled_audit(tmp_path) == []
+
+    # The scheduled sweep is the only thing running the audit now, so its removal has to be
+    # an error rather than a silent green.
+    (workflows / "security.yml").unlink()
+    (workflows / "ci.yml").write_text(
+        "name: ci\njobs:\n  gates:\n    steps:\n      - run: pixi run gates\n",
+        encoding="utf-8",
+    )
+    errors = validate_scheduled_audit(tmp_path)
+    assert any("never run" in error for error in errors), errors
+
+
+def test_an_audit_that_only_runs_on_push_is_not_a_schedule(tmp_path: Path) -> None:
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text(
+        "name: ci\non:\n  push:\n    branches: [main]\n"
+        "jobs:\n  audit:\n    steps:\n      - run: pixi run audit\n",
+        encoding="utf-8",
+    )
+
+    errors = validate_scheduled_audit(tmp_path)
+    assert any("never on a schedule" in error for error in errors), errors
+    assert any("never run" in error for error in errors), errors
 
 
 def test_offline_transport_requires_every_republish_trigger() -> None:

@@ -1,0 +1,50 @@
+# Advisory audit. Hand-written, not rendered: `universe.toml` describes the lanes a
+# consumer's project gets, and a scheduled advisory sweep is owner-lane housekeeping.
+#
+# This runs on a clock rather than on a commit because its input changes without one:
+# a RustSec advisory can name a dependency this repository has not touched in months, so
+# a per-commit audit would turn a pull request red for something its diff did not do, and
+# would only notice the advisory when somebody happened to push. The gates it replaces are
+# per-diff; this one is per-day.
+name: security
+
+on:
+  schedule:
+    # Daily, a few minutes after 05:00 UTC: off the hour so it does not queue behind the
+    # crowd of jobs every repository schedules at :00.
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Advisory audit
+    runs-on: ubuntu-latest
+    # The runner has network access, so a cold cache bootstraps itself; the bound is here
+    # so a registry outage reports as a failure instead of holding the runner.
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Pixi environment
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.83.0
+          environments: default
+          cache: true
+          locked: true
+
+      # `pixi run audit` bootstraps the advisory cache when it is absent and the network is
+      # allowed, so no separate `audit-sync` step is needed. Every subprocess inside the task
+      # is bounded, and a failed bootstrap exits non-zero rather than skipping the audit.
+      - name: Audit locked dependencies
+        run: pixi run --frozen audit

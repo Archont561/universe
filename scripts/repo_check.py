@@ -220,9 +220,18 @@ def validate_workflow_push_paths(sandbox_config: str, workflow: str) -> list[str
 
 AUDIT_TASK_COMMAND = "python -m scripts.audit check"
 
+#: A step that runs the audit task, in any of the forms this repository writes it in.
+SCHEDULED_AUDIT_COMMAND = re.compile(r"pixi\s+run\s+(?:--frozen\s+|--locked\s+)?audit\b")
+
 
 def validate_audit_gate(pixi_config: str) -> list[str]:
-    """Ensure the audit task runs the offline-first audit runner."""
+    """Ensure the audit task runs the offline-first audit runner.
+
+    The task is also required to stay *out* of `gates`. Its input changes without a commit,
+    so as a per-diff gate it reds a pull request for an advisory its diff did not introduce;
+    it runs on a schedule instead (decision-134), and this is the invariant that keeps a
+    later "put it back in gates, it is only a second" from silently reintroducing that.
+    """
     try:
         tasks = tomllib.loads(pixi_config).get("tasks", {})
     except tomllib.TOMLDecodeError as exc:
@@ -237,6 +246,51 @@ def validate_audit_gate(pixi_config: str) -> list[str]:
         )
     if "audit-sync" not in tasks:
         errors.append("the audit gate needs an audit-sync task to seed the advisory cache")
+    gates = tasks.get("gates", {})
+    depends_on = gates.get("depends-on") if isinstance(gates, dict) else None
+    if isinstance(depends_on, list) and "audit" in depends_on:
+        errors.append(
+            "`gates` must not depend on `audit`: advisories arrive without a commit, so the "
+            "audit runs on a schedule (.github/workflows/security.yml) rather than per diff"
+        )
+    return errors
+
+
+def validate_scheduled_audit(repo_root: Path) -> list[str]:
+    """Ensure some scheduled workflow runs the audit task.
+
+    With the audit out of `gates`, nothing per-commit would notice if its workflow were
+    deleted or its schedule removed: the repository would be green forever while never
+    auditing. A scheduled workflow that names no audit step, or an audit step in a workflow
+    that never runs on a clock, is the same silence, so both are refused.
+    """
+    workflow_dir = repo_root / ".github" / "workflows"
+    if not path_exists(workflow_dir):
+        return ["no .github/workflows directory, so the scheduled audit cannot exist"]
+
+    errors: list[str] = []
+    scheduled = 0
+    for workflow in sorted(workflow_dir.glob("*.yml")):
+        try:
+            text = workflow.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"cannot read {workflow.name}: {exc}")
+            continue
+        has_cron = "cron:" in text and "schedule:" in text
+        runs_audit = SCHEDULED_AUDIT_COMMAND.search(text) is not None
+        if runs_audit and not has_cron:
+            errors.append(
+                f"{workflow.name} runs the audit but never on a schedule; the audit is not "
+                "part of `gates`, so a workflow that only runs on push audits nothing new"
+            )
+        if has_cron and runs_audit:
+            scheduled += 1
+
+    if scheduled == 0:
+        errors.append(
+            "no workflow runs the audit on a schedule: the audit is not in `gates`, so it "
+            "would never run (expected a `schedule:` trigger with a `pixi run audit` step)"
+        )
     return errors
 
 
@@ -530,6 +584,7 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
 
     errors.extend(validate_roadmap_coverage(root))
     errors.extend(validate_documented_pixi_tasks(root))
+    errors.extend(validate_scheduled_audit(root))
 
     offline_transport_paths = (
         root / "Cargo.lock",
