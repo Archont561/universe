@@ -231,9 +231,10 @@ packager of our own.
 
 1. **`ci.yml`**:
    - Triggered on `pull_request` and `push: branches: [main]` (ignoring `backlog/**`, `docs/**`, `README.md`; watching `CHANGELOG.md`).
-   - Job `gates`: restores Pixi/sandbox environment, runs `pixi run ci` (`fmt-check`, `repo-check`, `schema-check`, `lint`, `typecheck`, `coverage`, `audit`) and `pixi run --environment browser test-e2e`, uploads `target/coverage/lcov.info`.
+   - Job `gates`: restores Pixi/sandbox environment, runs `pixi run gates` (`check`, `web-check`, `coverage`, `lint-actions`, `build`), uploads `target/coverage/lcov.info`. The advisory audit is deliberately absent: it runs on a schedule in `security.yml` (decision-134).
    - Job `package`: builds the portal and independent component/facade Conda recipes with external build tooling, then smoke-tests each installed executable. The integrated v1 release requires portal output from the exact pinned catalog snapshot and native registry/static-channel artifacts; local placeholder fallback is never accepted as release output (decision-119, UNI-15/26/46).
-2. **`release.yml`** (generated, `decision-124`; semantics per `decision-126`):
+2. **`security.yml`** (hand-written): daily `schedule` plus `workflow_dispatch`, one job that installs the pinned Pixi environment and runs `pixi run --frozen audit`. The advisory input changes without a commit, so it belongs on a clock rather than in `ci.yml` (decision-134); `repo-check` requires that some scheduled workflow runs the audit, since `gates` no longer does.
+3. **`release.yml`** (generated, `decision-124`; semantics per `decision-126`):
    - Triggered on a `v*` tag push, on `workflow_dispatch` for a prerelease attempt (`version`, `bump`, `dry_run` inputs), and on a published Release.
    - **Version authority is not convco** (`decision-123`). The version is a declared literal promoted by a human in a reviewable commit; the lane asserts parity across `Cargo.toml`, `universe.toml`, each `recipe.yaml` `context.version`, and the `CHANGELOG.md` section, and refuses to publish when any of them disagrees or when the section is missing. Convco remains a contributor-side commit linter and changelog drafter; no generated workflow invokes it.
    - `plan` reads the conclusion the gate workflow already recorded for the commit being released and refuses without it. It does not re-run the suite.

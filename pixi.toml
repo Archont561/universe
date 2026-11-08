@@ -157,7 +157,6 @@ gates = { depends-on = [
   "web-check",
   "coverage",
   "lint-actions",
-  "audit",
   "build",
-], description = "Every required local quality gate" }
+], description = "Every required per-diff quality gate; the advisory audit runs daily in CI instead (decision-134)" }
 ci = { depends-on = ["gates"], description = "Run the complete CI gate suite locally" }

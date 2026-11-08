@@ -7,8 +7,11 @@ status: accepted
 
 ## Context
 
-`pixi run gates` includes the `audit` task, so the gate contract in decision-15
-claims an audit that a restored, egress-denied checkout could not actually prove.
+`pixi run gates` included the `audit` task when this was written, so the gate contract in
+decision-15 claimed an audit that a restored, egress-denied checkout could not actually
+prove. (Amended 2026-11-08: it no longer does — decision-134 moved the audit to a daily
+schedule. The offline-first runner described below is unchanged and is still what the
+scheduled job runs.)
 The previous task ran `cargo deny check && cargo audit --deny warnings` directly.
 Both tools need external data that the repository does not contain:
 
@@ -45,6 +48,8 @@ failing, and a cached run could not be distinguished from a complete one.
 - Without advisory caches, the gate fails closed (exit 2) with an actionable
   message when network access is denied, and bootstraps once with bounded
   timeouts when it is allowed. CI keeps running `pixi run gates` unchanged.
+  (Superseded 2026-11-08: the audit left `gates`; the scheduled `security.yml` runs
+  `pixi run audit` instead — decision-134.)
 - The yanked check needs the index cache. When it is absent the gate reports one
   explicit degradation notice naming the skipped count and `audit-sync`, and
   still passes. A silent pass is not permitted.
