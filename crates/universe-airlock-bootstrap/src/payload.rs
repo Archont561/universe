@@ -441,8 +441,11 @@ mod tests {
     #[test]
     fn a_tampered_artifact_of_the_right_size_fails_on_its_digest() {
         let (scratch, _) = payload(COMMIT);
-        std::fs::write(scratch.path().join("airlock-0.1.0.conda"), b"the only artifacT\n")
-            .expect("tampered");
+        std::fs::write(
+            scratch.path().join("airlock-0.1.0.conda"),
+            b"the only artifacT\n",
+        )
+        .expect("tampered");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.digest");
     }
@@ -450,8 +453,11 @@ mod tests {
     #[test]
     fn an_object_nothing_describes_is_refused() {
         let (scratch, _) = payload(COMMIT);
-        std::fs::write(scratch.path().join("smuggled.conda"), b"not in the manifest")
-            .expect("extra file");
+        std::fs::write(
+            scratch.path().join("smuggled.conda"),
+            b"not in the manifest",
+        )
+        .expect("extra file");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.extra");
         assert!(findings[0].message().contains("smuggled.conda"));
@@ -499,7 +505,8 @@ mod tests {
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.manifest");
 
-        std::fs::write(scratch.path().join("universe-release.json"), b"not json").expect("manifest");
+        std::fs::write(scratch.path().join("universe-release.json"), b"not json")
+            .expect("manifest");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.manifest");
     }

@@ -61,6 +61,12 @@ impl Hasher {
         self.seen
     }
 
+    /// Whether nothing has been absorbed yet.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.seen == 0
+    }
+
     /// Finish, returning the digest as lowercase hexadecimal text.
     #[must_use]
     pub fn finish(self) -> String {
@@ -150,6 +156,14 @@ mod tests {
             }
             assert_eq!(hasher.finish(), whole, "chunk size {chunk}");
         }
+
+        // The byte count is what a caller compares against a manifest, so it counts what was
+        // fed and nothing else.
+        let mut counted = Hasher::new();
+        assert!(counted.is_empty());
+        counted.update(&data[..1]);
+        assert!(!counted.is_empty());
+        assert_eq!(counted.len(), 1);
     }
 
     #[test]

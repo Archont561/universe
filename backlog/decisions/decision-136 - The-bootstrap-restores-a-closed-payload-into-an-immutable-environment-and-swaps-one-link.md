@@ -44,8 +44,12 @@ writer and adds no dependency for one; this record is written and read by the bo
 minisign-compatible Ed25519 through `minisign-verify` — chosen for `decision-131`'s constraint
 and because it carries no dependencies of its own, so the bootstrap's dependency tree stays at
 one crypto crate. Key decoding, key-id matching, the prehashed algorithm, a mismatched
-manifest, and a rotation set carrying two keys are each tested against a published signed
-vector.
+manifest, a legacy-mode signature, and a rotation set carrying two keys are each tested
+against signed vectors committed under `crates/universe-airlock-bootstrap/tests/fixtures/
+minisign/`, generated once with throwaway keys by an implementation independent of this
+crate and recorded as such beside them. A legacy signature gets its own code —
+`airlock.signature.algorithm` — rather than being reported as tampering, because the key
+matched and only the signing mode was old.
 
 `signature::RELEASE_KEYS` is still empty, so `assess` refuses *any* signature it cannot check,
 on both lanes, with `airlock.signature.no-key`. Sealed mode refuses an unsigned payload
