@@ -14,7 +14,15 @@ description = "Thin standalone bootstrap executable for Universe Airlock"
 workspace = true
 
 [dependencies]
+# The signature verifier `decision-131` requires: Ed25519 over a minisign detached format,
+# with no dependencies of its own, which is why it is the one crypto crate this binary takes.
+# The key itself lives in `src/signature.rs` as a compile-time constant.
+minisign-verify = { workspace = true }
+sha2 = { workspace = true }
 universe-core = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [[bin]]
 name = "universe-airlock-bootstrap"

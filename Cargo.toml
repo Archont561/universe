@@ -32,6 +32,7 @@ assert_cmd = "2.0"
 goblin = "0.10"
 include_dir = "0.7.4"
 minijinja = { version = "3", features = ["serde"] }
+minisign-verify = "0.3"
 predicates = "3.1"
 proptest = "1.12"
 rattler_digest = { version = "2.1", default-features = false }

@@ -5,18 +5,23 @@
 //! A missing, malformed, unknown-key, or non-matching signature fails closed, and sealed mode
 //! has no unsigned path. The developer lane may proceed unsigned, but only while saying so.
 //!
-//! What is here is the *policy and the order*; the Ed25519 arithmetic is not. `UNI-55` ships
-//! the public key inside the bootstrap artifact and owns key rotation, and the verifier lands
-//! with it because a key without a verifier is a claim, and a verifier without a trusted key
-//! is a suggestion. Until then there is no key in this binary, so **any** signature is a
-//! refusal rather than a pass — the safe direction, and the one that cannot be mistaken for
-//! verification.
+//! The mechanism is minisign-compatible Ed25519 (`minisign-verify`, which carries no
+//! dependencies of its own), chosen in `decision-131` precisely because verification must work
+//! on a disconnected host: no CA bundle, no transparency log, no clock.
+//!
+//! **There is one deliberate hole, and it is the key, not the verifier.** `RELEASE_KEYS` is
+//! empty until `UNI-55` publishes the real public key and documents rotation. Everything else
+//! is implemented and tested against a fixture vector, so that shipping the key is a constant
+//! edit rather than a change of behaviour: with no key, a *signed* payload is refused
+//! (`airlock.signature.no-key`) rather than accepted unverified, which is the only failure
+//! direction that cannot be mistaken for a pass.
 
 use std::path::Path;
 
 use crate::diagnostics::Finding;
+use crate::payload::MANIFEST_FILE;
 
-/// Public keys compiled into this binary.
+/// Public keys compiled into this binary, as minisign public-key strings.
 ///
 /// Empty until `UNI-55` ships one. Deliberately a compile-time constant and never a file or a
 /// URL: a key fetched at verification time proves only that whoever wrote the payload could
@@ -78,11 +83,27 @@ impl Verdict {
     }
 }
 
-/// Assess the payload's signature for `lane`.
+/// Assess the payload's signature for `lane`, against the keys this build carries.
 ///
-/// Returns the verdict and any warning that rides with it, or the errors that stop the run.
 /// Nothing here writes to the filesystem: a caller assesses before it stages anything.
+///
+/// # Errors
+///
+/// Returns the finding that stopped the run, never a bare "invalid": the codes distinguish an
+/// absent signature from one that is malformed, unknown-keyed, or wrong.
 pub fn assess(payload_root: &Path, lane: Lane) -> Result<(Verdict, Vec<Finding>), Vec<Finding>> {
+    assess_with_keys(payload_root, lane, RELEASE_KEYS)
+}
+
+/// [`assess`], against an explicit key list.
+///
+/// Separate so the verifier can be exercised against a fixture vector while the real key is
+/// still outstanding; the public entry point has no way to replace the compiled-in set.
+fn assess_with_keys(
+    payload_root: &Path,
+    lane: Lane,
+    keys: &[&str],
+) -> Result<(Verdict, Vec<Finding>), Vec<Finding>> {
     let path = payload_root.join(SIGNATURE_FILE);
     if !path.exists() {
         return match lane {
@@ -105,26 +126,10 @@ pub fn assess(payload_root: &Path, lane: Lane) -> Result<(Verdict, Vec<Finding>)
         };
     }
 
-    // The container is read before anything trusts it, because a malformed signature and a
-    // forged one deserve different sentences even though both stop the run.
-    let text = std::fs::read_to_string(&path).map_err(|error| {
-        vec![Finding::error(
-            "airlock.signature.unreadable",
-            format!("cannot read {}: {error}", path.display()),
-        )]
-    })?;
-    if !looks_like_a_minisign_container(&text) {
-        return Err(vec![Finding::error(
-            "airlock.signature.malformed",
-            format!(
-                "{} is not a minisign detached signature: expected an untrusted comment, a \
-                 signature line, a trusted comment, and a global signature",
-                path.display()
-            ),
-        )]);
-    }
-
-    if RELEASE_KEYS.is_empty() {
+    if keys.is_empty() {
+        // Checked before parsing: the useful sentence names the missing key, and a malformed
+        // signature would otherwise be reported as the reason a payload this build cannot
+        // check was refused.
         return Err(vec![Finding::error(
             "airlock.signature.no-key",
             "this bootstrap carries no release verification key, so it cannot verify a signed \
@@ -133,20 +138,81 @@ pub fn assess(payload_root: &Path, lane: Lane) -> Result<(Verdict, Vec<Finding>)
         )]);
     }
 
-    // Unreachable until `UNI-55` adds a key *and* the Ed25519 verifier. Refusing is the only
-    // safe placeholder for a branch that cannot be exercised: an unverified `Ok` here would be
-    // a pass this build has not earned.
-    Err(vec![Finding::error(
-        "airlock.signature.unverified",
-        "a verification key is compiled in, but this build carries no Ed25519 verifier",
-    )])
+    let signature = match minisign_verify::Signature::from_file(&path) {
+        Ok(signature) => signature,
+        Err(error) => {
+            return Err(vec![Finding::error(
+                "airlock.signature.malformed",
+                format!(
+                    "{} does not decode as a minisign detached signature: {error:?}",
+                    path.display()
+                ),
+            )]);
+        }
+    };
+
+    let manifest = payload_root.join(MANIFEST_FILE);
+    let bytes = std::fs::read(&manifest).map_err(|error| {
+        vec![Finding::error(
+            "airlock.payload.manifest",
+            format!("cannot read {} for verification: {error}", manifest.display()),
+        )]
+    })?;
+
+    // The signature covers the manifest, which names the digests of everything else, so one
+    // check of this file transitively covers the payload (`decision-131` §1).
+    let mut refused: Option<Finding> = None;
+    for key in keys {
+        let public_key = match minisign_verify::PublicKey::from_base64(key) {
+            Ok(public_key) => public_key,
+            Err(error) => {
+                refused = Some(Finding::error(
+                    "airlock.signature.key",
+                    format!("the compiled-in key does not decode: {error:?}"),
+                ));
+                continue;
+            }
+        };
+        match public_key.verify(&bytes, &signature, false) {
+            Ok(()) => return Ok((Verdict::Verified, Vec::new())),
+            Err(minisign_verify::Error::UnexpectedKeyId) => {
+                // Not this key's signature. Another key in the set may still match, which is
+                // what makes a rotation (old key and new key both compiled in) work.
+                refused = Some(Finding::error(
+                    "airlock.signature.unknown-key",
+                    format!(
+                        "{} was signed by a key this bootstrap does not carry; rotation \
+                         publishes a bootstrap signed by both keys (decision-131 §4)",
+                        path.display()
+                    ),
+                ));
+            }
+            Err(error) => {
+                refused = Some(Finding::error(
+                    "airlock.signature.mismatch",
+                    format!(
+                        "the signature on {} does not match its contents ({error:?}); the \
+                         manifest was altered after it was signed",
+                        manifest.display()
+                    ),
+                ));
+            }
+        }
+    }
+
+    Err(vec![refused.unwrap_or_else(|| {
+        Finding::error(
+            "airlock.signature.no-key",
+            "no compiled-in key could be tried",
+        )
+    })])
 }
 
 /// Whether `text` has the four-line shape of a minisign detached signature.
 ///
 /// Shape only: this says the file is the right kind of container, never that the signature is
-/// good. It runs before any comparison so that "you sent the wrong file" and "the signature
-/// does not match" are not reported as the same thing.
+/// good. Kept beside the verifier because the two answer different questions and a caller may
+/// want to say "that is not even a signature file" without invoking crypto.
 #[must_use]
 pub fn looks_like_a_minisign_container(text: &str) -> bool {
     let lines: Vec<&str> = text.lines().map(str::trim_end).collect();
@@ -158,23 +224,37 @@ pub fn looks_like_a_minisign_container(text: &str) -> bool {
         && lines[2].starts_with("trusted comment:")
         && !lines[3].trim().is_empty()
 }
-
 #[cfg(test)]
 mod tests {
-    use super::{Lane, Verdict, assess, looks_like_a_minisign_container};
-    use crate::testing::Scratch;
+    use super::{Lane, Verdict, assess, assess_with_keys, looks_like_a_minisign_container};
+    use std::path::Path;
+    use tempfile::TempDir;
 
-    const SIGNATURE: &str = "untrusted comment: signature from minisign secret key\n\
-                             RWSabc123\n\
-                             trusted comment: universe 0.1.0\n\
-                             RWTdef456\n";
+    /// A published minisign key and a signature over the bytes `test`.
+    ///
+    /// Taken from the verifier crate's own documentation example, so it is a genuine signed
+    /// vector rather than something this repository produced and could agree with by being
+    /// wrong in the same way. It exercises the wiring: key decoding, key-id matching, and the
+    /// prehashed algorithm.
+    const FIXTURE_KEY: &str = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3";
+    const FIXTURE_SIGNATURE: &str = "untrusted comment: signature from minisign secret key\n\
+RWQf6LRCGA9i59SLOFxz6NxvASXDJeRtuZykwQepbDEGt87ig1BNpWaVWuNrm73YiIiJbq71Wi+dP9eKL8OC351vwIasSSbXxwA=\n\
+trusted comment: timestamp:1555779966\tfile:test\n\
+QtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfNQUaOAA==\n";
+    /// A second, unrelated published key: its id matches nothing in the fixture signature.
+    const OTHER_KEY: &str = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLnb3R7GFO4";
 
-    fn payload_with(signature: Option<&str>) -> Scratch {
-        let scratch = Scratch::new("signature");
+    fn payload_with(manifest: &[u8], signature: Option<&str>) -> TempDir {
+        let directory = TempDir::new().expect("a temporary payload");
+        std::fs::write(directory.path().join("universe-release.json"), manifest).expect("manifest");
         if let Some(text) = signature {
-            scratch.write("universe-release.json.minisig", text.as_bytes());
+            std::fs::write(
+                directory.path().join("universe-release.json.minisig"),
+                text,
+            )
+            .expect("signature");
         }
-        scratch
+        directory
     }
 
     #[test]
@@ -187,7 +267,7 @@ mod tests {
 
     #[test]
     fn a_consumer_restore_refuses_an_unsigned_payload() {
-        let payload = payload_with(None);
+        let payload = payload_with(b"{}", None);
         let findings = assess(payload.path(), Lane::Sealed).expect_err("must refuse");
         assert_eq!(findings[0].code(), "airlock.signature.absent");
         assert!(findings[0].message().contains("nothing was activated"));
@@ -195,23 +275,19 @@ mod tests {
 
     #[test]
     fn a_developer_restore_proceeds_unsigned_but_names_the_missing_signature() {
-        let payload = payload_with(None);
+        let payload = payload_with(b"{}", None);
         let (verdict, warnings) =
             assess(payload.path(), Lane::Developer).expect("allowed on this lane");
         assert_eq!(verdict, Verdict::Unsigned);
         assert_eq!(warnings[0].code(), "airlock.signature.absent");
-        assert!(
-            warnings[0]
-                .message()
-                .contains("nothing proves who wrote it")
-        );
+        assert!(warnings[0].message().contains("nothing proves who wrote it"));
     }
 
     #[test]
-    fn a_signature_this_build_cannot_check_is_a_refusal_not_a_pass() {
-        // The whole of `decision-131` in one assertion: with no compiled-in key, a signed
-        // payload fails closed rather than being waved through as "probably fine".
-        let payload = payload_with(Some(SIGNATURE));
+    fn a_signed_payload_this_build_has_no_key_for_is_refused_on_both_lanes() {
+        // The whole of `decision-131` in one assertion, and the state of this build until
+        // `UNI-55` ships the key: present-but-unverifiable fails closed, never passes quietly.
+        let payload = payload_with(b"test", Some(FIXTURE_SIGNATURE));
         for lane in [Lane::Developer, Lane::Sealed] {
             let findings = assess(payload.path(), lane).expect_err("must refuse");
             assert_eq!(findings[0].code(), "airlock.signature.no-key", "{lane:?}");
@@ -219,17 +295,69 @@ mod tests {
     }
 
     #[test]
+    fn a_fixture_signature_verifies_against_its_key() {
+        // The verifier itself, exercised against a real signed vector. With no key compiled in
+        // this branch is unreachable from the CLI, so it is tested here instead of being
+        // shipped untried.
+        let payload = payload_with(b"test", Some(FIXTURE_SIGNATURE));
+        let (verdict, notes) =
+            assess_with_keys(payload.path(), Lane::Sealed, &[FIXTURE_KEY]).expect("verifies");
+        assert_eq!(verdict, Verdict::Verified);
+        assert!(notes.is_empty());
+    }
+
+    #[test]
+    fn a_signature_that_does_not_match_its_contents_is_named_as_a_mismatch() {
+        // Same key, same signature, different bytes: the case a rewritten manifest produces.
+        let payload = payload_with(b"tampered", Some(FIXTURE_SIGNATURE));
+        let findings = assess_with_keys(payload.path(), Lane::Sealed, &[FIXTURE_KEY])
+            .expect_err("must refuse");
+        assert_eq!(findings[0].code(), "airlock.signature.mismatch");
+    }
+
+    #[test]
+    fn a_signature_from_an_unknown_key_is_named_as_an_unknown_key() {
+        let payload = payload_with(b"test", Some(FIXTURE_SIGNATURE));
+        let findings = assess_with_keys(payload.path(), Lane::Sealed, &[OTHER_KEY])
+            .expect_err("must refuse");
+        assert_eq!(findings[0].code(), "airlock.signature.unknown-key");
+        assert!(findings[0].message().contains("rotation"), "{}", findings[0].message());
+    }
+
+    #[test]
+    fn a_rotation_set_accepts_a_signature_from_any_of_its_keys() {
+        // `decision-131` §4: rotation publishes a bootstrap carrying both the old key and the
+        // new one. An unrelated key beside the matching one must not break verification.
+        let payload = payload_with(b"test", Some(FIXTURE_SIGNATURE));
+        let (verdict, _) = assess_with_keys(payload.path(), Lane::Sealed, &[OTHER_KEY, FIXTURE_KEY])
+            .expect("one of the keys matches");
+        assert_eq!(verdict, Verdict::Verified);
+    }
+
+    #[test]
     fn a_file_that_is_not_a_signature_is_named_as_such() {
-        let payload = payload_with(Some("hello\n"));
-        let findings = assess(payload.path(), Lane::Sealed).expect_err("must refuse");
+        let payload = payload_with(b"test", Some("hello\n"));
+        let findings = assess_with_keys(payload.path(), Lane::Sealed, &[FIXTURE_KEY])
+            .expect_err("must refuse");
         assert_eq!(findings[0].code(), "airlock.signature.malformed");
 
-        assert!(looks_like_a_minisign_container(SIGNATURE));
-        assert!(!looks_like_a_minisign_container(
-            "untrusted comment: only one line"
-        ));
+        assert!(looks_like_a_minisign_container(FIXTURE_SIGNATURE));
+        assert!(!looks_like_a_minisign_container("untrusted comment: only one line"));
         assert!(!looks_like_a_minisign_container(
             "untrusted comment: x\nsig\ntrusted comment: y\n"
         ));
+    }
+
+    #[test]
+    fn the_public_entry_point_carries_no_key_until_uni_55() {
+        // A guard on the hole rather than on the behaviour: when the key lands, this test
+        // fails and whoever ships it has to say so in the same commit.
+        assert!(
+            super::RELEASE_KEYS.is_empty(),
+            "a release key is compiled in: update this test and record the rotation procedure"
+        );
+        let payload = payload_with(b"test", Some(FIXTURE_SIGNATURE));
+        assert!(assess(payload.path(), Lane::Sealed).is_err());
+        assert!(Path::new("universe-release.json.minisig").is_relative());
     }
 }

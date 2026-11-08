@@ -27,7 +27,7 @@ use universe_core::diagnostic::Severity;
 use universe_core::manifest::ReleaseManifest;
 
 use crate::diagnostics::Finding;
-use crate::sha256::{hash_file, sha256_hex};
+use crate::hash::{hash_file, sha256_hex};
 use crate::signature::{self, Lane, Verdict};
 
 /// The manifest file a payload is described by.
@@ -341,19 +341,18 @@ pub fn default_root(working_directory: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{Report, default_root, is_plain_file_name, verify};
-    use crate::sha256::sha256_hex;
+    use crate::hash::sha256_hex;
     use crate::signature::Lane;
-    use crate::testing::Scratch;
 
     const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
     const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";
 
     /// A payload whose single artifact really hashes to what the manifest claims.
-    pub(crate) fn payload(label: &str, commit: &str) -> (Scratch, String) {
-        let scratch = Scratch::new(label);
+    pub(crate) fn payload(commit: &str) -> (tempfile::TempDir, String) {
+        let scratch = tempfile::TempDir::new().expect("a temporary payload");
         let bytes = b"the only artifact\n";
         let digest = sha256_hex(bytes);
-        scratch.write("airlock-0.1.0.conda", bytes);
+        std::fs::write(scratch.path().join("airlock-0.1.0.conda"), bytes).expect("artifact");
         let manifest = format!(
             r#"{{
   "schema": 1,
@@ -378,13 +377,13 @@ mod tests {
 "#,
             bytes.len()
         );
-        scratch.write("universe-release.json", manifest.as_bytes());
+        std::fs::write(scratch.path().join("universe-release.json"), manifest).expect("manifest");
         (scratch, digest)
     }
 
     #[test]
     fn a_complete_payload_verifies_and_reports_what_it_covered() {
-        let (scratch, digest) = payload("complete", COMMIT);
+        let (scratch, digest) = payload(COMMIT);
         let report: Report =
             verify(scratch.path(), Lane::Developer, Some(COMMIT)).expect("verifies");
         assert_eq!(report.artifacts, 1);
@@ -406,7 +405,7 @@ mod tests {
 
     #[test]
     fn the_identity_follows_the_manifest_bytes_not_the_clock() {
-        let (scratch, _) = payload("identity", COMMIT);
+        let (scratch, _) = payload(COMMIT);
         let first = verify(scratch.path(), Lane::Developer, None).expect("verifies");
         let second = verify(scratch.path(), Lane::Developer, None).expect("verifies");
         assert_eq!(first.identity(), second.identity());
@@ -414,7 +413,7 @@ mod tests {
 
     #[test]
     fn a_payload_for_another_commit_is_refused() {
-        let (scratch, _) = payload("commit", OTHER_COMMIT);
+        let (scratch, _) = payload(OTHER_COMMIT);
         let findings = verify(scratch.path(), Lane::Developer, Some(COMMIT)).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.release.commit");
         assert!(findings[0].message().contains(OTHER_COMMIT));
@@ -422,7 +421,7 @@ mod tests {
 
     #[test]
     fn a_missing_artifact_is_named_rather_than_summarized() {
-        let (scratch, _) = payload("missing", COMMIT);
+        let (scratch, _) = payload(COMMIT);
         std::fs::remove_file(scratch.path().join("airlock-0.1.0.conda")).expect("remove");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.missing");
@@ -433,24 +432,26 @@ mod tests {
     fn a_truncated_artifact_reports_its_size_before_its_digest() {
         // The cheaper fact explains a truncated download; reporting a digest mismatch first
         // would send the reader looking for corruption that is not there.
-        let (scratch, _) = payload("truncated", COMMIT);
-        scratch.write("airlock-0.1.0.conda", b"short");
+        let (scratch, _) = payload(COMMIT);
+        std::fs::write(scratch.path().join("airlock-0.1.0.conda"), b"short").expect("short");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.size");
     }
 
     #[test]
     fn a_tampered_artifact_of_the_right_size_fails_on_its_digest() {
-        let (scratch, _) = payload("tampered", COMMIT);
-        scratch.write("airlock-0.1.0.conda", b"the only artifacT\n");
+        let (scratch, _) = payload(COMMIT);
+        std::fs::write(scratch.path().join("airlock-0.1.0.conda"), b"the only artifacT\n")
+            .expect("tampered");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.digest");
     }
 
     #[test]
     fn an_object_nothing_describes_is_refused() {
-        let (scratch, _) = payload("extra", COMMIT);
-        scratch.write("smuggled.conda", b"not in the manifest");
+        let (scratch, _) = payload(COMMIT);
+        std::fs::write(scratch.path().join("smuggled.conda"), b"not in the manifest")
+            .expect("extra file");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.extra");
         assert!(findings[0].message().contains("smuggled.conda"));
@@ -475,14 +476,14 @@ mod tests {
             assert!(is_plain_file_name(name), "{name}");
         }
 
-        let scratch = Scratch::new("escape");
+        let scratch = tempfile::TempDir::new().expect("a temporary payload");
         let manifest = format!(
             r#"{{"schema":1,"version":"0.1.0","commit":"{COMMIT}","packages":[
                  {{"name":"p","kind":"conda","version":"0.1.0","artifacts":[
                    {{"filename":"../outside.conda","sha256":"{}","size":1,"stores":["conda-static"]}}]}}]}}"#,
             "0".repeat(64)
         );
-        scratch.write("universe-release.json", manifest.as_bytes());
+        std::fs::write(scratch.path().join("universe-release.json"), manifest).expect("manifest");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert!(
             findings
@@ -494,11 +495,11 @@ mod tests {
 
     #[test]
     fn an_unreadable_manifest_is_reported_as_the_manifest() {
-        let scratch = Scratch::new("no-manifest");
+        let scratch = tempfile::TempDir::new().expect("a temporary payload");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.manifest");
 
-        scratch.write("universe-release.json", b"not json");
+        std::fs::write(scratch.path().join("universe-release.json"), b"not json").expect("manifest");
         let findings = verify(scratch.path(), Lane::Developer, None).expect_err("refuses");
         assert_eq!(findings[0].code(), "airlock.payload.manifest");
     }

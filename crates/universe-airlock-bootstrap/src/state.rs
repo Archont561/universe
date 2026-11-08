@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diagnostics::Finding;
 use crate::payload::{Artifact, Report};
-use crate::sha256::Sha256;
+use crate::hash::Hasher;
 
 /// The receipt a materialised environment carries, so a later `doctor` can describe it without
 /// the payload it came from.
@@ -377,7 +377,7 @@ fn copy_verified(source: &Path, destination: &Path, artifact: &Artifact) -> Resu
         )
     })?;
 
-    let mut hasher = Sha256::new();
+    let mut hasher = Hasher::new();
     let mut buffer = vec![0u8; 64 * 1024];
     let mut written: u64 = 0;
     loop {
@@ -532,16 +532,15 @@ pub fn inspect(layout: &Layout) -> Status {
 mod tests {
     use super::{Layout, Receipt, Status, activate, default_root, inspect};
     use crate::payload::verify;
-    use crate::sha256::sha256_hex;
+    use crate::hash::sha256_hex;
     use crate::signature::Lane;
-    use crate::testing::Scratch;
 
     const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
-    fn payload(label: &str) -> Scratch {
-        let scratch = Scratch::new(label);
+    fn payload() -> tempfile::TempDir {
+        let scratch = tempfile::TempDir::new().expect("a temporary payload");
         let bytes = b"the only artifact\n";
-        scratch.write("airlock-0.1.0.conda", bytes);
+        std::fs::write(scratch.path().join("airlock-0.1.0.conda"), bytes).expect("artifact");
         let manifest = format!(
             r#"{{"schema":1,"version":"0.1.0","commit":"{COMMIT}","packages":[
                  {{"name":"universe-airlock","kind":"conda","version":"0.1.0","artifacts":[
@@ -549,14 +548,14 @@ mod tests {
             sha256_hex(bytes),
             bytes.len()
         );
-        scratch.write("universe-release.json", manifest.as_bytes());
+        std::fs::write(scratch.path().join("universe-release.json"), manifest).expect("manifest");
         scratch
     }
 
     #[test]
     fn activation_materialises_the_payload_and_points_current_at_it() {
-        let payload = payload("activate");
-        let state = Scratch::new("activate-state");
+        let payload = payload();
+        let state = tempfile::TempDir::new().expect("a scratch directory");
         let layout = Layout::new(state.path().join("state"));
         let report = verify(payload.path(), Lane::Developer, Some(COMMIT)).expect("verifies");
 
@@ -581,8 +580,8 @@ mod tests {
 
     #[test]
     fn restoring_the_same_payload_twice_copies_nothing_the_second_time() {
-        let payload = payload("twice");
-        let state = Scratch::new("twice-state");
+        let payload = payload();
+        let state = tempfile::TempDir::new().expect("a scratch directory");
         let layout = Layout::new(state.path().join("state"));
         let report = verify(payload.path(), Lane::Developer, None).expect("verifies");
 
@@ -599,16 +598,16 @@ mod tests {
     fn a_failure_leaves_the_previous_environment_active_and_intact() {
         // The heart of `UNI-33` #3. The payload is valid when verified and corrupted before
         // the copy, which is the window a transactional restore has to survive.
-        let payload = payload("failure");
-        let state = Scratch::new("failure-state");
+        let payload = payload();
+        let state = tempfile::TempDir::new().expect("a scratch directory");
         let layout = Layout::new(state.path().join("state"));
         let report = verify(payload.path(), Lane::Developer, None).expect("verifies");
         let first = activate(&layout, payload.path(), &report).expect("activates");
 
         // Publish a different, larger payload as a staging target, then corrupt it mid-flight.
-        let second = Scratch::new("failure-second");
+        let second = tempfile::TempDir::new().expect("a scratch directory");
         let bytes = b"a different artifact\n";
-        second.write("airlock-0.1.0.conda", bytes);
+        std::fs::write(second.path().join("airlock-0.1.0.conda"), bytes).expect("artifact");
         let manifest = format!(
             r#"{{"schema":1,"version":"0.2.0","commit":"{COMMIT}","packages":[
                  {{"name":"universe-airlock","kind":"conda","version":"0.2.0","artifacts":[
@@ -616,9 +615,10 @@ mod tests {
             sha256_hex(bytes),
             bytes.len()
         );
-        second.write("universe-release.json", manifest.as_bytes());
+        std::fs::write(second.path().join("universe-release.json"), manifest).expect("manifest");
         let report = verify(second.path(), Lane::Developer, None).expect("verifies");
-        second.write("airlock-0.1.0.conda", b"tampered after verification\n");
+        std::fs::write(second.path().join("airlock-0.1.0.conda"), b"tampered after verification\n")
+            .expect("tamper");
 
         let failure = activate(&layout, second.path(), &report).expect_err("must refuse");
 
@@ -641,7 +641,7 @@ mod tests {
 
     #[test]
     fn a_second_restore_records_what_it_replaced() {
-        let state = Scratch::new("previous-state");
+        let state = tempfile::TempDir::new().expect("a scratch directory");
         let layout = Layout::new(state.path().join("state"));
         let first_payload = payload("previous-first");
         let first = activate(
@@ -651,9 +651,9 @@ mod tests {
         )
         .expect("activates");
 
-        let second = Scratch::new("previous-second");
+        let second = tempfile::TempDir::new().expect("a scratch directory");
         let bytes = b"a different artifact\n";
-        second.write("airlock-0.1.0.conda", bytes);
+        std::fs::write(second.path().join("airlock-0.1.0.conda"), bytes).expect("artifact");
         let manifest = format!(
             r#"{{"schema":1,"version":"0.2.0","commit":"{COMMIT}","packages":[
                  {{"name":"universe-airlock","kind":"conda","version":"0.2.0","artifacts":[
@@ -661,7 +661,7 @@ mod tests {
             sha256_hex(bytes),
             bytes.len()
         );
-        second.write("universe-release.json", manifest.as_bytes());
+        std::fs::write(second.path().join("universe-release.json"), manifest).expect("manifest");
         let outcome = activate(
             &layout,
             second.path(),
@@ -676,13 +676,13 @@ mod tests {
 
     #[test]
     fn doctor_describes_an_empty_and_a_populated_root_without_changing_either() {
-        let state = Scratch::new("doctor-state");
+        let state = tempfile::TempDir::new().expect("a scratch directory");
         let layout = Layout::new(state.path().join("state"));
         let empty: Status = inspect(&layout);
         assert!(!empty.root_exists);
         assert!(!empty.problems.is_empty(), "an absent root is worth saying");
 
-        let payload = payload("doctor");
+        let payload = payload();
         activate(
             &layout,
             payload.path(),
@@ -699,7 +699,7 @@ mod tests {
 
     #[test]
     fn doctor_names_a_current_that_points_nowhere() {
-        let state = Scratch::new("dangling");
+        let state = tempfile::TempDir::new().expect("a scratch directory");
         let layout = Layout::new(state.path().join("state"));
         std::fs::create_dir_all(layout.envs()).expect("envs");
         std::os::unix::fs::symlink("envs/gone", layout.current()).expect("link");
