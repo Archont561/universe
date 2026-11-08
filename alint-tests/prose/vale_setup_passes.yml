@@ -1,0 +1,42 @@
+test_version: 1
+name: a configuration, a style and a vocabulary pass together
+tags: [check, vale, prose, structure, passing]
+
+docs:
+  title: the prose linter is wired to a configuration and a style
+  case: pass
+  kind: dir_contains
+
+given:
+  tree:
+    .vale.ini: "StylesPath = .vale/styles\nVocab = Universe\n\n[*.md]\nBasedOnStyles = Vale, Universe\n"
+    .vale:
+      styles:
+        Universe:
+          Filler.yml: "extends: existence\nmessage: no\nlevel: error\ntokens:\n  - leverage\n"
+        config:
+          vocabularies:
+            Universe:
+              accept.txt: "Vale\n"
+  config: |
+    version: 1
+    rules:
+      - id: vale-configuration-present
+        kind: file_exists
+        paths: ".vale.ini"
+        level: error
+      - id: vale-vocabulary-present
+        kind: file_exists
+        paths: ".vale/styles/config/vocabularies/Universe/accept.txt"
+        level: error
+      - id: vale-style-directory-holds-a-rule
+        kind: dir_contains
+        select: ".vale/styles/Universe"
+        require: ["*.yml"]
+        level: error
+
+when: [check]
+
+expect:
+  - exit: success
+    violations: []

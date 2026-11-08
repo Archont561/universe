@@ -1,0 +1,19 @@
+# Spellings this repository never uses.
+#
+# Every entry here is a form that does not appear in the corpus today: the rule is preventive,
+# and it fires the first time someone writes the wrong one. `ignorecase` is off on purpose, so
+# the keys mean exactly what they say — with it on, `Github` would also match the `github` in
+# `github.com`, which is a host name and not a misspelling.
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+swap:
+  Github: GitHub
+  GITHUB: GitHub
+  Gitlab: GitLab
+  MacOS: macOS
+  Mac OS: macOS
+  Javascript: JavaScript
+  Typescript: TypeScript
+  Nodejs: Node.js

@@ -265,6 +265,7 @@ CHEAP_TASKS = (
     "alint-check",
     "crate-check",
     "lint-gherkin",
+    "lint-prose",
 )
 
 

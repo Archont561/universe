@@ -321,3 +321,28 @@ rules:
     require: ["*.ts"]
     message: "tests/ must hold at least one test module"
     level: error
+
+  # --- Prose linting ------------------------------------------------------
+  # Vale owns how the documentation is written (`decision-138`). These rules own only the
+  # question Vale cannot answer about itself: is the linter still wired to a configuration
+  # and a style, or has a rename left `lint-prose` reading nothing and reporting clean?
+  - id: vale-configuration-present
+    kind: file_exists
+    paths: ".vale.ini"
+    message: "prose linting needs `.vale.ini`, which names the styles and the vocabulary"
+    level: error
+
+  - id: vale-vocabulary-present
+    kind: file_exists
+    paths: ".vale/styles/config/vocabularies/Universe/accept.txt"
+    message: "the vocabulary `.vale.ini` names must exist, or every rule loses its exceptions"
+    level: error
+
+  # `StylesPath` is declared in `.vale.ini`; this rule holds the two halves together, so a
+  # style directory that is renamed leaves a `BasedOnStyles` entry naming nothing.
+  - id: vale-style-directory-holds-a-rule
+    kind: dir_contains
+    select: ".vale/styles/Universe"
+    require: ["*.yml"]
+    message: "the project style must hold at least one rule file"
+    level: error

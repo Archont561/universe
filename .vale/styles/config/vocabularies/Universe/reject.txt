@@ -1,0 +1,6 @@
+# Terms that are always wrong, in any context.
+#
+# Kept empty on purpose: a rejected term is usually a rejected *context* (`master` for the
+# default branch, `whitelist`), and the few this repository has are enforced by an alint rule
+# over the files that must not carry them. An entry here would fire on quotations of other
+# projects, which is not the same thing.

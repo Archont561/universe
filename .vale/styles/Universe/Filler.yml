@@ -1,0 +1,28 @@
+# Words that cost the reader attention and repay nothing.
+#
+# The list is short and every entry is absent from the corpus, which is the point: these are
+# the words a hurried draft reaches for, and refusing them is cheaper than arguing about them
+# in review. `just` and `simply` are not here — they are used in this repository to mean
+# "nothing more than", which is a fact about the code rather than filler.
+extends: existence
+message: "'%s' is filler; say what happens instead."
+level: error
+ignorecase: true
+tokens:
+  - leverage
+  - utilize
+  - utilise
+  - seamless(ly)?
+  - robust(ly)?
+  - cutting[- ]edge
+  - world[- ]class
+  - best[- ]in[- ]class
+  - synergy
+  - user[- ]friendly
+  - easy to use
+  - in order to
+  - it is important to note
+  - it goes without saying
+  - needless to say
+  - at the end of the day
+  - please note
