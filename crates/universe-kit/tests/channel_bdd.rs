@@ -526,7 +526,7 @@ fn check_reports_drift(channel: &Channel) {
 // One binding per scenario. `#[scenario]` without a name takes the first scenario it finds,
 // so each function names the one it drives.
 #[scenario(
-    path = "tests/features/channel.feature",
+    path = "features/channel.feature",
     name = "An audited package is published to the branch and restored with Git alone"
 )]
 fn a_published_channel_is_restorable(channel: Channel) {
@@ -534,7 +534,7 @@ fn a_published_channel_is_restorable(channel: Channel) {
 }
 
 #[scenario(
-    path = "tests/features/channel.feature",
+    path = "features/channel.feature",
     name = "The branch carries each artifact's audit receipt"
 )]
 fn the_receipt_travels_with_the_artifact(channel: Channel) {
@@ -542,7 +542,7 @@ fn the_receipt_travels_with_the_artifact(channel: Channel) {
 }
 
 #[scenario(
-    path = "tests/features/channel.feature",
+    path = "features/channel.feature",
     name = "Publishing the same artifacts twice pushes no second commit"
 )]
 fn a_republish_is_a_no_op(channel: Channel) {
@@ -550,7 +550,7 @@ fn a_republish_is_a_no_op(channel: Channel) {
 }
 
 #[scenario(
-    path = "tests/features/channel.feature",
+    path = "features/channel.feature",
     name = "An artifact that no longer matches its fragment stops the publish"
 )]
 fn a_tampered_artifact_refuses_publication(channel: Channel) {
@@ -558,7 +558,7 @@ fn a_tampered_artifact_refuses_publication(channel: Channel) {
 }
 
 #[scenario(
-    path = "tests/features/channel.feature",
+    path = "features/channel.feature",
     name = "A store that refuses snapshots above four bytes publishes nothing"
 )]
 fn a_budget_refuses_a_snapshot(channel: Channel) {
@@ -566,7 +566,7 @@ fn a_budget_refuses_a_snapshot(channel: Channel) {
 }
 
 #[scenario(
-    path = "tests/features/channel.feature",
+    path = "features/channel.feature",
     name = "Retention keeps the newest builds and says what that bounded"
 )]
 fn retention_is_declared(channel: Channel) {
@@ -574,7 +574,7 @@ fn retention_is_declared(channel: Channel) {
 }
 
 #[scenario(
-    path = "tests/features/channel.feature",
+    path = "features/channel.feature",
     name = "A branch that no longer matches its fragments is reported as drift"
 )]
 fn drift_is_reported(channel: Channel) {

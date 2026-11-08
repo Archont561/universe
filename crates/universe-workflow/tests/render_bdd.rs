@@ -703,7 +703,7 @@ fn publish_file_has_a_separate_reader(project: &Project) {
 // macro can place it in the step context; the test body has nothing left to assert,
 // because every assertion is a step.
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "Two writable stores produce one publish job each"
 )]
 fn two_stores_produce_two_publish_jobs(project: Project) {
@@ -711,7 +711,7 @@ fn two_stores_produce_two_publish_jobs(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "A project that publishes nothing renders only the main file"
 )]
 fn nothing_to_publish_renders_one_file(project: Project) {
@@ -719,7 +719,7 @@ fn nothing_to_publish_renders_one_file(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "A hand-edited generated file is reported as drift"
 )]
 fn a_hand_edit_is_drift(project: Project) {
@@ -727,7 +727,7 @@ fn a_hand_edit_is_drift(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "A Conda package cannot be published to an npm store"
 )]
 fn an_incompatible_store_is_refused(project: Project) {
@@ -735,7 +735,7 @@ fn an_incompatible_store_is_refused(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "Rendering the same manifest twice produces the same bytes"
 )]
 fn rendering_is_repeatable(project: Project) {
@@ -743,7 +743,7 @@ fn rendering_is_repeatable(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "Every job gets a runner, and one that runs a project command checks out first"
 )]
 fn every_job_runs_somewhere_and_checks_out_first(project: Project) {
@@ -751,7 +751,7 @@ fn every_job_runs_somewhere_and_checks_out_first(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "Every Universe command runs through the Pixi task that built it"
 )]
 fn every_command_goes_through_the_pixi_task(project: Project) {
@@ -759,7 +759,7 @@ fn every_command_goes_through_the_pixi_task(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "A build's artifacts reach the jobs that audit and publish them"
 )]
 fn artifacts_reach_the_jobs_that_need_them(project: Project) {
@@ -767,7 +767,7 @@ fn artifacts_reach_the_jobs_that_need_them(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "Lock adapters add the Airlock file with a job per declared format"
 )]
 fn lock_adapters_add_the_airlock_file(project: Project) {
@@ -775,7 +775,7 @@ fn lock_adapters_add_the_airlock_file(project: Project) {
 }
 
 #[scenario(
-    path = "tests/features/render.feature",
+    path = "features/render.feature",
     name = "A project that verifies published destinations gets a separate reader job"
 )]
 fn a_verifiable_destination_gets_a_reader(project: Project) {

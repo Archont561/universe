@@ -1,0 +1,4 @@
+# `@aboviq/bun-test-cucumber` is a Bun plugin, so it has to be loaded before the test files
+# are. The preload lives under `tests/` because it is part of the harness, not of `src/`.
+[test]
+preload = ["./tests/cucumber.ts"]

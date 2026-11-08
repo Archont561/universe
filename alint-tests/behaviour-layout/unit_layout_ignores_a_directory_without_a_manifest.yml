@@ -1,0 +1,38 @@
+test_version: 1
+name: workspace-unit-layout ignores a directory that declares no manifest
+tags: [check, workspace_unit_layout, structure, passing]
+
+# `crates/` and `packages/` are also where scratch directories end up. Only a directory
+# that declares itself with a manifest is a unit, so `crates/notes` must not be forced to
+# grow a features/ tree.
+docs:
+  title: A unit is a directory with a manifest, not a directory with a name
+  case: pass
+  kind: for_each_dir
+
+given:
+  tree:
+    crates:
+      notes:
+        scratch.md: "not a crate\n"
+  config: |
+    version: 1
+    rules:
+      - id: workspace-unit-layout
+        kind: for_each_dir
+        select: ["crates/*", "packages/*"]
+        when_iter: 'iter.has_file("Cargo.toml") or iter.has_file("package.json")'
+        require:
+          - kind: dir_exists
+            paths: "{path}/src"
+          - kind: dir_exists
+            paths: "{path}/tests"
+          - kind: dir_exists
+            paths: "{path}/features"
+        level: error
+
+when: [check]
+
+expect:
+  - exit: success
+    violations: []
