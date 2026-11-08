@@ -30,13 +30,23 @@ def test_an_unknown_top_level_directory_is_treated_as_code() -> None:
 
 
 def test_the_bun_lane_has_its_own_answer() -> None:
-    assert web_changed(["web/src/routes/+page.svelte"])
+    assert web_changed(["packages/portal/src/routes/+page.svelte"])
+    assert web_changed(["packages/config/features/constants.feature"])
     assert web_changed(["bun.lock"])
+    assert web_changed(["turbo.json"])
+    # `web-check` is a Pixi task, so the toolchain manifest selects the lane that runs it.
+    assert web_changed(["pixi.toml"])
+    assert not web_changed(["crates/universe-kit/src/lib.rs"])
     assert not web_changed(["backlog/tasks/uni-1 - a-task.md"])
-    # `web/` is prose for the Rust lanes and code for the Bun lane, so the two questions are
-    # answered separately rather than one being the negation of the other.
-    assert not code_changed(["web/src/routes/+page.svelte"])
-    assert web_changed(["web/src/routes/+page.svelte"])
+
+
+def test_a_package_change_selects_both_lanes() -> None:
+    # `packages/` is where the Bun workspace lives and it is not prose, so a change there has
+    # to reach the Bun lane *and* the compile lanes. It used to reach neither the Bun lane
+    # (the classifier named a `web/` directory the workspace no longer has) — a skipped lane,
+    # which looks exactly like a passing one.
+    assert code_changed(["packages/portal/src/lib/index.ts"])
+    assert web_changed(["packages/portal/src/lib/index.ts"])
 
 
 def test_a_docs_only_change_names_no_lane(tmp_path: Path) -> None:
@@ -121,6 +131,9 @@ def test_an_unknown_revision_is_reported_as_unknown(tmp_path: Path) -> None:
     assert changed_paths("0" * 40, "HEAD", "pull_request", str(tmp_path)) is None
 
 
-@pytest.mark.parametrize("path", ["web/package.json", "web/src/app.html"])
+@pytest.mark.parametrize(
+    "path",
+    ["packages/package.json", "packages/portal/src/app.html", "packages/schema/src/index.ts"],
+)
 def test_web_paths_are_recognized_through_the_prefix(path: str) -> None:
     assert web_changed([path])
