@@ -15,6 +15,7 @@ channel remains M3; Airlock consumption across all four protocols is M9.
 - `UNI-42` — Cargo sparse-index/crate archive adapter (`UNI-31`, `UNI-41` blockers).
 - `UNI-43` — Python wheel Simple API adapter (`UNI-31`, `UNI-41` blockers).
 - `UNI-44` — npm registry adapter (`UNI-31`, `UNI-41` blockers).
+- `UNI-69` — catalog-scoped lint rules, once a catalog exists (`UNI-41`, `UNI-42`–`44` blockers).
 
 ## Exit condition
 

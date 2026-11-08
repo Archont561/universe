@@ -13,6 +13,7 @@ gate before the integrated release.
 
 - `UNI-45` — Airlock scoped local views/execution across Conda, Cargo, Python wheels, and npm (`UNI-12`, `UNI-32`, `UNI-33`, `UNI-38`, `UNI-41`–`UNI-44` blockers).
 - `UNI-47` — offline/connected test matrix and independent evidence review; depends on all v1 producer, release, package, Airlock, and portal acceptance tasks.
+- `UNI-70` — curation as a forward-only baseline gate (`UNI-7`, `UNI-10`, `UNI-47` blockers).
 
 ## Exit condition
 
