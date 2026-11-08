@@ -8,13 +8,22 @@ updated_date: '2026-10-27T09:20:00Z'
 
 # Init bootstrap and restore lifecycle
 
-**Status: agreed workflow; the restore *entrypoint* now exists, the bootstrapper behind it does not.**
+**Status: agreed workflow; the entrypoint and the bootstrapper both exist, the Pixi handover and
+the sealed lane do not.**
 `universe airlock render` (2026-11-06, `UNI-53`) writes the committed POSIX and PowerShell
 entrypoints from `[airlock.developer.restore]`, drift-checks them, and hands over to a
-bootstrapper with `restore --commit <pin>`. `universe-airlock-bootstrap` is still the
-version-only scaffold, so the handover is the seam, not a restore (`UNI-33`). The rest of this
-document describes the intended loop. Proposed command names identify responsibilities, not a
-finalized parser/API.
+bootstrapper with `restore --commit <pin>`. `universe-airlock-bootstrap` (2026-11-08, `UNI-33`)
+now answers `version`, `verify`, `restore`, and `doctor`: it verifies a closed local payload —
+manifest, commit, every artifact's size and digest, authenticity — and materialises it into an
+immutable environment that it activates by swapping one symlink (`decision-136`). A failure
+leaves the previous environment active and untouched.
+
+Two parts of the loop below are still missing, and the document should not be read as claiming
+them: installation into a **bundled Pixi** environment (the payload shape is what `UNI-51`'s
+mirror publishes) and the **sealed lane** (a signature verifier and a compiled-in key, `UNI-55`;
+until then `verify` refuses any signature rather than accepting one it cannot check, and sealed
+restores refuse an unsigned payload). Proposed command names still identify responsibilities
+rather than a finalized parser/API.
 
 ## Corrected user experience
 

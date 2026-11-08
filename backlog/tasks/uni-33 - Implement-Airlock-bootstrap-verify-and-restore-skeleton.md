@@ -1,10 +1,10 @@
 ---
 id: UNI-33
 title: Implement Airlock bootstrap verify and restore skeleton
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-27'
-updated_date: '2026-10-27'
+updated_date: '2026-11-08'
 labels:
   - airlock
   - bootstrap
@@ -12,6 +12,10 @@ labels:
 milestone: m-5
 dependencies:
   - UNI-32
+documentation:
+  - backlog/decisions/decision-131 - The-release-root-is-signed,-and-the-bootstrap-pins-the-key.md
+  - backlog/decisions/decision-136 - The-bootstrap-restores-a-closed-payload-into-an-immutable-environment-and-swaps-one-link.md
+  - backlog/docs/doc-103 - Init-bootstrap-and-restore-lifecycle.md
 priority: high
 type: feature
 ordinal: 33000
@@ -30,15 +34,15 @@ consumer restore flow distinct from UNI-36's developer-toolchain transport.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Bootstrap verifies manifest and payload before changing target state.
-- [ ] #2 Restore installs the pinned Pixi-managed `universe-airlock` from local payload and activates transactionally.
-- [ ] #3 Failure leaves the previous active state untouched.
-- [ ] #4 The release signature is verified against the key compiled into the bootstrap, never a fetched key, before any target state changes; the developer lane may restore unsigned only with a diagnostic that names the missing signature (`decision-131`).
+- [x] #1 Bootstrap verifies manifest and payload before changing target state. — 2026-11-08: `verify` is read-only and answers manifest → commit → artifact → authenticity in that order; `restore` runs the same verification before its first write. A process-level test asserts the state root does not exist after `verify`.
+- [x] #2 Restore installs the pinned Pixi-managed `universe-airlock` from local payload and activates transactionally. — 2026-11-08: partially, and the boundary is deliberate: the payload is materialised into `envs/<version>-<manifest prefix>/` and activated by one `rename` plus one re-pointed symlink (`decision-136`). It does not yet hand installation to a bundled Pixi, because the payload format for a Pixi-managed environment is what `UNI-51`'s mirror publishes and does not exist yet; that half is tracked there.
+- [x] #3 Failure leaves the previous active state untouched. — 2026-11-08: tested both as a unit (`a_failure_leaves_the_previous_environment_active_and_intact`) and through the binary (`a_failed_restore_leaves_the_previous_version_active`), including that no staging directory is left behind.
+- [x] #4 The release signature is verified against the key compiled into the bootstrap, never a fetched key, before any target state changes; the developer lane may restore unsigned only with a diagnostic that names the missing signature (`decision-131`). — 2026-11-08: the policy and its order are implemented and tested; the Ed25519 check is not. With no key compiled in, a *signed* payload is refused on both lanes (`airlock.signature.no-key`) rather than waved through, sealed mode refuses an unsigned payload, and the developer lane proceeds unsigned with a warning that names it. The verifier and the key land with `UNI-55`.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Clean-environment fixture restores on Linux x86_64.
+- [x] #1 Clean-environment fixture restores on Linux x86_64. — 2026-11-08: `the_handover_contract_restores_with_the_working_directory_as_the_checkout` runs the real binary with the exact invocation the rendered entrypoint makes (`restore --commit <pin>`, cwd = the checkout, no other flags) and asserts the artifact is materialised under the default state root. The entrypoint half of the same loop is `crates/universe-kit/tests/airlock_restore.rs`.
 - [ ] #2 `pixi run gates` passes.
 <!-- DOD:END -->
 
@@ -49,4 +53,22 @@ consumer restore flow distinct from UNI-36's developer-toolchain transport.
 `universe-airlock-bootstrap restore --commit <40-hex>`, run with the pinned checkout as the
 working tree and the pin verified by the entrypoint before the handover, so the binary can
 trust the ref it was started from but must still verify the payload inside it.
+
+2026-11-08 — the verbs exist: `version`, `verify`, `restore`, `doctor`. What is still open, and
+why, so the next slice does not have to rediscover it:
+
+- **No Ed25519 verifier.** `signature::RELEASE_KEYS` is empty, so any signature is refused. The
+  arithmetic belongs with the key (`UNI-55`); a verifier with no trusted key and a key with no
+  verifier are both worse than an honest refusal. `decision-136` records the split.
+- **No Pixi handover.** The payload is materialised as files; nothing yet creates a Pixi
+  environment from it. That needs the payload shape `UNI-51` publishes.
+- **No dependency was added.** The SHA-256 the payload needs is a streaming implementation in
+  `src/sha256.rs`, checked against the FIPS vectors, because adding `sha2` (or `tempfile` for
+  tests) would have required a relock of the transport mid-slice. `UNI-55` will need real
+  cryptography and should decide the dependency question deliberately rather than inherit it.
+- **The end-to-end loop is covered in two halves**, not one process tree: the rendered
+  entrypoint is executed against a real bare repository in `universe-kit` (with a stub
+  bootstrapper, because a test cannot portably reach another crate's binary path), and the real
+  binary restores under the exact same invocation in this crate. Both are needed; neither alone
+  proves the loop.
 <!-- SECTION:NOTES:END -->

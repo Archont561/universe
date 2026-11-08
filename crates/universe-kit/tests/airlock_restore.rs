@@ -3,11 +3,14 @@
 //! `universe airlock render` can be checked for shape by reading its output; whether the
 //! script *restores* is only answerable by running it. This test builds the smallest honest
 //! version of the loop: a real Git remote holding a pinned ref, a real cache directory, real
-//! `git`, and the rendered script executed by `sh`. The bootstrapper in the ref is a stub —
-//! the real one is `UNI-33`, and pretending otherwise would make this test measure a binary
-//! that does not exist — but everything the entrypoint is responsible for is real: where it
-//! fetches from, that it fetches exactly the pinned commit, that a rewritten ref fails, and
-//! that a checkout without a bootstrapper fails rather than silently succeeding.
+//! `git`, and the rendered script executed by `sh`. The bootstrapper in the ref is a stub, on
+//! purpose: this file is about what the *entrypoint* is responsible for — where it fetches
+//! from, that it fetches exactly the pinned commit, that a rewritten ref fails, and that a
+//! checkout without a bootstrapper fails rather than silently succeeding. That the stub is
+//! handed `restore --commit <pin>` is the whole contract; what happens beyond the handover is
+//! the bootstrapper's own business and is tested there, against the real binary
+//! (`crates/universe-airlock-bootstrap/tests/cli.rs`,
+//! `the_handover_contract_restores_with_the_working_directory_as_the_checkout`).
 //!
 //! Nothing here reaches the network: the remote is a bare repository under a `TempDir`, and
 //! no test touches this repository or the user's `HOME`.
