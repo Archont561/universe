@@ -1,5 +1,18 @@
 # Owner-lane CI for the standalone Universe repository. Workflows call named Pixi
 # tasks only; every external action is pinned to a full commit SHA.
+#
+# Three lanes, chosen so the cheapest answer arrives first:
+#
+# - `fast`  — format, backlog, repo, alint, crate-boundary, Gherkin, workflow lint. Seconds,
+#             no compile. A typo in a Backlog record is reported here, not behind a build.
+# - `heavy` — the compile-based lanes: clippy, typecheck, the two `universe` facade checks,
+#             coverage (which runs the whole test suite under instrumentation), and build.
+# - `web`   — the Bun workspace.
+#
+# `heavy` and `web` are selected by the diff (`scripts/detect_changes.py`), and `gates`
+# aggregates them under the name the branch protection requires. The aggregator is not
+# optional: with lanes skipped by path, a required check that never reports leaves a pull
+# request blocked on `Expected`, so the verdict always runs and decides what it owes.
 name: ci
 
 on:
@@ -17,19 +30,44 @@ permissions:
   pull-requests: read
 
 jobs:
-  gates:
-    name: gates
+  changes:
+    name: detect changes
     runs-on: ubuntu-latest
-    # Without a bound, a stalled step holds the runner for the job's default six
-    # hours before anything is reported, and the pull request shows `pending`
-    # rather than a failure. A hung gate is a failure, and should read as one.
-    timeout-minutes: 20
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.detect.outputs.code }}
+      web: ${{ steps.detect.outputs.web }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # PR commit messages come from the GitHub API below; the build itself needs no history.
+          # The classifier diffs against the base commit, which needs its history.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide which lanes the diff needs
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/detect_changes.py \
+            --base "$BASE_SHA" --head "$HEAD_SHA" --event "$EVENT_NAME" \
+            --github-output "$GITHUB_OUTPUT"
+
+  fast:
+    name: fast checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Install Pixi environment
         uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
@@ -39,8 +77,11 @@ jobs:
           cache: true
           locked: true
 
-      - name: Run gates
-        run: pixi run gates
+      - name: Run the checks that need no compile
+        run: pixi run --frozen check-fast
+
+      - name: Lint the workflows
+        run: pixi run --frozen lint-actions
 
       - name: Validate pull-request commits
         if: github.event_name == 'pull_request'
@@ -59,9 +100,103 @@ jobs:
               printf '%s' "$message" | base64 --decode | pixi run lint-commit
             done
 
+  heavy:
+    name: build and test
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    # Without a bound, a stalled step holds the runner for the job's default six hours before
+    # anything is reported, and the pull request shows `pending` rather than a failure. A hung
+    # gate is a failure, and should read as one.
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Pixi environment
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.83.0
+          environments: default
+          cache: true
+          locked: true
+
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: universe
+
+      # `check-fast` already ran in its own lane, so this is the compile-based remainder
+      # rather than the whole of `check`: the cheap half must not be paid for twice.
+      - name: Lint, type-check, and cover
+        run: |
+          pixi run --frozen lint
+          pixi run --frozen typecheck
+          pixi run --frozen ci-check
+          pixi run --frozen airlock-check
+          pixi run --frozen coverage
+
+      - name: Build
+        run: pixi run --frozen build
+
       - name: Upload coverage
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: target/coverage
           if-no-files-found: error
+
+  web:
+    name: web workspace
+    needs: [changes]
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Pixi environment
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.83.0
+          environments: default
+          cache: true
+          locked: true
+
+      - name: Check the Bun workspace
+        run: pixi run --frozen web-check
+
+  # The required check. It keeps its name so branch protection does not need editing, and it
+  # is the only place that knows which lanes were supposed to run.
+  gates:
+    name: gates
+    if: always()
+    needs: [changes, fast, heavy, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail when a selected lane did not succeed
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          FAST: ${{ needs.fast.result }}
+          HEAVY: ${{ needs.heavy.result }}
+          WEB: ${{ needs.web.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          WEB_CHANGED: ${{ needs.changes.outputs.web }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CHANGES" == success ]] || { echo "change detection failed: $CHANGES" >&2; exit 1; }
+          [[ "$FAST" == success ]] || { echo "fast checks did not pass: $FAST" >&2; exit 1; }
+          # A lane that was not selected reports `skipped`, which is a pass only when the
+          # diff says it had nothing to check.
+          [[ "$CODE" == true ]] && { [[ "$HEAVY" == success ]] || { echo "build and test did not pass: $HEAVY" >&2; exit 1; }; }
+          [[ "$WEB_CHANGED" == true ]] && { [[ "$WEB" == success ]] || { echo "web workspace did not pass: $WEB" >&2; exit 1; }; }
+          echo "every selected lane passed (code=$CODE web=$WEB_CHANGED)"

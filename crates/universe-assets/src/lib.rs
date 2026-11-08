@@ -40,6 +40,14 @@ pub const SETUP_PIXI: &str =
 /// version, so the generated one is the odd one out without it.
 pub const PIXI_VERSION: &str = "v0.83.0";
 
+/// `Swatinem/rust-cache`, pinned.
+///
+/// The action caches `~/.cargo` and `target/` keyed on the toolchain and `Cargo.lock`. Every
+/// generated job compiles the same workspace, so without it each one pays the same cold build
+/// again; the four `universe` jobs spent 71s, 55s, 68s and 63s doing exactly that on 2026-11-08.
+pub const RUST_CACHE: &str =
+    "Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3";
+
 /// `actions/upload-artifact`, pinned.
 ///
 /// A build that produces an artifact on one runner and audits it on another needs the bytes
@@ -55,8 +63,8 @@ pub const DOWNLOAD_ARTIFACT: &str =
 #[cfg(test)]
 mod tests {
     use super::{
-        CHECKOUT, DOWNLOAD_ARTIFACT, PIXI_VERSION, SETUP_PIXI, UPLOAD_ARTIFACT, VERSION,
-        WORKFLOW_TEMPLATE, portal_assets,
+        CHECKOUT, DOWNLOAD_ARTIFACT, PIXI_VERSION, RUST_CACHE, SETUP_PIXI, UPLOAD_ARTIFACT,
+        VERSION, WORKFLOW_TEMPLATE, portal_assets,
     };
 
     /// The figures this repository builds its environment with, read at compile time.
@@ -117,7 +125,13 @@ mod tests {
 
     #[test]
     fn action_pins_are_commit_shas() {
-        for action in [CHECKOUT, SETUP_PIXI, UPLOAD_ARTIFACT, DOWNLOAD_ARTIFACT] {
+        for action in [
+            CHECKOUT,
+            SETUP_PIXI,
+            RUST_CACHE,
+            UPLOAD_ARTIFACT,
+            DOWNLOAD_ARTIFACT,
+        ] {
             let reference = action.split('@').nth(1).expect("ref");
             let sha = reference.split_whitespace().next().expect("sha");
             assert_eq!(sha.len(), 40, "{action} is not pinned to a commit");

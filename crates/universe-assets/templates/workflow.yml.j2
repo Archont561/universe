@@ -23,6 +23,7 @@ jobs:
   << job.id >>:
     name: << job.name >>
     runs-on: << job.runs_on >>
+    timeout-minutes: << job.timeout_minutes >>
 {%- if job.needs | length %}
     needs: [<< job.needs | join(", ") >>]
 {%- endif %}

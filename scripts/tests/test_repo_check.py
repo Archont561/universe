@@ -12,8 +12,10 @@ from scripts.repo_check import (
     main,
     validate_audit_gate,
     validate_documented_pixi_tasks,
+    validate_gate_order,
     validate_offline_cargo_transport,
     validate_repo,
+    validate_required_gate_name,
     validate_roadmap_coverage,
     validate_scheduled_audit,
     validate_workflow_push_paths,
@@ -226,6 +228,40 @@ def test_an_audit_that_only_runs_on_push_is_not_a_schedule(tmp_path: Path) -> No
     errors = validate_scheduled_audit(tmp_path)
     assert any("never on a schedule" in error for error in errors), errors
     assert any("never run" in error for error in errors), errors
+
+
+def test_the_cheap_checks_run_before_anything_compiles() -> None:
+    ordered = (
+        "[tasks]\n"
+        'check-fast = { depends-on = ["fmt-check", "backlog-check", "repo-check", '
+        '"skills-check", "alint-check", "crate-check", "lint-gherkin"] }\n'
+        'check = { depends-on = ["check-fast", "lint", "typecheck"] }\n'
+    )
+    compile_first = (
+        "[tasks]\n"
+        'check-fast = { depends-on = ["fmt-check", "backlog-check", "repo-check", '
+        '"skills-check", "alint-check", "crate-check", "lint-gherkin"] }\n'
+        'check = { depends-on = ["lint", "check-fast"] }\n'
+    )
+    incomplete = (
+        "[tasks]\n"
+        'check-fast = { depends-on = ["fmt-check", "alint-check"] }\n'
+        'check = { depends-on = ["check-fast", "lint"] }\n'
+    )
+
+    assert validate_gate_order(ordered) == []
+    assert any("first dependency" in error for error in validate_gate_order(compile_first))
+    assert any("missing the checks" in error for error in validate_gate_order(incomplete))
+
+
+def test_ci_keeps_a_job_named_gates() -> None:
+    split = "jobs:\n  fast:\n    runs-on: ubuntu-latest\n  gates:\n    needs: [fast]\n"
+    renamed = "jobs:\n  fast:\n    runs-on: ubuntu-latest\n  verdict:\n    needs: [fast]\n"
+
+    assert validate_required_gate_name(split) == []
+    # A required check that never reports blocks the pull request on `Expected`, which is a
+    # worse failure than a slow one.
+    assert "gates" in validate_required_gate_name(renamed)[0]
 
 
 def test_offline_transport_requires_every_republish_trigger() -> None:
