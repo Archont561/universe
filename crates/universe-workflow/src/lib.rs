@@ -181,6 +181,12 @@ struct Job {
     matrix: Vec<String>,
     fail_fast: bool,
     env: Vec<(String, String)>,
+    /// Ceiling for the whole job, in minutes.
+    ///
+    /// Without one, a stalled step holds a runner for GitHub's default six hours and the pull
+    /// request reads `pending` rather than `failed`. A bound turns a hang into a failure that
+    /// reports itself.
+    timeout_minutes: u32,
     steps: Vec<Step>,
 }
 
@@ -197,8 +203,14 @@ impl Job {
             matrix: Vec::new(),
             fail_fast: true,
             env: Vec::new(),
+            timeout_minutes: 15,
             steps: Vec::new(),
         }
+    }
+
+    fn with_timeout(mut self, minutes: u32) -> Self {
+        self.timeout_minutes = minutes;
+        self
     }
 
     fn with_permissions(mut self, permissions: &[(&str, &str)]) -> Self {
@@ -289,6 +301,7 @@ impl Job {
             "id": self.id,
             "name": self.name,
             "runs_on": self.runs_on,
+            "timeout_minutes": self.timeout_minutes,
             "needs": self.needs,
             "always": self.always,
             "permissions": permissions,
@@ -344,6 +357,14 @@ fn checkout_and_pixi(job: Job) -> Job {
                 ("pixi-version", universe_assets::PIXI_VERSION),
                 ("cache", "true"),
             ],
+        ),
+        // Every job compiles the same workspace, so they share one cache rather than each
+        // paying the cold build again. `shared-key` is what makes the second job a restore
+        // instead of a rebuild; the action's default key already folds in `Cargo.lock` and the
+        // toolchain, so a dependency change still misses.
+        Step::uses_with(
+            universe_assets::RUST_CACHE,
+            &[("shared-key", "universe"), ("cache-on-failure", "false")],
         ),
     ];
     steps.extend(job.steps);
@@ -438,14 +459,20 @@ fn verb(arguments: &str) -> String {
 
 fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     let checks = manifest.workflow.checks.declared();
-    let mut view = Job::new("view", "universe", Vec::new()).with_step(Step::Run {
-        label: "View the manifest".to_owned(),
-        command: verb("plan --json"),
-    });
+    let mut view = Job::new("view", "universe", Vec::new())
+        .with_timeout(10)
+        .with_step(Step::Run {
+            label: "View the manifest".to_owned(),
+            command: verb("plan --json"),
+        });
     view = checkout_and_pixi(view);
 
-    let mut validate =
-        Job::new("validate", "universe", vec!["view".to_owned()]).with_step(Step::Run {
+    // No `needs: [view]`: linting the manifest and formatting the tree do not need the plan,
+    // so waiting for it only puts a second job's runtime on the critical path. Every job in
+    // the file is independent work; the verdict job is what gathers the results.
+    let mut validate = Job::new("validate", "universe", Vec::new())
+        .with_timeout(15)
+        .with_step(Step::Run {
             label: "Validate the manifest".to_owned(),
             command: verb("lint --json"),
         });
@@ -461,7 +488,8 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     // audit and verify them. Without this the audit job audits an empty tree — and, because
     // audit fails closed, says so.
     let build = checkout_and_pixi(
-        Job::new("build", "universe", vec!["view".to_owned()])
+        Job::new("build", "universe", Vec::new())
+            .with_timeout(25)
             .with_matrix("platform", manifest.project.platforms.clone())
             .with_step(Step::Run {
                 label: "Build the declared packages".to_owned(),
@@ -481,6 +509,7 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
 
     let audit = checkout_and_pixi(
         Job::new("audit", "universe", vec!["build".to_owned()])
+            .with_timeout(20)
             .with_step(Step::uses_with(
                 universe_assets::DOWNLOAD_ARTIFACT,
                 &[
@@ -502,6 +531,7 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     if manifest.workflow.verify_artifact {
         jobs.push(checkout_and_pixi(
             Job::new("verify-artifact", "universe", vec!["audit".to_owned()])
+                .with_timeout(20)
                 .with_matrix("platform", manifest.project.platforms.clone())
                 .with_step(Step::uses_with(
                     universe_assets::DOWNLOAD_ARTIFACT,
@@ -515,7 +545,9 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     }
 
     let needs: Vec<String> = jobs.iter().map(|job| job.id.clone()).collect();
-    let verdict = Job::new("verdict", "universe", needs).verdict();
+    let verdict = Job::new("verdict", "universe", needs)
+        .with_timeout(5)
+        .verdict();
     jobs.push(verdict);
     jobs
 }
@@ -525,7 +557,7 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
     let mut publishes_anonymously = false;
 
     for store in manifest.stores.iter().filter(|store| store.writable) {
-        let mut job = Job::new(&store.name, "publish", Vec::new());
+        let mut job = Job::new(&store.name, "publish", Vec::new()).with_timeout(30);
         if let Some(scope) = store_write_scope(store.kind) {
             job = job.with_permissions(&[(scope, "write")]);
         }
@@ -938,6 +970,83 @@ format = "cargo fmt --check"
         assert!(
             setups > 0,
             "no job sets Pixi up, so this test asserted nothing"
+        );
+    }
+
+    #[test]
+    fn every_job_is_bounded_so_a_hang_reports_instead_of_holding_a_runner() {
+        // GitHub's default ceiling is six hours, and a job that sits there reads `pending`
+        // rather than `failed` — the difference between a broken build and a silence.
+        let rendered = render(&manifest(), MANIFEST).expect("renders").files;
+        let mut bounded = 0;
+        for file in &rendered {
+            for line in file.content.lines() {
+                let trimmed = line.trim();
+                if let Some(value) = trimmed.strip_prefix("timeout-minutes:") {
+                    let minutes: u32 = value.trim().parse().expect("a number of minutes");
+                    assert!(
+                        (1..=60).contains(&minutes),
+                        "a bound of {minutes} minutes is not a useful one: {file:?}"
+                    );
+                    bounded += 1;
+                }
+            }
+        }
+        // One per job in the main file, plus one per publish job.
+        assert!(bounded >= 5, "only {bounded} jobs carry a bound");
+    }
+
+    #[test]
+    fn the_shared_compile_is_cached_rather_than_paid_for_by_every_job() {
+        // Four jobs in `universe.yml` each compiled this workspace from cold, which was 71s,
+        // 55s, 68s and 63s on 2026-11-08 — the same build, four times.
+        let rendered = render(&manifest(), MANIFEST).expect("renders").files;
+        let main = &rendered[0].content;
+        // The invariant is per job that sets Pixi up — that is the job that is about to
+        // compile. The verdict job reads its predecessors' results and has neither.
+        let caches = main
+            .lines()
+            .filter(|line| {
+                line.trim_start()
+                    .starts_with("- uses: Swatinem/rust-cache@")
+            })
+            .count();
+        let setups = main
+            .lines()
+            .filter(|line| {
+                line.trim_start()
+                    .starts_with("- uses: prefix-dev/setup-pixi@")
+            })
+            .count();
+        assert!(
+            setups > 0,
+            "no job sets Pixi up, so this test asserted nothing"
+        );
+        assert_eq!(
+            caches, setups,
+            "every job that installs the toolchain goes on to compile; {caches} of {setups}              restore the cache"
+        );
+        assert!(
+            main.contains("shared-key: universe"),
+            "a per-job key would cache four separate builds and share nothing"
+        );
+    }
+
+    #[test]
+    fn checking_the_manifest_does_not_wait_for_the_plan() {
+        // `validate` used to need `view`, so the critical path was the sum of two jobs instead
+        // of the slower of them, and a formatting error could not be reported until the plan
+        // had been rendered.
+        let rendered = render(&manifest(), MANIFEST).expect("renders");
+        let text = &rendered.files[0].content;
+        let block = text
+            .split("  validate:")
+            .nth(1)
+            .and_then(|rest| rest.split("  build:").next())
+            .expect("a validate job");
+        assert!(
+            !block.contains("needs:"),
+            "validate should run beside view, not after it:\n{block}"
         );
     }
 

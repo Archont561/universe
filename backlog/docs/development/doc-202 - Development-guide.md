@@ -46,7 +46,9 @@ pixi run gates
 - `fmt-check` — non-writing format checks.
 - `lint` — Clippy over all targets/features with warnings denied; Ruff lint.
 - `typecheck` — `cargo check`; strict mypy over `scripts/` and script tests.
-- `test` — nextest, Rust doc tests, and pytest.
+- `test` — nextest, Rust doc tests, and pytest. Not part of `check`: `coverage` runs the
+  same tests under instrumentation, so including both executed the suite twice. `test` is
+  what pre-push runs, and what to reach for when nextest's per-test output is what you want.
 - `coverage` — instrumented Rust tests with a 90% line threshold and Python
   script LCOV with its Pixi-task coverage floor.
 - `backlog-check` — Backlog identity and cross-record integrity: filename-to-`id`
@@ -81,9 +83,20 @@ pixi run gates
   inherited from a bundled ruleset at a weaker level are overridden explicitly —
   `gha-pin-actions-to-sha` is `error` here, not the bundled `warning` — so
   retiring a Python check never downgrades a gate.
-- `gates` — all checks plus workflow lint and build. This is the per-diff contract:
-  everything in it is a statement about the change under review. The advisory audit is
-  the one gate that is not, and it lives on a schedule (decision-134).
+- `check-fast` — the checks that need no compile (`fmt-check`, `backlog-check`,
+  `repo-check`, `skills-check`, `alint-check`, `crate-check`, `lint-gherkin`). Pixi runs
+  `depends-on` serially and stops at the first failure, so this set runs **first** inside
+  `check`: together they cost under two seconds, while the tasks that follow compile for
+  minutes. `repo-check` refuses a `check` that orders them otherwise (decision-135).
+- `gates` — all checks plus coverage, workflow lint, the web workspace, and build. This is
+  the per-diff contract: everything in it is a statement about the change under review. The
+  advisory audit is the one gate that is not, and it lives on a schedule (decision-134).
+
+CI runs the same tasks in three lanes — `fast` (`check-fast`, workflow lint, commit
+messages), `heavy` (the compile-based remainder), and `web` — with `heavy` and `web`
+selected from the diff by `scripts/detect_changes.py`. A `gates` job aggregates them and
+keeps the name branch protection requires, so a skipped lane reports as a pass only when the
+diff says it had nothing to check (decision-135).
 
 ## Testing
 

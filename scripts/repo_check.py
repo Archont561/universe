@@ -256,6 +256,69 @@ def validate_audit_gate(pixi_config: str) -> list[str]:
     return errors
 
 
+#: Tasks that must run before anything that compiles, because they report in seconds.
+CHEAP_TASKS = (
+    "fmt-check",
+    "backlog-check",
+    "repo-check",
+    "skills-check",
+    "alint-check",
+    "crate-check",
+    "lint-gherkin",
+)
+
+
+def validate_gate_order(pixi_config: str) -> list[str]:
+    """Ensure the cheap checks run before the ones that need a compile.
+
+    `check` is a serial chain, so its order *is* its feedback loop: measured on 2026-11-08,
+    `lint` cost 108s and `test` 100s, while the five repository checks together cost under
+    1.5s. With them last, a typo in a Backlog record took four minutes to report. This keeps
+    the cheap set first so a later addition cannot quietly push it behind a build.
+    """
+    try:
+        tasks = tomllib.loads(pixi_config).get("tasks", {})
+    except tomllib.TOMLDecodeError as exc:
+        return [f"cannot parse Pixi tasks for gate order: {exc}"]
+
+    errors: list[str] = []
+    check = tasks.get("check", {})
+    depends_on = check.get("depends-on") if isinstance(check, dict) else None
+    if not isinstance(depends_on, list) or "check-fast" not in depends_on:
+        return ["`check` must depend on `check-fast`, which holds the checks that need no compile"]
+    if depends_on[0] != "check-fast":
+        errors.append(
+            "`check-fast` must be the first dependency of `check`: the tasks that compile "
+            "would otherwise report before a formatting error does"
+        )
+
+    fast = tasks.get("check-fast", {})
+    fast_dependencies = fast.get("depends-on") if isinstance(fast, dict) else None
+    missing = sorted(set(CHEAP_TASKS) - set(fast_dependencies or []))
+    if missing:
+        errors.append(f"`check-fast` is missing the checks that need no compile: {missing}")
+    return errors
+
+
+def validate_required_gate_name(ci_workflow: str) -> list[str]:
+    """Ensure CI still reports a job called `gates`.
+
+    Branch protection requires a check by that name. Splitting the job for a faster loop is
+    allowed; leaving nothing behind that answers to the name is not, because the pull request
+    then waits forever on a check that will never report.
+    """
+    # A job block starts at two-space indentation under `jobs:`; the name is the key.
+    if not any(
+        line.startswith("  gates:") or line.startswith("  gates: ")
+        for line in ci_workflow.splitlines()
+    ):
+        return [
+            "ci.yml declares no `gates` job; the required check must keep its name even when "
+            "the work is split across lanes"
+        ]
+    return []
+
+
 def validate_scheduled_audit(repo_root: Path) -> list[str]:
     """Ensure some scheduled workflow runs the audit task.
 
@@ -585,6 +648,9 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
     errors.extend(validate_roadmap_coverage(root))
     errors.extend(validate_documented_pixi_tasks(root))
     errors.extend(validate_scheduled_audit(root))
+    ci_workflow_path = root / ".github" / "workflows" / "ci.yml"
+    if path_exists(ci_workflow_path):
+        errors.extend(validate_required_gate_name(ci_workflow_path.read_text(encoding="utf-8")))
 
     offline_transport_paths = (
         root / "Cargo.lock",
@@ -607,6 +673,7 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
             )
         )
         errors.extend(validate_audit_gate(pixi_config.read_text(encoding="utf-8")))
+        errors.extend(validate_gate_order(pixi_config.read_text(encoding="utf-8")))
         errors.extend(
             validate_workflow_push_paths(
                 sandbox_config.read_text(encoding="utf-8"),

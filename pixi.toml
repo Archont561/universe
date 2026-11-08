@@ -132,20 +132,23 @@ audit-sync = { cmd = "python -m scripts.audit sync", description = "Refresh the 
 alint-check = { cmd = "alint check", description = "Validate repository structure, naming, and cross-file rules from .alint.yml" }
 crate-check = { cmd = "python -m scripts.crate_check", description = "Validate that universe-core depends on nothing ecosystem, UI, or network related" }
 
-check = { depends-on = [
+check-fast = { depends-on = [
   "fmt-check",
-  "lint",
-  "typecheck",
-  "test",
   "backlog-check",
   "repo-check",
   "skills-check",
   "alint-check",
   "crate-check",
+  "lint-gherkin",
+], description = "Everything that reports in seconds, first: no compile, no network, no bun" }
+check = { depends-on = [
+  "check-fast",
+  "lint",
+  "typecheck",
   "ci-check",
   "airlock-check",
-  "lint-gherkin",
-], description = "Run format, lint, type, test, backlog, repository, skill, crate-boundary, workflow-drift, entrypoint-drift, and Gherkin checks" }
+  "coverage",
+], description = "Every static and dynamic check; the cheap ones run first so a typo is not reported behind a compile" }
 offline-gates = { depends-on = [
   "check",
   "coverage",
@@ -154,8 +157,8 @@ offline-gates = { depends-on = [
 ], description = "Run offline-compatible Rust, Python, and repository gates; excludes Bun installs and advisory database updates" }
 gates = { depends-on = [
   "check",
-  "web-check",
   "coverage",
+  "web-check",
   "lint-actions",
   "build",
 ], description = "Every required per-diff quality gate; the advisory audit runs daily in CI instead (decision-134)" }
