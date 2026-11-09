@@ -81,6 +81,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "argp"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78ca6b2169f9679af5b5ed7780941555a03d795fec86996d8605b28f63195acb"
+dependencies = [
+ "argp_derive",
+]
+
+[[package]]
+name = "argp_derive"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad1eb5de915b522348ebd6690c0e12f905b37797c2dc18a267027e7d422e8ad6"
+dependencies = [
+ "proc-macro2",
+ "pulldown-cmark",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "assert-json-diff"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1075,6 +1096,15 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "getopts"
+version = "0.2.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe4fbac503b8d1f88e6676011885f34b7174f46e59956bba534ba83abded4df"
+dependencies = [
+ "unicode-width",
 ]
 
 [[package]]
@@ -2278,6 +2308,18 @@ dependencies = [
  "rusty-fork",
  "tempfile",
  "unarray",
+]
+
+[[package]]
+name = "pulldown-cmark"
+version = "0.9.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57206b407293d2bcd3af849ce869d52068623f19e1b5ff8e8778e3309439682b"
+dependencies = [
+ "bitflags 2.13.2",
+ "getopts",
+ "memchr",
+ "unicase",
 ]
 
 [[package]]
@@ -3873,6 +3915,7 @@ checksum = "ca718471876992059f251e33aafc334346ada08042b7661dd1fe313a9bced557"
 name = "universe-airlock"
 version = "0.1.0"
 dependencies = [
+ "argp",
  "rstest",
  "rstest-bdd",
  "rstest-bdd-macros",
