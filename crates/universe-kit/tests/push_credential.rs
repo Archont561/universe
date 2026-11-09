@@ -18,8 +18,10 @@ use std::process::Command;
 use tempfile::TempDir;
 use universe_core::manifest::Manifest;
 
-/// The variable the renderer exports for the store below, and the token it holds.
-const TOKEN_VARIABLE: &str = "CHANNEL_BRANCH_UNIVERSE_CHANNEL_TOKEN";
+/// Deliberately invented fixture names: the rule under test is the store-prefixed spelling,
+/// which must hold for *any* declared secret. The repository's own branch store names
+/// `GITHUB_TOKEN` and renders `BRANCH_GITHUB_TOKEN`.
+const TOKEN_VARIABLE: &str = "CHANNEL_BRANCH_FIXTURE_CHANNEL_TOKEN";
 const TOKEN: &str = "published-from-a-workflow-secret";
 
 struct Fixture {
@@ -62,7 +64,7 @@ kind = "branch"
 writable = true
 needs_index = true
 auth = "token"
-secrets = ["UNIVERSE_CHANNEL_TOKEN"]
+secrets = ["FIXTURE_CHANNEL_TOKEN"]
 verifier = "file"
 
 [workflow.checks]
@@ -164,7 +166,7 @@ fn a_store_secret_in_the_environment_is_used_and_never_printed() {
     let rendered = fixture.rendered_publish_file();
     assert!(
         rendered.contains(&format!(
-            "{TOKEN_VARIABLE}: ${{{{ secrets.UNIVERSE_CHANNEL_TOKEN }}}}"
+            "{TOKEN_VARIABLE}: ${{{{ secrets.FIXTURE_CHANNEL_TOKEN }}}}"
         )),
         "the renderer exports a different variable than this test sets:\n{rendered}"
     );
@@ -189,7 +191,7 @@ fn a_store_secret_in_the_environment_is_used_and_never_printed() {
     );
     // The bare secret name is the fallback spelling a local shell would use, and it must not
     // appear in a message about something that worked.
-    assert!(!printed.contains("UNIVERSE_CHANNEL_TOKEN"), "{printed}");
+    assert!(!printed.contains("FIXTURE_CHANNEL_TOKEN"), "{printed}");
 }
 
 #[test]

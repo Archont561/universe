@@ -451,10 +451,11 @@ impl Credentials {
 
 /// The token a store publishes with, read from the environment variable it names.
 ///
-/// Names only, never values: the manifest says `secrets = ["UNIVERSE_CHANNEL_TOKEN"]` and the
-/// value reaches the process from the workflow's environment. Two spellings are accepted, and
-/// the order matters: the *rendered* name first — `BRANCH_UNIVERSE_CHANNEL_TOKEN`, which is
-/// what a workflow job exports — and then the bare secret, which is what a local shell sets.
+/// Names only, never values: the manifest says `secrets = ["GITHUB_TOKEN"]` and the value
+/// reaches the process from the workflow's environment. Two spellings are accepted, and the
+/// order matters: the *rendered* name first — `BRANCH_GITHUB_TOKEN`, which is what a workflow
+/// job exports — and then the bare secret, which is what a local shell sets. The repository's
+/// branch store names the built-in token, so there is no stored secret to manage.
 /// Reading only the bare name was a live mismatch: the renderer exported one and the verb
 /// looked up the other, so the first tag run would have found no token at all.
 ///

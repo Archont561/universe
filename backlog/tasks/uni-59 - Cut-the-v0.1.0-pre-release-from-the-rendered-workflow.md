@@ -92,4 +92,11 @@ a repository check rather than a release-time computation.
   degenerates to one check per channel. With one package in the channel that is exact; with
   two, the second artifact's digest is compared against the first's answer. Worth deciding
   before the channel holds more than one package.
+- **2026-11-09 — one owner-side prerequisite removed.** The `publish / branch` job now
+  exports `BRANCH_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` from `secrets = ["GITHUB_TOKEN"]`
+  in `universe.toml`. It is the short-lived token GitHub injects into every run, and the job
+  already declares `contents: write`, so no `UNIVERSE_CHANNEL_TOKEN` repository secret needs to
+  be created. The prefix.dev trusted publisher binding (OIDC) is still owner-side and is still
+  unproven by the loopback rehearsal above. `decision-127` records why the built-in token is
+  sufficient and when a future ruleset would change that answer.
 <!-- SECTION:NOTES.END -->
