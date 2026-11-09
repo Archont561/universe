@@ -1,10 +1,10 @@
 ---
 id: UNI-12
 title: Implement standard static Conda channel indexing and artifact publication paths
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-10-27'
+updated_date: '2026-11-09'
 labels:
   - channel
   - testing
@@ -57,3 +57,35 @@ This task consumes those records instead of defining a per-command shape of its 
 - [ ] #1 BDD/property tests and local HTTP client resolution tests pass with the offline fixture set.
 - [ ] #2 The deployment contract documents the static hosting/object-storage paths and makes no claim that portal links are a channel.
 <!-- DOD:END -->
+
+
+## Notes
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-09 — status corrected from `To Do` to `In Progress`. AC#2 is ticked with evidence and
+AC#1/#4 carry recorded partial results; `To Do` no longer described the record.
+
+Scope for the `v0.1.0` checkpoint (`decision-132`, and its amendment that the checkpoint's
+static channel is a Git branch). This declares what the tag consumes, not a completion claim;
+every unticked box stays unticked.
+
+- Consumed: plain `repodata.json` per subdir including `noarch`, `channeldata.json`,
+  `run_exports.json`, `.nojekyll`, the generated `README.md`, and package bytes at canonical
+  `<subdir>/<filename>` paths with a byte-for-byte assertion (AC#2). `UNI-58` proves a real
+  Pixi client resolves that tree from a Git checkout with `pixi install --offline`.
+- AC#1 out of scope for the tag: `.zst` compressed metadata and CEP-16 shards. The property
+  test proves byte-identical *plain* repodata under arbitrary fragment order; the compressed
+  forms do not exist yet.
+- AC#3 out of scope for the tag: a local HTTP integration. The amendment puts the channel on a
+  branch precisely so a disconnected host needs only Git; `channel_resolves.rs` is the offline
+  client proof. An HTTP endpoint belongs to the v1 hosting decision.
+- AC#4 partially met: missing bytes and digest mismatches fail closed with exit 1 and name the
+  file. The unsupported-metadata path has nothing to meet until compressed metadata and shards
+  exist.
+- AC#5 and both DoD boxes stay open. The branch tree also carries a generated `README.md` and
+  `meta/` audit receipts; those are channel documentation and evidence rather than portal HTML,
+  but the criterion says "Conda metadata and package files only", so ticking it would overstate
+  the record.
+
+`m-12` consumes this subset without re-scoping the task; M3 and `decision-119` still own the
+rest.
+<!-- SECTION:NOTES:END -->

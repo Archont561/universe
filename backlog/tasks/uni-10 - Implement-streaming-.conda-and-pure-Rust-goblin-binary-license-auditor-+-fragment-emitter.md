@@ -4,7 +4,7 @@ title: Implement streaming .conda and pure-Rust goblin binary/license auditor + 
 status: In Progress
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-11-01 12:05'
+updated_date: '2026-11-09'
 labels:
   - audit
   - channel
@@ -81,3 +81,26 @@ v0.1.0 milestone is `linux-64` only, `decision-132`), md5 and `info/paths.json`,
 <!-- DOD:BEGIN -->
 - [ ] #1 `rstest` cross-format binary matrix + `rstest-bdd` (`audit.feature`) + `proptest` path/RPATH sanitization tests pass under `cargo nextest`.
 <!-- DOD:END -->
+
+
+## Notes
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-09 — scope for the `v0.1.0` checkpoint. `decision-132` makes the tag `linux-64` only
+and publishes one Conda package. This task is **not** closed by that checkpoint: no acceptance
+box is ticked here and the status stays `In Progress`.
+
+What the checkpoint consumes, and what the rendered pipeline exercises:
+- ELF64 header auditing (machine type, absolute `DT_RPATH`/`DT_RUNPATH` refusal, `noarch`
+  native-binary refusal), SPDX expression parsing, and non-empty `info/licenses/*`.
+- `universe audit --emit-fragment`, called by the rendered build and audit jobs with
+  `--receipts` and `--emit-fragment`.
+
+Declared out of scope for the tag, staying with M2 and `decision-119`'s v1 gate:
+- PE32+ and Mach-O64 parsing and the cross-format binary matrix (AC#1, DoD#1).
+- md5 and `info/paths.json` verification, `audit.expected_binaries`, and the wrong-arch and
+  leak cases those fixtures would cover (AC#2).
+- `run_exports.json` in the fragment, `audit_summary`, and `@universe/schema` alignment (AC#3).
+
+This is a scope declaration, not a claim of completion. The unticked boxes stay unticked until
+the work lands. `m-12` consumes this subset without re-scoping the task.
+<!-- SECTION:NOTES:END -->
