@@ -87,6 +87,13 @@ fn usage_exit(invocation: &Invocation) {
     assert_eq!(invocation.stdout(), "");
 }
 
+#[then("the help names the version command")]
+fn help_names_the_version_command(invocation: &Invocation) {
+    let stdout = invocation.stdout();
+    assert!(stdout.contains("Usage:"), "{stdout}");
+    assert!(stdout.contains("version"), "{stdout}");
+}
+
 #[then("the refusal names the argument it does not implement")]
 fn names_the_argument(invocation: &Invocation) {
     assert!(
@@ -109,6 +116,14 @@ fn the_version_is_json(invocation: Invocation) {
     name = "The version is reported in the form a human reads"
 )]
 fn the_version_is_one_line(invocation: Invocation) {
+    let _ = invocation;
+}
+
+#[scenario(
+    path = "features/airlock.feature",
+    name = "The consumer lists what it can do"
+)]
+fn the_consumer_lists_what_it_can_do(invocation: Invocation) {
     let _ = invocation;
 }
 
