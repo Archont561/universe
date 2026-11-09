@@ -3,7 +3,7 @@ id: DECISION-127
 title: Manifest facets for packages, stores, and airlock scopes
 status: accepted
 created_date: '2026-10-30'
-updated_date: '2026-10-31'
+updated_date: '2026-11-09'
 ---
 
 ## Context
@@ -174,6 +174,13 @@ ruleset must exempt the publishing actor by name.
 
 Reads from these branches are anonymous, which is what makes them usable as a restore source on
 a host where the only reachable thing is Git.
+
+Implementation note (2026-11-09): the `v0.1.0` branch store in `universe.toml` names the
+built-in `GITHUB_TOKEN` rather than a stored repository secret. This is exactly the
+`contents: write` case above: the rendered `publish / branch` job declares that permission,
+the token is short-lived and scoped to this repository, and no bypass actor is needed. A named
+PAT becomes necessary only if a future ruleset starts matching these branches and requires a
+bypass actor — the consequence this section already warns about.
 
 ### Mode separation
 

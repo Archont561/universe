@@ -427,7 +427,7 @@ mod tests {
         // Named for the failure that matters: a token in the environment must not become a
         // token in a child process, whatever it is called.
         for name in [
-            "UNIVERSE_CHANNEL_TOKEN",
+            "BRANCH_GITHUB_TOKEN",
             "CONDA_PREFIX_CONDA_TOKEN",
             "GITHUB_TOKEN",
             "AWS_SECRET_ACCESS_KEY",

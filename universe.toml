@@ -79,8 +79,11 @@ writable = true
 needs_index = true
 read_auth = "none"
 auth = "token"
-# Names only, never values. The renderer emits `${{ secrets.<name> }}`.
-secrets = ["UNIVERSE_CHANNEL_TOKEN"]
+# Names only, never values. The renderer emits `${{ secrets.<name> }}`. `GITHUB_TOKEN` is
+# the short-lived token GitHub injects into every run, so this store holds no long-lived
+# credential to create, leak or rotate. The job's `contents: write` is enough because mirror
+# branches are public and unprotected (`decision-127`).
+secrets = ["GITHUB_TOKEN"]
 verifier = "file"
 
 [release]
