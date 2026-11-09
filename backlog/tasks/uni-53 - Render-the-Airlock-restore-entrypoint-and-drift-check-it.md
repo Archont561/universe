@@ -4,7 +4,7 @@ title: Render the Airlock restore entrypoint and drift-check it
 status: In Progress
 assignee: []
 created_date: '2026-10-31'
-updated_date: '2026-11-06'
+updated_date: '2026-11-09'
 labels:
   - airlock
   - cli
@@ -53,7 +53,7 @@ and its drift verification.
 ## Definition of Done
 <!-- DOD.BEGIN -->
 - [ ] #1 A rendered entrypoint restores the fixture environment on a clean container. — **Open, and now blocked only on being one process tree.** `UNI-33` landed on 2026-11-08, so both halves exist and are tested: this crate's `tests/airlock_restore.rs` publishes a real ref to a bare repository, renders the entrypoint, runs it with `sh`, and proves the clone lands on the pin and that the bootstrapper is handed `restore --commit <pin>`; and `crates/universe-airlock-bootstrap/tests/cli.rs::the_handover_contract_restores_with_the_working_directory_as_the_checkout` runs the real binary with exactly that invocation and proves the environment is materialised. What is still unproven is the two in one run — a test cannot portably reach another crate's binary path, so the entrypoint half uses a stub bootstrapper. Also unproven, and larger: a *sealed* restore (no key until `UNI-55`) and a Pixi-managed environment (`UNI-51`).
-- [ ] #2 `pixi run gates` passes.
+- [x] #2 `pixi run gates` passes. — 2026-11-09: `pixi run gates` exits 0 at `09331fd5` with 594 tests, 82 alint rules and every static check green; `airlock-check` is in the `check` gate set and green.
 <!-- DOD.END -->
 
 ## Notes
@@ -84,11 +84,10 @@ new surface rather than invented defaults.
   files, so it routes to `universe-kit`; `airlock exec`, `verify` and `restore` stay with
   `universe-airlock`. The rendered workflow already called `airlock render`, so this also closes
   a job that pointed at a verb no binary implemented.
-- **What is knowingly not here:** `universe-airlock-bootstrap restore` is still a version-only
-  scaffold (`UNI-33`), and the mirror lane that would publish the ref is `UNI-51`/`UNI-52`. The
-  entrypoint's contract with the bootstrapper is fixed at `restore --commit <pin>`, which is the
-  seam those tasks implement against.
-<!-- SECTION:NOTES:END -->
+- **What is knowingly not here:** a *sealed* restore (no release key until `UNI-55`), a
+  Pixi-managed environment (`UNI-51`), and the mirror lane that would publish the ref
+  (`UNI-51`/`UNI-52`). The entrypoint's contract with the bootstrapper is fixed at
+  `restore --commit <pin>`, which is the seam those tasks implement against.
 2026-11-08 — the output location is configurable, and the split between the two places is
 deliberate.
 
@@ -106,3 +105,16 @@ deliberate.
 - The README stays at `README.md`; only the scripts move. Its block is prose aimed at a reader
   of the repository's front page, and a per-project path for it would be a second location to
   keep in step for no gain.
+
+2026-11-09 — correction, recorded as a correction. This file's notes said
+"`universe-airlock-bootstrap restore` is still a version-only scaffold (`UNI-33`)". That has
+been false since 2026-11-08: `UNI-33` landed the real `verify`/`restore`/`doctor` verbs, and
+the DoD note above names the two halves of the handover that are now tested. The sentence is
+corrected in place rather than left for the next reader to reconcile. The facade bullet above
+is also now literal: PR #78 added `universe-airlock verify`, so `airlock exec`, `verify` and
+`restore` all name real consumer verbs.
+
+Status stays **In Progress** because DoD #1 is genuinely open: the two halves have never run
+as one process tree, and a clean-container restore transcript is a `UNI-59` acceptance
+criterion. Ticking the gate box is not the same thing as completing that criterion.
+<!-- SECTION:NOTES:END -->

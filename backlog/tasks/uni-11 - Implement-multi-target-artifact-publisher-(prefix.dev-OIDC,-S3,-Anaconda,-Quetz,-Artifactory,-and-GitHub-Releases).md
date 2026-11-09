@@ -1,10 +1,10 @@
 ---
 id: UNI-11
 title: Implement multi-target artifact publisher (prefix.dev OIDC, S3, Anaconda, Quetz, Artifactory, and GitHub Releases)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-26 20:15'
-updated_date: '2026-11-06 16:40'
+updated_date: '2026-11-09'
 labels:
   - channel
   - release
@@ -161,4 +161,23 @@ publishes is proved usable by a real client.
   the same run before publishing, because a workflow artifact belongs to the run that uploaded
   it (`2026-11-08`). Without that, every store job below would have received an empty tree —
   the publisher was exercised, the pipeline around it was not.
+
+2026-11-09 — status set to `Done`. Every acceptance box and the Definition of Done box are
+ticked, and the suites named above run under `pixi run gates` (594 tests at `09331fd5`):
+the `wiremock` store suites, `publish_bdd`/`publish_mock`, `push_credential`, and
+`rendered_workflow`. Marking it Done closes the **criteria**, not every sentence in the
+description. The open items listed above are still open and are not implied by this status:
+
+- The dedicated `.conda.json` fragment commit to `index_branch` for hosted stores.
+  `decision-5` was amended so a branch store carries its receipts in the single snapshot
+  tree (`meta/<subdir>/<filename>.conda.json`), and `UNI-58` proves that tree solves with
+  `pixi install --offline`.
+- S3, Quetz and Artifactory upload paths. The wiremock suites prove arbitrary endpoints are
+  addressed as the manifest declares; dedicated adapters are v1 work.
+- `--generate-attestation` and `rattler_upload`. The publisher is its own `Http` client over
+  `rustls`; `auth = "oidc"` trusted publishing is what a tag run uses.
+
+`decision-132` limits the checkpoint to two stores — `prefix-dev` and the `branch` static
+channel — and both are exercised. This status does not advance the tag: the owner-side
+trusted publisher binding and `UNIVERSE_CHANNEL_TOKEN` remain `UNI-59` prerequisites.
 <!-- SECTION:NOTES:END -->
