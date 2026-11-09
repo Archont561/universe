@@ -1,0 +1,1 @@
+{"schema":1,"version":"0.1.0","commit":"0123456789abcdef0123456789abcdef01234567","packages":[{"name":"universe-airlock","kind":"conda","version":"0.1.0","artifacts":[{"filename":"airlock-0.1.0.conda","sha256":"f1c50761eb511f773358beb44bfafdd5a4684123fdb8dbae8b72a5acb10bcd19","size":18,"stores":["conda-static"]}]}]}

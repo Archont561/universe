@@ -5,6 +5,8 @@ use universe_core::{CliError, CommandOutput, Product};
 
 use argp::{EarlyExit, Error, FromArgs};
 
+mod verify;
+
 /// Version of this component, equal to the workspace version the whole artifact set
 /// is released under (`decision-122`: one tag, one version train).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -37,12 +39,26 @@ struct Airlock {
 #[argp(subcommand)]
 enum Command {
     Version(VersionCommand),
+    Verify(VerifyCommand),
 }
 
 /// Report the version this consumer was built from.
 #[derive(FromArgs)]
 #[argp(subcommand, name = "version")]
 struct VersionCommand {}
+
+/// Verify a sealed payload without activating anything.
+#[derive(FromArgs)]
+#[argp(subcommand, name = "verify")]
+struct VerifyCommand {
+    /// Directory holding the release manifest and its artifacts.
+    #[argp(option)]
+    payload: Option<String>,
+
+    /// `developer` (unsigned allowed, with a warning) or `sealed` (signature required).
+    #[argp(option)]
+    lane: Option<String>,
+}
 
 /// Execute one Airlock command without touching process streams.
 pub fn run<I, S>(args: I) -> CommandOutput
@@ -56,20 +72,23 @@ where
         .collect();
 
     match Airlock::from_args(&[BINARY], &args) {
-        Ok(cli) => {
-            // The parsed grammar is forwarded in the core's own vocabulary. That is what
-            // keeps the envelope, the one-line report, and the usage error identical to the
-            // other editions: the parser decides *what* was asked, the core decides *how* it
-            // is written.
-            let mut forwarded = Vec::new();
-            if cli.version || cli.command.is_some() {
-                forwarded.push("version");
+        Ok(cli) => match cli.command {
+            Some(Command::Verify(options)) => verify::run(options.payload, options.lane, cli.json),
+            Some(Command::Version(_)) | None => {
+                // The parsed grammar is forwarded in the core's own vocabulary. That is what
+                // keeps the envelope, the one-line report, and the usage error identical to the
+                // other editions: the parser decides *what* was asked, the core decides *how*
+                // it is written.
+                let mut forwarded = Vec::new();
+                if cli.version || cli.command.is_some() {
+                    forwarded.push("version");
+                }
+                if cli.json {
+                    forwarded.push("--json");
+                }
+                universe_core::execute_version(Product::Airlock, forwarded)
             }
-            if cli.json {
-                forwarded.push("--json");
-            }
-            universe_core::execute_version(Product::Airlock, forwarded)
-        }
+        },
         Err(EarlyExit::Help(help)) => {
             CommandOutput::new(help.generate(argp::DEFAULT), String::new(), 0)
         }

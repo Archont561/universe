@@ -92,10 +92,11 @@ name = "pre-release"
 stores = ["prefix-dev", "branch"]
 
 [workflow]
-# Off until `universe verify` exists (UNI-32/UNI-33). The job is rendered from this flag, so
-# declaring it false is the difference between a pipeline that proves less than it claims and
-# one that fails every run on a verb nobody has written yet. Flip both to `true` in the commit
-# that lands the verb, and never before.
+# These gate `universe-kit`'s `verify --artifact` / `--published` / `--index` verbs, not the
+# consumer's `universe-airlock verify` (`UNI-32`). The renderer emits those commands from the
+# flags, so leaving them false is the difference between a pipeline that proves less than it
+# claims and one that calls a verb nobody has written yet. Flip both only when the producer's
+# verify lands; the Airlock consumer verb does not satisfy them.
 verify_artifact = false
 verify_published = false
 
