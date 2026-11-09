@@ -286,12 +286,31 @@ where
             stderr: String::new(),
             exit_code: 0,
         },
-        Err(error) => CommandOutput {
-            stdout: String::new(),
-            stderr: format!("error: {error}\nusage: {binary} [version] [--json]\n"),
-            exit_code: 2,
-        },
+        Err(error) => version_usage_output(binary, error),
     }
+}
+
+/// Render a usage error for a version command, whichever crate parsed its grammar.
+///
+/// A consumer with its own parser still reports through this vocabulary: the diagnostic and
+/// the exit code are one contract shared by every edition, not a string each binary writes.
+#[must_use]
+pub fn version_usage_output(binary: &str, error: CliError) -> CommandOutput {
+    CommandOutput {
+        stdout: String::new(),
+        stderr: format!("error: {error}\nusage: {binary} [version] [--json]\n"),
+        exit_code: 2,
+    }
+}
+
+/// Print one command result and return its process code.
+///
+/// stdout carries data and stderr carries diagnostics; a binary that parsed its own grammar
+/// uses this rather than growing a second copy of that rule.
+pub fn emit(output: CommandOutput) -> ExitCode {
+    print!("{}", output.stdout());
+    eprint!("{}", output.stderr());
+    ExitCode::from(output.exit_code())
 }
 
 /// Execute and print the scaffold version command, returning its process code.
@@ -309,10 +328,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let output = execute_version_as(product, binary, args);
-    print!("{}", output.stdout());
-    eprint!("{}", output.stderr());
-    ExitCode::from(output.exit_code())
+    emit(execute_version_as(product, binary, args))
 }
 
 #[cfg(test)]

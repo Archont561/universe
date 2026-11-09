@@ -17,6 +17,12 @@ Feature: The Airlock consumer on a host that cannot install anything
     Then it succeeds with nothing on stderr
     And the report is the binary name and version on one line
 
+  Scenario: The consumer lists what it can do
+    Given the airlock command line "--help"
+    When it is executed
+    Then it succeeds with nothing on stderr
+    And the help names the version command
+
   Scenario: A producer verb is refused by name
     Given the airlock command line "publish"
     When it is executed

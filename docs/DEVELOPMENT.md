@@ -83,7 +83,7 @@ question and none of them reads another's rules.
 - `crates/universe-assets` embeds the generated static portal when available and retains its committed placeholder as a fresh-checkout fallback.
 - `packages/config`, `packages/schema`, and `packages/portal` are product packages in the Bun/Turbo workspace. They are not repository-maintenance scripts. Every package's `VERSIONS` file must match its manifest; `repo-check` enforces that contract.
 - The version itself is written once. A crate inherits `[workspace.package] version` with `version.workspace = true`, and its `src/lib.rs` exports `pub const VERSION: &str = env!("CARGO_PKG_VERSION")`, which the compiler reads from that manifest. The `crate-manifests-inherit-the-workspace-version` and `crate-entrypoint-reads-its-manifest-version` rules in `.alint.yml` hold both halves, so bumping a release is one edit in the root `Cargo.toml` rather than a hunt for the crate that still spells a version by hand.
-- `universe-airlock` is a finite offline consumer. Developer transport and Cargo vendoring do not constitute sealed Airlock snapshots or Airlock product behavior.
+- `universe-airlock` is a finite offline consumer. Developer transport and Cargo vendoring do not constitute sealed Airlock snapshots or Airlock product behavior. Its CLI parses arguments with `argp`, while `universe-core` still owns the version report, the usage diagnostic, and the stream and exit-code contract. A binary that parses its own grammar forwards the request in the core vocabulary rather than growing a second output format.
 
 ## Adding or changing dependencies
 
