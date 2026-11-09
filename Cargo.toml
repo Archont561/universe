@@ -28,6 +28,10 @@ universe-channel = { path = "crates/universe-channel", version = "=0.1.0" }
 universe-conda = { path = "crates/universe-conda", version = "=0.1.0" }
 universe-assets = { path = "crates/universe-assets", version = "=0.1.0" }
 universe-workflow = { path = "crates/universe-workflow", version = "=0.1.0" }
+# Finite-consumer argument parsing. `argp` has no runtime dependencies, and
+# `term_size` is off so help text does not depend on the width of a terminal the
+# release pipeline never has. Pinned exactly: the CLI grammar is a contract.
+argp = { version = "=0.4.1", default-features = false }
 assert_cmd = "2.0"
 goblin = "0.10"
 include_dir = "0.7.4"
