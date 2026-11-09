@@ -36,6 +36,14 @@ requirements:
 tests:
   - script:
       - universe-airlock --version
+  # UNI-38 #2: the installed consumer must do more than report a version. This is the same
+  # offline verification the library tests exercise, run against a closed two-file payload.
+  - script:
+      - universe-airlock verify --payload payload
+    files:
+      recipe:
+        - payload/universe-release.json
+        - payload/airlock-0.1.0.conda
 
 about:
   summary: Finite offline consumer for verified sealed Universe snapshots

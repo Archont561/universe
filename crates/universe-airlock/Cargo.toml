@@ -20,10 +20,12 @@ rstest-bdd-macros = { workspace = true }
 workspace = true
 
 [dependencies]
-# Declared for the consumer CLI. Nothing consumes it yet: the dependency closes
-# over the offline vendor bundle first (relock + sandbox repack), so the slice
-# that wires the parser in can be compiled and gated locally.
 argp = { workspace = true }
+serde = { workspace = true }
+# `decision-122` makes the bootstrap a phase of Airlock, not a separate edition. Its
+# verification library is the one implementation of the payload integrity rules, so the
+# consumer calls it rather than growing a second copy that could drift.
+universe-airlock-bootstrap = { workspace = true }
 universe-core = { workspace = true }
 
 [[bin]]

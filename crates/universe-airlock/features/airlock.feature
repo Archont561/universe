@@ -23,6 +23,49 @@ Feature: The Airlock consumer on a host that cannot install anything
     Then it succeeds with nothing on stderr
     And the help names the version command
 
+
+  Scenario: A sealed snapshot verifies completely
+    Given a published payload
+    When it is verified
+    Then the report says the payload was verified
+    And the report counts one artifact
+
+  Scenario: A missing object is refused by name
+    Given a payload with a missing artifact
+    When it is verified
+    Then the diagnostic names airlock.payload.missing
+
+  Scenario: A corrupt object is refused by name
+    Given a payload with a corrupt artifact
+    When it is verified
+    Then the diagnostic names airlock.payload.digest
+
+  Scenario: An extra object is refused by name
+    Given a payload with an extra object
+    When it is verified
+    Then the diagnostic names airlock.payload.extra
+
+  Scenario: An object addressed under another platform is refused
+    Given a payload naming a wrong-platform object
+    When it is verified
+    Then the diagnostic names airlock.payload.name
+
+  Scenario: The sealed lane refuses an unsigned payload
+    Given a published payload
+    When it is verified on the sealed lane
+    Then the diagnostic names airlock.signature.absent
+
+  Scenario: A structurally valid signed payload is still refused without a trusted key
+    Given a signed payload with correct digests
+    When it is verified
+    Then the diagnostic names airlock.signature.no-key
+
+  Scenario: A signed payload with no trusted key is refused before artifacts are checked
+    Given a payload that is signed and missing its artifact
+    When it is verified
+    Then the diagnostic names airlock.signature.no-key
+    And the diagnostic does not name airlock.payload.missing
+
   Scenario: A producer verb is refused by name
     Given the airlock command line "publish"
     When it is executed
