@@ -470,6 +470,10 @@ really is that commit, and hands over to the bootstrapper in that ref. Set
 `UNIVERSE_AIRLOCK_HOME` to keep the checkout somewhere else; the default is
 `$XDG_CACHE_HOME/universe-airlock` (or `~/.cache/universe-airlock`).
 
+The entrypoint does not change the working directory: the closed payload the bootstrapper
+restores belongs in this project's `.universe-airlock/payload`, and the immutable environment
+it creates is `.universe-airlock/state`.
+
 | pin | value |
 | --- | --- |
 | remote | `{remote}` |
@@ -884,6 +888,24 @@ commit = "0123456789abcdef0123456789abcdef01234567"
         // it without their words disappearing on the next render.
         let twice = with_block(block, &super::usage_block(&restore()));
         assert_eq!(twice, block);
+    }
+
+    #[test]
+    fn the_readme_block_names_where_the_payload_lives() {
+        // The rendered README is all a disconnected consumer gets. The binary is exec'd from
+        // the cloned checkout, but it reads the payload from the working directory the script
+        // was run from; saying so is what makes the one-process-tree restore reproducible by a
+        // human, not just by `crates/universe-kit/tests/airlock_restore.rs`.
+        let files = rendered(Some("# Fixture\n"));
+        let block = file(&files, "README.md");
+        assert!(
+            block.contains("does not change the working directory"),
+            "the block must not imply the binary runs from the checkout: {block}"
+        );
+        assert!(
+            block.contains("`.universe-airlock/payload`"),
+            "a consumer cannot know where to put the closed payload: {block}"
+        );
     }
 
     #[test]
