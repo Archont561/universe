@@ -253,4 +253,24 @@ a repository check rather than a release-time computation.
   `2d814a3b`; no diagnostic workflow remains in the repository. AC#2, AC#4, AC#5 and every
   DoD box stay open, and `linux-64/repodata.json` on the prefix.dev channel still names no
   `universe-airlock` package.
+- **The owner chose the rename, and the OIDC publisher now matches.** PR #91 renamed the
+  rendered tag-triggered file to `release.yml`; `ci render` removes the former
+  `universe-publish.yml`, so one tag starts one publish workflow. The token's `workflow_ref`
+  basename now equals the filename the channel's publisher entry names. This supersedes the
+  note above as a reversal, not an edit to history: at that earlier commit the rendered file
+  was `universe-publish.yml`. `decision-124` and `doc-2` record the reversal.
+- **Re-watch after the rename: the 401 is gone, and a later defect is exposed.** A
+  `workflow_dispatch` of `release.yml` from `main` at `59641d8b` (run 42898855277) had
+  `publish / build` and `publish / branch` green. `publish / prefix-dev` no longer answered
+  `Failed to find OIDC publisher`: the token was minted and the job reached the upload, then
+  failed with `publish.store.failed: store 'prefix-dev':
+  https://prefix.dev/api/v1/upload/archont561/archont561: HEAD answered 405`. The verdict is
+  red. This proves the `prefix` environment and the `release.yml` filename are the binding
+  the registry expects; it does not yet prove an upload. The cause is a client bug:
+  `HttpRemote::head` treated 405 as a transport failure, while this endpoint accepts POST
+  only. A red-first wiremock test now makes 405 mean "the unchanged probe is unavailable,
+  send the artifact", and the registry decides whether it already holds the bytes. Another
+  re-watch after that fix is required before AC#4 can be considered. AC#2, AC#4, AC#5 and
+  every DoD box stay open; no `v0.1.0` tag was cut, and `linux-64/repodata.json` on the
+  prefix.dev channel still names no `universe-airlock` package.
 <!-- SECTION:NOTES.END -->

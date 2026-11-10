@@ -52,6 +52,41 @@ fn a_prefix_dev_upload_posts_each_artifact_to_the_channel() {
 }
 
 #[test]
+fn an_upload_endpoint_that_refuses_head_still_receives_the_artifact() {
+    // Measured on a real run (42898855277): prefix.dev's `/api/v1/upload/<channel>` answers
+    // 405 to HEAD because it accepts POST only. A method the endpoint does not implement is
+    // not a failed publish — it means the cheap unchanged probe is unavailable, so the
+    // artifact has to be sent and the registry decides whether it is already there.
+    let harness = Harness::start();
+    harness.mount(
+        Mock::given(method("HEAD"))
+            .and(path("/api/v1/upload/my-channel"))
+            .respond_with(ResponseTemplate::new(405)),
+    );
+    harness.mount(
+        Mock::given(method("POST"))
+            .and(path("/api/v1/upload/my-channel"))
+            .and(body_bytes(b"artifact bytes".to_vec()))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1),
+    );
+
+    let remote = HttpRemote::new(target(&harness, Kind::PrefixDev, "my-channel"))
+        .expect("a client for the store");
+    let uploads = vec![Upload::new(
+        "linux-64/foo-1.0.0-0.conda",
+        b"artifact bytes".to_vec(),
+    )];
+    let report = apply(&remote, &uploads, Policy::default()).expect("the upload succeeds");
+
+    assert_eq!(
+        report.uploaded,
+        vec!["linux-64/foo-1.0.0-0.conda".to_owned()]
+    );
+    harness.verify();
+}
+
+#[test]
 fn an_artifact_the_registry_already_holds_is_not_sent_again() {
     let harness = Harness::start();
     let bytes = b"artifact bytes".to_vec();
