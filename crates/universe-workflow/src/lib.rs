@@ -38,7 +38,14 @@ pub const DEFAULT_OUTPUT_DIR: &str = ".github/workflows";
 /// The file that exists for every project.
 pub const MAIN_FILE: &str = "universe.yml";
 /// The file that exists when the manifest declares a store.
-pub const PUBLISH_FILE: &str = "universe-publish.yml";
+///
+/// Its name is the workflow filename the channel's trusted publisher was registered with;
+/// GitHub puts that basename in `workflow_ref`, and prefix.dev matches it against the
+/// publisher entry. A descriptive name that the registry does not know cannot mint a token.
+pub const PUBLISH_FILE: &str = "release.yml";
+/// The name the publish file had before the registered publisher was measured. A tag must
+/// not start two publish workflows, so `ci render` removes it and `ci check` refuses it.
+pub const LEGACY_PUBLISH_FILE: &str = "universe-publish.yml";
 /// The file that exists when an Airlock scope declares a lock adapter.
 pub const AIRLOCK_FILE: &str = "universe-airlock.yml";
 /// Name of the artifact a build uploads and every later job downloads.
@@ -55,6 +62,10 @@ pub const WATCH_FILE: &str = "universe-watch.yml";
 
 /// Every file name this renderer can produce, in the order it produces them.
 pub const KNOWN_FILES: [&str; 4] = [MAIN_FILE, PUBLISH_FILE, AIRLOCK_FILE, WATCH_FILE];
+
+/// Names the renderer once produced but no longer does. They stay known so a rename
+/// removes the old file instead of leaving a second workflow behind.
+pub const STALE_FILES: [&str; 1] = [LEGACY_PUBLISH_FILE];
 
 /// One rendered file.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -858,6 +869,21 @@ pub fn write(directory: &Path, output: &RenderOutput) -> Result<Vec<PathBuf>, Re
         })?;
         written.push(path);
     }
+    // A rename is not complete until the old name is gone: two tag-triggered workflows
+    // would both publish, and only one of them can match a trusted publisher entry.
+    let declared: Vec<&str> = output.files.iter().map(|file| file.path.as_str()).collect();
+    for name in KNOWN_FILES.iter().chain(STALE_FILES.iter()) {
+        if declared.contains(name) {
+            continue;
+        }
+        let path = directory.join(name);
+        if path.exists() {
+            std::fs::remove_file(&path).map_err(|error| RenderError::Io {
+                path: path.display().to_string(),
+                message: error.to_string(),
+            })?;
+        }
+    }
     Ok(written)
 }
 
@@ -892,8 +918,8 @@ pub fn check(directory: &Path, output: &RenderOutput) -> Vec<Diagnostic> {
         }
     }
     let declared: Vec<&str> = output.files.iter().map(|file| file.path.as_str()).collect();
-    for name in KNOWN_FILES {
-        if declared.contains(&name) {
+    for name in KNOWN_FILES.iter().chain(STALE_FILES.iter()) {
+        if declared.contains(name) {
             continue;
         }
         let path = directory.join(name);
@@ -921,8 +947,8 @@ pub fn has_static_surface(kind: PackageKind) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        AIRLOCK_FILE, ARTIFACT_PATH, MAIN_FILE, PUBLISH_FILE, RenderError, VERSION, derived_files,
-        render, sha256, to_identifier,
+        AIRLOCK_FILE, ARTIFACT_PATH, LEGACY_PUBLISH_FILE, MAIN_FILE, PUBLISH_FILE, RenderError,
+        VERSION, derived_files, render, sha256, to_identifier,
     };
     use universe_core::manifest::Manifest;
 
@@ -1554,6 +1580,41 @@ format = "cargo fmt --check"
         let diagnostics = super::check(directory.path(), &output);
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code(), "ci.file.undeclared");
+    }
+
+    #[test]
+    fn a_legacy_publish_file_is_refused_by_check() {
+        // The channel's trusted publisher names `release.yml`. Leaving the old file behind
+        // would give one tag two tag-triggered workflows, so `ci check` must refuse it.
+        let directory = tempfile::tempdir().expect("temp dir");
+        let output = render(&manifest(), MANIFEST).expect("renders");
+        super::write(directory.path(), &output).expect("writes");
+        let legacy = directory.path().join(LEGACY_PUBLISH_FILE);
+        std::fs::write(&legacy, "# stale\n").expect("legacy file");
+        let diagnostics = super::check(directory.path(), &output);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code(), "ci.file.undeclared");
+        assert!(
+            diagnostics[0]
+                .path()
+                .expect("path")
+                .ends_with(LEGACY_PUBLISH_FILE)
+        );
+    }
+
+    #[test]
+    fn writing_the_workflow_set_removes_the_legacy_publish_file() {
+        // `ci render` has to be authoritative over the generated set: a rename that
+        // leaves the old file on disk is not a rename, it is a second workflow.
+        let directory = tempfile::tempdir().expect("temp dir");
+        let output = render(&manifest(), MANIFEST).expect("renders");
+        let legacy = directory.path().join(LEGACY_PUBLISH_FILE);
+        std::fs::write(&legacy, "# stale\n").expect("legacy file");
+        super::write(directory.path(), &output).expect("writes");
+        assert!(
+            !legacy.exists(),
+            "ci render left a second tag-triggered workflow behind"
+        );
     }
 
     #[test]

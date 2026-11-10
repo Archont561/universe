@@ -9,7 +9,7 @@ refuses to let the result drift.
 
 $ universe ci render
   universe.yml          plan · validate · build(6×3) · audit · verify-artifact · verdict
-  universe-publish.yml  build(6×3) · publish/releases · publish/conda-static
+  release.yml           build(6×3) · publish/releases · publish/conda-static
                         publish/conda-prefix · publish/conda-anaconda · publish/pypi
                         publish/pypi-static · publish/npm · publish/github-packages
                         publish/crates-io · verify-index · verdict
@@ -30,6 +30,11 @@ Four things are worth noticing, because they are the design:
   uploaded it, so a publish job that downloaded one would find nothing unless its own file
   built it first. The cost is a second compilation during a release, paid on purpose: a
   release should not depend on another run's artifacts still existing.
+- **The tag-triggered file is named `release.yml` to match its trusted publisher.** A
+  prefix.dev publisher entry names a workflow filename, and GitHub puts that basename in the
+  job's `workflow_ref` claim. A descriptive name the entry does not know cannot mint a token.
+  `ci render` removes the former `universe-publish.yml`, so one tag never starts two publish
+  workflows.
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.

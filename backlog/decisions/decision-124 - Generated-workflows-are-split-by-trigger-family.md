@@ -40,14 +40,14 @@ capabilities; it is always derived, never a mode switch.**
 | --- | --- |
 | consumer | `universe.yml` only |
 | producer, no stores, no adapters | `universe.yml` only |
-| + `[[stores]]` | `universe.yml`, `universe-publish.yml` |
+| + `[[stores]]` | `universe.yml`, `release.yml` |
 | + lock adapters | + `universe-airlock.yml` |
 | + `[upstream]` | + `universe-watch.yml` |
 
 | File | Triggers | Contents | Highest privilege |
 | --- | --- | --- | --- |
 | `universe.yml` | `pull_request`, `push: main`, `push: tags`, `dispatch` | plan, validate, build, audit, verify-artifact, verdict | `contents: read` |
-| `universe-publish.yml` | `push: tags`, `dispatch` | publish-channel, publish-static, publish-releases, publish-registry, bootstrap-airlock, verify-index | `packages: write` / `id-token: write` |
+| `release.yml` | `push: tags`, `dispatch` | publish-channel, publish-static, publish-releases, publish-registry, bootstrap-airlock, verify-index | `packages: write` / `id-token: write` |
 | `universe-airlock.yml` | `push: main` (paths), `dispatch` | mirror (matrix over adapters), render-airlock | `contents: write` |
 | `universe-watch.yml` | `schedule`, `dispatch` | watch-upstream | `contents: read`, `pull-requests: write` |
 
@@ -105,3 +105,10 @@ rejected is size and privilege spread, both of which grew after the original req
   (`./setup-dev`, a repository-root action), which needs no commit SHA; only a consumer workflow
   references the action remotely and by SHA, so that constraint chains on the first
   *release*, not on the first render.
+- **Reversal, recorded as a reversal.** The tag-triggered file was `universe-publish.yml`
+  until the channel's trusted publisher was read. The entry the owner registered for this
+  repository names `release.yml`, and GitHub puts that basename in the job's `workflow_ref`
+  claim; a descriptive name the entry does not know cannot mint a token. The file is now
+  `release.yml`, and `ci render` removes the old name so one tag cannot start two publish
+  workflows. The split by trigger family, the job set and every privilege rule above are
+  unchanged — only the filename of the tag family moved to match an external identity.

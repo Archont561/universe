@@ -37,7 +37,7 @@ Three specific gaps surfaced while specifying `universe-workflow`:
 | A file that does not trigger on `pull_request` contributes no required checks | its failure blocks the release rather than the merge |
 
 Requiring every job is bounded by something that is easy to miss: **a required check must be
-reported on the commit being merged.** `universe-publish.yml`, `universe-airlock.yml`, and
+reported on the commit being merged.** `release.yml`, `universe-airlock.yml`, and
 `universe-watch.yml` do not run on a pull request, so their jobs never report there, and
 requiring one would leave every pull request waiting for a status that cannot arrive. The
 required set is therefore exactly the jobs that run before a merge — every job of
@@ -278,3 +278,7 @@ has none.
 - `verify-index` holds no secrets at all, which makes it the one job in the publish file whose
   permissions are the workflow default — and the one whose result a consumer can reproduce
   locally with the same command the tool gives them.
+- **Filename correction, recorded as a correction.** The tag-triggered file named above was
+  `universe-publish.yml`. It is now `release.yml`, the filename the channel's trusted
+  publisher was registered with (`decision-124` records the reversal). The verdict rule is
+  unchanged: a file that does not trigger on `pull_request` contributes no required checks.
