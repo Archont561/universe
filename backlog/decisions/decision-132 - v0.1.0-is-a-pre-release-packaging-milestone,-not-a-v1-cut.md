@@ -135,9 +135,13 @@ The first re-watch after this change moved the failure rather than closing it. R
 stayed red. The URL proves the flag reached the endpoint. `https://prefix.dev/docs/prefix/api`
 states that force-replacing an occupied filename requires a scoped key with read/write/delete,
 and that a Repository Access entry must carry the same read-write-delete mode to grant it. The
-renderer change is complete; the remaining action is owner-side, on the channel's Repository
-Access entry. `UNI-59` records the run, the new release and branch digest, and the still-open
-acceptance criteria.
+renderer change is complete. The owner then removed the old package variant manually and
+reran the failed jobs of the same run; attempt 2 finished green at `2026-11-10T23:23:11Z`
+with `publish / prefix-dev` and `publish / verdict` successful. This proves that a clean
+prefix.dev channel accepts the forced upload; it does not prove that the current Repository
+Access entry can force-replace an occupied filename, and it does not make the build
+reproducible. `UNI-59` records both attempts, the common artifact and digests, and the
+still-open acceptance criteria. No `v0.1.0` tag is cut.
 
 ## Consequences
 
