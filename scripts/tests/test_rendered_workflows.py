@@ -8,6 +8,7 @@ and fails on the first run — which is the failure mode this file exists to mov
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -86,12 +87,27 @@ catalog = "github:someone/repo@0123456"
 )
 
 VARIANTS = {
-    "hosted-channel-only": (HOSTED, {"universe.yml", "universe-publish.yml"}),
-    "branch-channel-only": (BRANCH, {"universe.yml", "universe-publish.yml"}),
-    "both-channels": (MULTI, {"universe.yml", "universe-publish.yml"}),
+    "hosted-channel-only": (HOSTED, {"universe.yml", "release.yml"}),
+    "branch-channel-only": (BRANCH, {"universe.yml", "release.yml"}),
+    "both-channels": (MULTI, {"universe.yml", "release.yml"}),
     "nothing-published": (NOTHING_PUBLISHED, {"universe.yml"}),
     "lock-adapters": (AIRLOCK, {"universe.yml", "universe-airlock.yml"}),
 }
+
+# The expected name is not a taste decision made in this test file. It is the workflow
+# filename the channel's owner registered for this repository, transcribed into the
+# release task from prefix.dev's own publisher list. If the renderer and the registry
+# disagree, a tag cannot mint a token.
+PUBLISHER_NOTE = REPO_ROOT / (
+    "backlog/tasks/uni-59 - Cut-the-v0.1.0-pre-release-from-the-rendered-workflow.md"
+)
+
+
+def registered_publish_workflow() -> str:
+    note = PUBLISHER_NOTE.read_text(encoding="utf-8")
+    match = re.search(r"Archont561 / universe / (\S+\.yml) / environment prefix", note)
+    assert match, f"no registered publisher for this repository in {PUBLISHER_NOTE}"
+    return match.group(1)
 
 
 def _require(program: str) -> str:
@@ -158,3 +174,15 @@ def test_a_rendered_variant_is_accepted_by_check(variant: str, tmp_path: Path) -
     checked = _universe("ci", "check", "--root", str(root))
 
     assert checked.returncode == 0, checked.stderr
+
+
+def test_the_publish_file_matches_the_channels_registered_publisher(tmp_path: Path) -> None:
+    expected = registered_publish_workflow()
+    root = tmp_path / "registered-publisher"
+    _render(root, HOSTED)
+
+    emitted = sorted(path.name for path in (root / ".github" / "workflows").iterdir())
+    assert expected in emitted, f"the registry expects {expected}, renderer wrote {emitted}"
+    assert "universe-publish.yml" not in emitted, (
+        "the old tag-triggered file still exists; one tag would start two publish runs"
+    )

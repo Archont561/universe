@@ -8,6 +8,7 @@ use std::path::Path;
 
 use tempfile::TempDir;
 use universe_kit::run;
+use universe_workflow::{LEGACY_PUBLISH_FILE, PUBLISH_FILE};
 
 const MANIFEST: &str = r#"
 schema = 1
@@ -56,7 +57,9 @@ fn render_writes_the_file_set_the_manifest_calls_for() {
     assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
     let workflows = project.path().join(".github/workflows");
     assert!(workflows.join("universe.yml").is_file());
-    assert!(workflows.join("universe-publish.yml").is_file());
+    assert!(workflows.join(PUBLISH_FILE).is_file());
+    // A rename must not leave the old tag-triggered file behind.
+    assert!(!workflows.join(LEGACY_PUBLISH_FILE).exists());
     // Nothing declared a lock adapter, so the mirror file must not appear.
     assert!(!workflows.join("universe-airlock.yml").exists());
 }

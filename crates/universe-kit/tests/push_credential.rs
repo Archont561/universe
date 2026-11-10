@@ -17,6 +17,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 use universe_core::manifest::Manifest;
+use universe_workflow::PUBLISH_FILE;
 
 /// Deliberately invented fixture names: the rule under test is the store-prefixed spelling,
 /// which must hold for *any* declared secret. The repository's own branch store names
@@ -123,7 +124,7 @@ format = "cargo fmt --check"
         output
             .files
             .iter()
-            .find(|file| file.path.contains("universe-publish"))
+            .find(|file| file.path == PUBLISH_FILE)
             .expect("the publish file")
             .content
             .clone()

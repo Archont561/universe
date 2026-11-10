@@ -13,7 +13,7 @@ use rstest_bdd_macros::{given, scenario, then, when};
 use tempfile::TempDir;
 use universe_core::diagnostic::Diagnostic;
 use universe_core::manifest::Manifest;
-use universe_workflow::RenderOutput;
+use universe_workflow::{PUBLISH_FILE, RenderOutput};
 
 /// A project under a temporary directory, plus what the last render produced.
 ///
@@ -287,7 +287,7 @@ fn edit_by_hand(project: &mut Project) {
 
 #[then("the publish file has a job for the hosted channel")]
 fn publish_job_for_hosted_channel(project: &Project) {
-    let publish = project.workflow("universe-publish.yml");
+    let publish = project.workflow(PUBLISH_FILE);
     assert!(
         publish.contains("name: publish / conda-prefix"),
         "no hosted-channel job in:\n{publish}"
@@ -302,7 +302,7 @@ fn publish_job_for_hosted_channel(project: &Project) {
 
 #[then("the publish file has a job for the static channel")]
 fn publish_job_for_static_channel(project: &Project) {
-    let publish = project.workflow("universe-publish.yml");
+    let publish = project.workflow(PUBLISH_FILE);
     assert!(
         publish.contains("name: publish / conda-static"),
         "no static-channel job in:\n{publish}"
@@ -321,7 +321,7 @@ fn publish_job_for_static_channel(project: &Project) {
 
 #[then("the hosted job may mint an identity token")]
 fn hosted_job_may_mint_an_identity_token(project: &Project) {
-    let publish = project.workflow("universe-publish.yml");
+    let publish = project.workflow(PUBLISH_FILE);
     assert!(
         publish.contains("id-token: write"),
         "the hosted job cannot ask for an identity token without the permission:\n{publish}"
@@ -336,7 +336,7 @@ fn hosted_job_may_mint_an_identity_token(project: &Project) {
 
 #[then("the hosted job exports no long-lived secret")]
 fn hosted_job_exports_no_long_lived_secret(project: &Project) {
-    let publish = project.workflow("universe-publish.yml");
+    let publish = project.workflow(PUBLISH_FILE);
     let hosted = job_block(&publish, "publish / conda-prefix");
     assert!(
         !hosted.contains("secrets."),
@@ -410,7 +410,7 @@ fn only_the_main_file(project: &Project) {
         .collect();
     assert_eq!(names, ["universe.yml"]);
     assert!(
-        !project.directories().join("universe-publish.yml").exists(),
+        !project.directories().join(PUBLISH_FILE).exists(),
         "a project with no store must not gain a publish file"
     );
 }
@@ -571,7 +571,7 @@ fn build_uploads(project: &Project) {
 #[then("every job that audits, verifies, or publishes downloads them")]
 fn later_jobs_download(project: &Project) {
     let mut checked = 0;
-    for file in ["universe.yml", "universe-publish.yml"] {
+    for file in ["universe.yml", PUBLISH_FILE] {
         let text = project.workflow(file);
         for (name, body) in job_blocks(&text) {
             // A job that uploads the artifact produced its own bytes; it has nothing to
@@ -605,7 +605,7 @@ fn later_jobs_download(project: &Project) {
 fn only_the_hosted_job_declares_an_environment(project: &Project) {
     // The written file is the seam a maintainer sees: an environment on the wrong job, or
     // on every job, changes which identity each publisher presents to its registry.
-    let publish = project.workflow("universe-publish.yml");
+    let publish = project.workflow(PUBLISH_FILE);
     let jobs = job_blocks(&publish);
     let hosted = jobs
         .iter()
@@ -633,7 +633,7 @@ fn publish_build_writes_fragments_before_upload(project: &Project) {
     // The written file is the seam a maintainer sees. `channel.fragment.none` in the
     // `v0.1.0-rc1` rehearsal came from a build that uploaded `output/` without ever
     // running the audit that writes `output/fragments`.
-    let publish = project.workflow("universe-publish.yml");
+    let publish = project.workflow(PUBLISH_FILE);
     let build = job_blocks(&publish)
         .into_iter()
         .find(|(name, _)| name == "build")
@@ -747,7 +747,7 @@ fn airlock_file_covers_each_adapter(project: &Project) {
 
 #[then("the publish file holds a separate reader for the anonymous destination")]
 fn publish_file_has_a_separate_reader(project: &Project) {
-    let publish = project.workflow("universe-publish.yml");
+    let publish = project.workflow(PUBLISH_FILE);
     let blocks = job_blocks(&publish);
     let (_, store_job) = blocks
         .iter()

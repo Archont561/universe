@@ -16,6 +16,7 @@ use std::process::Command;
 use tempfile::TempDir;
 use universe_core::CommandOutput;
 use universe_core::manifest::Manifest;
+use universe_workflow::PUBLISH_FILE;
 
 /// A project whose single package publishes to a directory and to a branch.
 fn manifest(published: &Path) -> String {
@@ -129,7 +130,7 @@ impl Fixture {
         let publish = output
             .files
             .iter()
-            .find(|file| file.path.contains("universe-publish"))
+            .find(|file| file.path == PUBLISH_FILE)
             .expect("the publish file");
         publish
             .content

@@ -11,7 +11,7 @@
 //! rather than by hand. Everything the test needs is a request line, headers, a body, and a
 //! canned response.
 //!
-//! This is the shape a synthetic tag run needs. `universe-publish.yml` is triggered by a tag,
+//! This is the shape a synthetic tag run needs. `release.yml` is triggered by a tag,
 //! so before the first real tag the pipeline can be exercised end to end by pointing a store's
 //! `url` at a mock and running the same verb the workflow runs. What it cannot prove is that
 //! prefix.dev accepts the artifact, or that GitHub's OIDC exchange mints a token — those still
