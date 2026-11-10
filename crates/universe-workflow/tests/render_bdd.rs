@@ -97,6 +97,32 @@ outputs = ["output/**/*.conda"]
 release = false
 "#;
 
+const IMPLICIT_RELEASES: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+repository = "https://github.com/someone/example"
+
+[[packages]]
+name = "universe-airlock"
+kind = "conda"
+command = ["rattler-build", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["universe-airlock --version"]
+publish = []
+
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "someone/example"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
+"#;
+
 const WRONG_STORE_KIND: &str = r#"
 schema = 1
 
@@ -225,6 +251,15 @@ fn project_with_a_named_environment(project: &mut Project) {
     assert!(
         project.manifest.is_some(),
         "the manifest with a named environment is valid"
+    );
+}
+
+#[given("a project whose package is released implicitly")]
+fn project_with_an_implicit_release(project: &mut Project) {
+    load(project, IMPLICIT_RELEASES);
+    assert!(
+        project.manifest.is_some(),
+        "a package that reaches GitHub Releases implicitly is valid"
     );
 }
 
@@ -628,6 +663,28 @@ fn only_the_hosted_job_declares_an_environment(project: &Project) {
     }
 }
 
+#[then("the publish file carries a releases job for that package")]
+fn the_releases_job_publishes_the_package(project: &Project) {
+    // The package never named `releases`; decision-127 makes it implicit. A job that
+    // exists but issues no publish command would still create no GitHub Release asset.
+    let publish = project.workflow(PUBLISH_FILE);
+    let jobs = job_blocks(&publish);
+    let releases = jobs
+        .iter()
+        .find(|(name, _)| name == "releases")
+        .expect("the implicit releases job")
+        .1
+        .clone();
+    assert!(
+        releases.contains("publish-artifacts --store releases --package universe-airlock --json"),
+        "the releases job publishes no package:\n{releases}"
+    );
+    assert!(
+        releases.contains("RELEASES_GITHUB_TOKEN"),
+        "the releases job exports no token:\n{releases}"
+    );
+}
+
 #[then("the publish build writes fragments into the artifact before uploading it")]
 fn publish_build_writes_fragments_before_upload(project: &Project) {
     // The written file is the seam a maintainer sees. `channel.fragment.none` in the
@@ -874,5 +931,13 @@ fn lock_adapters_add_the_airlock_file(project: Project) {
     name = "A project that verifies published destinations gets a separate reader job"
 )]
 fn a_verifiable_destination_gets_a_reader(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "features/render.feature",
+    name = "A released package reaches GitHub Releases without naming the store"
+)]
+fn an_implicit_release_reaches_a_releases_job(project: Project) {
     let _ = project;
 }

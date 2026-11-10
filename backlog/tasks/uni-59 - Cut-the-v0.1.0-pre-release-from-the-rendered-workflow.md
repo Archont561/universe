@@ -32,8 +32,8 @@ Cut the tag, publish from the rendered workflow, and prove the loop from the out
 This is a release task, not a build task: everything it needs is built by the tasks its
 dependencies name. What it adds is the part a release actually consists of — a version
 promoted once and asserted everywhere, a tag, notes that say what the tag is and is not,
-two destinations verified after the fact, and a restore transcript that came from a clean
-host rather than from the runner that produced the package.
+every declared destination verified after the fact, and a restore transcript that came from
+a clean host rather than from the runner that produced the package.
 
 The wording carries weight. `decision-132` makes `v0.1.0` a pre-release checkpoint, so
 the notes must not read like a v1 announcement and must not borrow the v1 surface list.
@@ -51,7 +51,7 @@ a repository check rather than a release-time computation.
 - [x] #1 The workspace version, the `universe-airlock` recipe version, and the changelog's top section agree on `0.1.0`, and the existing parity check is what proves it rather than a manual reading. — 2026-11-09: `CHANGELOG.md` has a `## 0.1.0` section whose body says pre-release and `scripts/repo_check.py::validate_release_version` compares its first versioned heading with `Cargo.toml` and the recipe; `pixi run repo-check` is green.
 - [ ] #2 The `v0.1.0` tag is cut from a commit whose full gate run is green, and the tag is annotated with the same message the release notes open with.
 - [x] #3 Release notes state the pre-release status and the `linux-64`-only scope, name what `universe-airlock` actually does at this tag (verify, restore, version), and claim none of `decision-119`'s six v1 surfaces. — 2026-11-10: `docs/releases/0.1.0.md` opens with the one-line annotated-tag message, states the `decision-132` checkpoint, names all three verbs with the binary that owns each, and has a `## Not a v1 release` table disclaiming all six numbered surfaces of `decision-119` as absent or single-platform. `scripts/repo_check.py::validate_release_notes` enforces the file's existence from the workspace version, the annotation's shape, the five required facts, the six surface keys, and — once a `v0.1.0` tag exists — that its `%(contents:subject)` equals the opening line. Six Python tests were red before green, and a temporary annotated tag proved the drift check both ways; the tag was deleted. AC#2 is still open: no tag has been cut.
-- [ ] #4 Both destinations are verified after the run: the branch channel solves for `universe-airlock=0.1.0` from a local checkout with network denied, and the prefix.dev channel resolves the same artifact by digest.
+- [ ] #4 All three declared destinations are verified after the run: the branch channel solves for `universe-airlock=0.1.0` from a local checkout with network denied, the prefix.dev channel resolves the same artifact by digest, and the GitHub Release asset resolves the same artifact by digest.
 - [ ] #5 A clean container with only Git and Pixi runs the rendered restore entrypoint against the tag and prints `universe-airlock version`; the transcript is recorded in this task's notes, with the container image named.
 - [x] #6 A repository check fails if the changelog's top section and the tag disagree, so the next release cannot drift by memory. — 2026-11-09: a temporary local `v0.2.0` tag made `pixi run repo-check` exit 1 naming both values; the tag was removed and the check returned to green.
 <!-- AC.END -->
@@ -60,7 +60,7 @@ a repository check rather than a release-time computation.
 <!-- DOD.BEGIN -->
 - [ ] #1 The rendered workflow's verdict job is green for the tag run, and its link is in the notes.
 - [ ] #2 `pixi run gates` passes on the tagged commit.
-- [ ] #3 The task records both destination URLs and the restore transcript.
+- [ ] #3 The task records all three destination URLs and the restore transcript.
 <!-- DOD.END -->
 
 ## Notes
@@ -287,7 +287,7 @@ a repository check rather than a release-time computation.
   considered. AC#2, AC#4, AC#5 and every DoD box stay open; no `v0.1.0` tag was cut, and
   `linux-64/repodata.json` on the prefix.dev channel still names no `universe-airlock`
   package.
-- **A green publish verdict, and the package is on both destinations.** A
+- **A green publish verdict, and the package was on both destinations then declared.** A
   `workflow_dispatch` of `release.yml` from `main` at `e9ec1b34` (run 42903356074) finished
   green: `publish / build`, `publish / prefix-dev`, `publish / branch` and
   `publish / verdict` all succeeded, with no failure annotations. The OIDC token was minted,
@@ -310,4 +310,15 @@ a repository check rather than a release-time computation.
   which the branch channel does not carry. AC#2 (an annotated `v0.1.0` tag from green
   gates), AC#5 (a clean Git+Pixi container transcript with the image name) and every DoD
   box stay open. No `v0.1.0` tag was cut or pushed.
+- **Correction, recorded as a correction: the scope is now three destinations.** The owner
+  observed that no GitHub Release existed, although `decision-127` calls `releases` implicit
+  and `universe.toml` sets `release = true`. The earlier notes above describe a run that
+  published to two destinations; they are true of that run, not of the current manifest.
+  `decision-132` now has an amendment that widens `v0.1.0` to `prefix-dev`, the Git-branch
+  channel, and GitHub Releases. `universe.toml` declares a `releases`-kind store, and the
+  renderer gives it a `publish / releases` job for every `release = true` package without
+  the package naming it. AC#4 and DoD #3 are reworded to cover all three and stay open:
+  the green run above did not create a GitHub Release asset, and a re-watch after the
+  renderer change is required. No `v0.1.0` tag was cut; AC#2, AC#5 and every DoD box stay
+  open.
 <!-- SECTION:NOTES.END -->

@@ -611,6 +611,9 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
     let mut publishes_anonymously = false;
 
     for store in manifest.stores.iter().filter(|store| store.writable) {
+        // A `releases` store is still declared (it carries the repository and token), but
+        // `Manifest::destinations` fills its package list from `release = true` rather than
+        // from `publish`, so the job below publishes even though no package names the store.
         let mut job = Job::new(&store.name, "publish", vec!["build".to_owned()]).with_timeout(30);
         if let Some(environment) = &store.environment {
             job = job.with_environment(environment);
@@ -984,6 +987,33 @@ verifier = "file"
 
 [workflow.checks]
 format = "cargo fmt --check"
+"#;
+
+    /// A project whose only store is the implicit GitHub Releases destination.
+    const RELEASES_MANIFEST: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+repository = "https://github.com/someone/example"
+
+[[packages]]
+name = "example-airlock"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-airlock --version"]
+publish = []
+
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "someone/example"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
 "#;
 
     fn manifest() -> Manifest {
@@ -1371,6 +1401,41 @@ format = "cargo fmt --check"
         assert!(
             !build.contains("environment:") && !static_store.contains("environment:"),
             "an unrelated job declares the hosted store's environment:\n{publish}"
+        );
+    }
+
+    #[test]
+    fn an_implicit_releases_store_gets_a_publish_job_with_its_package() {
+        // decision-127 makes GitHub Releases the one destination a package reaches without
+        // naming it. A job with no publish step would look like a destination and publish
+        // nothing, so the rendered YAML has to carry both the job and its package command.
+        let manifest = Manifest::from_toml(RELEASES_MANIFEST).expect("the manifest parses");
+        let rendered = render(&manifest, RELEASES_MANIFEST).expect("renders");
+        let publish = &rendered
+            .files
+            .iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+        let releases = publish
+            .split("name: publish / releases")
+            .nth(1)
+            .expect("the releases job")
+            .split("name: publish /")
+            .next()
+            .expect("the releases job's body");
+        assert!(
+            releases
+                .contains("publish-artifacts --store releases --package example-airlock --json"),
+            "the releases job publishes no package:\n{releases}"
+        );
+        assert!(
+            releases.contains("contents: write"),
+            "a GitHub Release needs contents: write:\n{releases}"
+        );
+        assert!(
+            releases.contains("RELEASES_GITHUB_TOKEN"),
+            "the job does not export the store's token:\n{releases}"
         );
     }
 

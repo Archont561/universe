@@ -15,9 +15,10 @@
 //!
 //! - **Kinds are compatible or the manifest is wrong.** A `conda` package may not name
 //!   an `npmjs` store, and that is decided here rather than at publish time.
-//! - **`releases` is the only implicit destination.** Every package is released as a
-//!   GitHub Release asset unless it says `release = false`; every other destination
-//!   must be named, because naming it is what makes it reviewable.
+//! - **`releases` is the only implicit destination.** A declared `releases`-kind store
+//!   receives every package with `release = true` without the package naming it; opting
+//!   out is `release = false`. Every other destination must be named, because naming it
+//!   is what makes it reviewable.
 //!
 //! [`decision-127`]: https://github.com/Archont561/universe/blob/main/backlog/decisions/decision-127%20-%20Manifest-facets-packages-stores-and-airlock-scopes.md
 
@@ -1221,10 +1222,15 @@ impl Manifest {
                     .with_path(format!("{path}.writable")),
                 );
             }
-            let named = self
-                .packages
-                .iter()
-                .any(|package| package.publish.iter().any(|name| name == &store.name));
+            let named = if store.kind == StoreKind::Releases {
+                // An implicit destination is live as soon as one package has
+                // `release = true`; the packages do not name the store.
+                !self.released_packages().is_empty()
+            } else {
+                self.packages
+                    .iter()
+                    .any(|package| package.publish.iter().any(|name| name == &store.name))
+            };
             if store.writable && !named && !store.name.trim().is_empty() {
                 diagnostics.push(
                     Diagnostic::new(
@@ -1455,11 +1461,17 @@ impl Manifest {
             .iter()
             .map(|store| Destination {
                 store,
-                packages: self
-                    .packages
-                    .iter()
-                    .filter(|package| package.publish.iter().any(|name| name == &store.name))
-                    .collect(),
+                packages: if store.kind == StoreKind::Releases {
+                    // GitHub Releases is the one implicit destination: every package with
+                    // `release = true` reaches it without naming the store. The store is
+                    // still declared, because it carries the repository and the token.
+                    self.released_packages()
+                } else {
+                    self.packages
+                        .iter()
+                        .filter(|package| package.publish.iter().any(|name| name == &store.name))
+                        .collect()
+                },
             })
             .collect()
     }
@@ -2249,6 +2261,66 @@ channel = "someone/channel"
         assert_eq!(destinations[0].packages.len(), 1);
         assert_eq!(destinations[0].packages[0].name, "example-airlock");
         assert_eq!(manifest.released_packages().len(), 1);
+    }
+
+    #[test]
+    fn a_releases_store_receives_packages_that_do_not_name_it() {
+        // decision-127: `releases` is the one implicit destination. A package with
+        // `release = true` reaches it without naming the store, and `release = false`
+        // opts out. The store is declared so it can carry the repository and token,
+        // but the packages stay free of it.
+        let text = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+repository = "https://github.com/someone/example"
+
+[[packages]]
+name = "released"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["released --version"]
+publish = []
+
+[[packages]]
+name = "opted-out"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["opted-out --version"]
+publish = []
+release = false
+
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "someone/example"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
+"#;
+        let manifest = parsed(text);
+        let releases = manifest
+            .destinations()
+            .into_iter()
+            .find(|destination| destination.store.name == "releases")
+            .expect("the releases store is a destination");
+        assert_eq!(
+            releases
+                .packages
+                .iter()
+                .map(|package| package.name.as_str())
+                .collect::<Vec<_>>(),
+            ["released"]
+        );
+        assert!(
+            !codes(&findings(text)).contains(&"manifest.store.dead"),
+            "a live implicit destination must not be reported as dead"
+        );
     }
 
     #[test]

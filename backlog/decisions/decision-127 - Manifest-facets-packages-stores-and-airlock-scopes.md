@@ -107,7 +107,10 @@ Four rules decide the mapping:
    kind alone.
 2. **`releases` is implicit for every package.** GitHub Releases is the one destination that
    always works and always holds the same bytes, so it is added unless the package declares
-   `release = false`. It is the only default; every other destination must be named.
+   `release = false`. It is the only default; every other destination must be named. A
+   `releases`-kind store is still declared, because it carries the `owner/repo` channel and
+   the token, but no package names that store: the renderer wires `release = true` packages
+   to it. See the status note below.
 3. **Kind compatibility is checked at lint time, not at publish time.** A package may only name a
    store whose kind accepts its kind. `static` is only listed for kinds that have a documented
    static index format, which is the same rule this record already applies to npm:
@@ -249,3 +252,11 @@ digest of a file Universe did not host.
   something was actually proven.
 - Catalog metadata lives in the manifest, which makes discovery work on a disconnected host
   and removes the need for an authored portal page per package.
+
+**Status note — correction, recorded as a correction.** The phrase "implicit destination"
+was read as "no store declaration at all". That left `release = true` packages with no
+rendered publish job. The implementation now declares one `releases`-kind store (for the
+repository and token) and wires `release = true` packages to it in `Manifest::destinations`,
+without the packages naming it. A package with `release = false` does not reach it, and a
+writable releases store with no released packages is still reported as dead. The rule that
+every other destination must be named is unchanged.

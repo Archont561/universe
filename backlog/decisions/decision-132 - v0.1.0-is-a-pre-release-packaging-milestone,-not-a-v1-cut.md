@@ -34,8 +34,9 @@ The scope of `v0.1.0` is:
    binary does something a consumer would want. A package whose only behaviour is `--version`
    is a pipeline proof, and calling it a product release would be the mislabelling this record
    exists to prevent.
-3. Publication to both store kinds: a hosted channel (`prefix-dev`) and Universe's own static
-   channel, both generated and published by Universe rather than a stand-in tool.
+3. Publication to all declared destinations: a hosted channel (`prefix-dev`), Universe's own
+   static channel on a Git branch, and GitHub Releases, all generated and published by
+   Universe rather than a stand-in tool. GitHub Releases was added by the amendment below.
 4. The workflow that publishes it is rendered from `universe.toml` (`decision-124`), not
    hand-written, because the renderer exists before the release does and the bootstrap
    argument for hand-writing the first file does not apply.
@@ -79,8 +80,26 @@ The scope above stands. Three things are now stated rather than implied:
    acceptance criterion rather than a later improvement. When the channel outgrows a
    branch, `UNI-11`'s hosted publication is already the general path.
 
-Nothing here enlarges the release: the v1 gate in `decision-119` still requires all six
-surfaces, and `UNI-59`'s notes must state the pre-release status rather than borrow them.
+Before the GitHub Releases amendment below, nothing here enlarged the release: the v1 gate
+in `decision-119` still requires all six surfaces, and `UNI-59`'s notes must state the
+pre-release status rather than borrow them.
+
+## Amendment: GitHub Releases is a third destination
+
+The owner asked why no GitHub Release existed after the green publish run. The answer was
+that this record scoped `v0.1.0` to two destinations, while `decision-127` still called
+`releases` an implicit destination and `universe.toml` set `release = true`. Leaving that
+contradiction standing would promise a release the checkpoint did not ship.
+
+**This amendment widens the scope, and is recorded as a reversal.** `v0.1.0` now declares
+three destinations: `prefix-dev`, the Git-branch static channel, and GitHub Releases.
+`universe.toml` declares one `releases`-kind store carrying `Archont561/universe` and the
+built-in `GITHUB_TOKEN`; the renderer gives it a `publish / releases` job for every package
+with `release = true` without the package naming it. `decision-127` records the correction
+to how its implicit rule is implemented. The v1 gate in `decision-119` is still not
+superseded: this adds a package destination, not a product surface. `UNI-59` AC#4 and DoD #3
+are reworded to cover all three destinations and stay open until each is verified after the
+tag run. No `v0.1.0` tag is cut by this amendment.
 
 ## Consequences
 
