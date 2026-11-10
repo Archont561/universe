@@ -14,7 +14,8 @@
 //!   already holds the bytes.
 //! - **A changed file under an occupied name is refused, not overwritten.** Two builds of
 //!   `foo-1.0.0-0.conda` in one channel is an index that disagrees with itself. Only `--force`
-//!   asks for the overwrite, and the refusal names both digests.
+//!   asks for the overwrite, and the refusal names both digests. On prefix.dev that flag is
+//!   carried as `?force=true`, because its upload endpoint does not answer the HEAD probe.
 //! - **A dry run performs no mutating request.** Reads are allowed, because the plan cannot
 //!   be built without them; every `PUT`, `POST` and `DELETE` is withheld. That is what makes
 //!   `--dry-run` a preview of the real run rather than a description of the code.
@@ -178,7 +179,7 @@ pub trait Remote {
     /// # Errors
     ///
     /// Returns [`StoreError`] when the destination refuses or the transfer fails.
-    fn put(&self, path: &str, bytes: &[u8]) -> Result<(), StoreError>;
+    fn put(&self, path: &str, bytes: &[u8], force: bool) -> Result<(), StoreError>;
 }
 
 /// Whether a publish may replace a file whose digest changed.
@@ -242,7 +243,7 @@ pub fn apply(
             }
             _ => {
                 if !policy.dry_run {
-                    remote.put(&upload.path, &upload.bytes)?;
+                    remote.put(&upload.path, &upload.bytes, policy.force)?;
                     report.bytes += upload.bytes.len() as u64;
                 }
                 report.uploaded.push(upload.path.clone());

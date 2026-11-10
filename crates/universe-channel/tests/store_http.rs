@@ -9,7 +9,7 @@ mod store_support;
 
 use store_support::{Harness, head_with_digest, no_requests};
 use universe_channel::store::{HttpRemote, Kind, Policy, StoreError, Target, Upload, apply};
-use wiremock::matchers::{body_bytes, method, path};
+use wiremock::matchers::{body_bytes, header, method, path, query_param};
 use wiremock::{Mock, ResponseTemplate};
 
 /// A store declaration, as `universe.toml` would give it.
@@ -83,6 +83,34 @@ fn an_upload_endpoint_that_refuses_head_still_receives_the_artifact() {
         report.uploaded,
         vec!["linux-64/foo-1.0.0-0.conda".to_owned()]
     );
+    harness.verify();
+}
+
+#[test]
+fn a_prefix_dev_upload_names_and_digests_the_bytes_it_sends() {
+    // prefix.dev's REST upload endpoint requires these headers besides Authorization
+    // (https://prefix.dev/docs/prefix/api). Run 42900930515 answered
+    // "POST answered 400: Header of type `content-type` was missing" without them.
+    let harness = Harness::start();
+    harness.nothing_published("/api/v1/upload/my-channel");
+    let upload = Upload::new("linux-64/foo-1.0.0-0.conda", b"artifact bytes".to_vec());
+    harness.mount(
+        Mock::given(method("POST"))
+            .and(path("/api/v1/upload/my-channel"))
+            .and(header("content-type", "application/octet-stream"))
+            .and(header("x-file-name", "foo-1.0.0-0.conda"))
+            .and(header("x-file-sha256", upload.sha256.as_str()))
+            .and(body_bytes(b"artifact bytes".to_vec()))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1),
+    );
+
+    let remote = HttpRemote::new(target(&harness, Kind::PrefixDev, "my-channel"))
+        .expect("a client for the store");
+    let report = apply(&remote, std::slice::from_ref(&upload), Policy::default())
+        .expect("the upload succeeds");
+
+    assert_eq!(report.uploaded, vec![upload.path.clone()]);
     harness.verify();
 }
 
@@ -253,6 +281,7 @@ fn force_replaces_a_changed_digest() {
     harness.mount(
         Mock::given(method("POST"))
             .and(path("/api/v1/upload/my-channel"))
+            .and(query_param("force", "true"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1),
     );

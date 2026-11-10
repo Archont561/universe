@@ -81,7 +81,7 @@ impl Remote for FilesystemRemote {
         }))
     }
 
-    fn put(&self, path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+    fn put(&self, path: &str, bytes: &[u8], _force: bool) -> Result<(), StoreError> {
         let absolute = self.resolve(path)?;
         let parent = absolute.parent().map(Path::to_path_buf);
         if let Some(parent) = parent {
@@ -165,7 +165,7 @@ mod tests {
         let remote = FilesystemRemote::new(directory.path());
 
         remote
-            .put("noarch/sub/foo-1.0.0-0.conda", b"bytes")
+            .put("noarch/sub/foo-1.0.0-0.conda", b"bytes", false)
             .expect("the artifact is written");
 
         assert_eq!(
