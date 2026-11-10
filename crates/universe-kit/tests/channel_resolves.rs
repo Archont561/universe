@@ -28,6 +28,29 @@ const PACKAGE: &str = "example-airlock";
 const VERSION: &str = "1.0.0";
 const BINARY: &str = "bin/example-airlock";
 
+/// A second, independent package in the same channel: the provider a dependency edge names.
+const PROVIDER: &str = "example-lib";
+const PROVIDER_VERSION: &str = "1.2.3";
+const PROVIDER_BINARY: &str = "bin/example-lib";
+/// A Conda specifier, written here as an independent source of the expected repodata value.
+const DEPENDENCY_SPEC: &str = "example-lib >=1";
+
+/// One package the fixture publishes: identity, its runtime dependency edge, and the
+/// executable a client will install and run.
+struct Artifact<'a> {
+    package: &'a str,
+    version: &'a str,
+    build: &'a str,
+    build_number: u64,
+    depends: &'a [&'a str],
+    binary: &'a str,
+    script: &'a [u8],
+}
+
+/// Named slices rather than temporaries, so `Artifact` can borrow them for a whole call.
+const NO_DEPENDS: &[&str] = &[];
+const CONSUMER_DEPENDS: &[&str] = &[DEPENDENCY_SPEC];
+
 /// A project whose single package publishes to one branch store.
 fn manifest() -> String {
     format!(
@@ -86,33 +109,84 @@ impl Fixture {
 
     /// One build of the package, with its own archive and its own fragment.
     fn add_build(&self, build: &str, build_number: u64) {
-        let relative = format!("output/{PACKAGE}-{VERSION}-{build}.conda");
+        self.add_artifact(&Artifact {
+            package: PACKAGE,
+            version: VERSION,
+            build,
+            build_number,
+            depends: NO_DEPENDS,
+            binary: BINARY,
+            script: b"#!/bin/sh\necho example-airlock 1.0.0\n",
+        });
+    }
+
+    /// Two packages in one channel: a provider and the tool that names it in `depends`.
+    ///
+    /// The provider has to be a real archive, not just a name in `repodata.json`: the question
+    /// is whether an offline solve pulls it, which is only observable if the client can also
+    /// install and run it.
+    fn add_dependency_pair(&self) {
+        self.add_artifact(&Artifact {
+            package: PROVIDER,
+            version: PROVIDER_VERSION,
+            build: "0",
+            build_number: 0,
+            depends: NO_DEPENDS,
+            binary: PROVIDER_BINARY,
+            script: b"#!/bin/sh\necho example-lib 1.2.3\n",
+        });
+        self.add_artifact(&Artifact {
+            package: PACKAGE,
+            version: VERSION,
+            build: "0",
+            build_number: 0,
+            depends: CONSUMER_DEPENDS,
+            binary: BINARY,
+            script: b"#!/bin/sh\necho example-airlock 1.0.0\n",
+        });
+    }
+
+    /// One artifact: the archive, and the fragment that describes the bytes just written.
+    ///
+    /// The fragment is written rather than produced by `universe audit`: the subject here is
+    /// the channel a publish leaves behind, and the audit's own output is proved elsewhere.
+    fn add_artifact(&self, artifact: &Artifact<'_>) {
+        let Artifact {
+            package,
+            version,
+            build,
+            build_number,
+            depends,
+            ..
+        } = *artifact;
+        let relative = format!("output/{package}-{version}-{build}.conda");
         let archive = self.root().join(&relative);
         std::fs::create_dir_all(archive.parent().expect("parent")).expect("output dir");
-        let bytes = conda_archive_for(build, build_number);
+        let bytes = conda_archive(artifact);
         std::fs::write(&archive, &bytes).expect("archive");
 
         let fragments = self.root().join("output/fragments");
         std::fs::create_dir_all(&fragments).expect("fragment dir");
         std::fs::write(
-            fragments.join(format!("{PACKAGE}-{build}-linux-64.json")),
+            fragments.join(format!("{package}-{build}-linux-64.json")),
             format!(
                 r#"{{
-  "package": "{PACKAGE}",
-  "version": "{VERSION}",
+  "package": "{package}",
+  "version": "{version}",
   "build": "{build}",
   "build_number": {build_number},
   "subdir": "linux-64",
   "digest": "{}",
   "size_bytes": {},
-  "depends": [],
+  "depends": {},
   "license": "MIT",
   "license_files": [],
   "path": "{relative}"
 }}
 "#,
                 universe_workflow::sha256::sha256_hex(&bytes),
-                bytes.len()
+                bytes.len(),
+                serde_json::to_string(depends).expect("depends is JSON"),
             ),
         )
         .expect("fragment");
@@ -134,21 +208,36 @@ impl Fixture {
 ///
 /// Built here rather than committed: a binary fixture is opaque, and this spells out the
 /// three members a `conda` 2 format archive is read for.
-fn conda_archive_for(build: &str, build_number: u64) -> Vec<u8> {
+fn conda_archive(artifact: &Artifact<'_>) -> Vec<u8> {
+    let Artifact {
+        package,
+        version,
+        build,
+        build_number,
+        depends,
+        binary,
+        script,
+    } = *artifact;
     let zstd = |data: &[u8]| zstd::encode_all(data, 0).expect("compress");
-    let index = format!(
-        r#"{{"name":"{PACKAGE}","version":"{VERSION}","build":"{build}","build_number":{build_number},"subdir":"linux-64","depends":[],"license":"MIT"}}"#
-    );
-    let file_list = format!("{BINARY}\n");
+    // The archive's own index and the fragment must agree: a client reads one to solve and
+    // may read the other to install, and an edge present in only one of them is not an edge.
+    let index = serde_json::json!({
+        "name": package,
+        "version": version,
+        "build": build,
+        "build_number": build_number,
+        "subdir": "linux-64",
+        "depends": depends,
+        "license": "MIT",
+    })
+    .to_string();
+    let file_list = format!("{binary}\n");
     let info = zstd(&tar(&[
         ("info/index.json", index.as_bytes()),
         ("info/files", file_list.as_bytes()),
         ("info/about.json", br#"{"license":"MIT"}"#),
     ]));
-    let payload = zstd(&tar(&[(
-        BINARY,
-        b"#!/bin/sh\necho example-airlock 1.0.0\n",
-    )]));
+    let payload = zstd(&tar(&[(binary, script)]));
 
     let mut buffer = std::io::Cursor::new(Vec::new());
     {
@@ -455,5 +544,87 @@ platforms = ["linux-64"]
         runs(&installed).as_deref(),
         Some("example-airlock 1.0.0"),
         "the retained build did not install and run"
+    );
+}
+
+/// A channel that carries a dependency edge resolves the whole closure, not just the package
+/// the consumer named.
+///
+/// Scenario in a consumer's words: a developer points a fresh Pixi project at a branch channel
+/// holding a library and a tool that needs it; asking only for the tool, with the network off,
+/// installs both and both run. This is acceptance automation for a producer that already
+/// shipped — `repodata()` has always emitted `fragment.depends`, but every offline solve in
+/// this repository had used `"depends": []`, so the claim was never actually exercised.
+#[test]
+fn a_dependency_edge_resolves_the_whole_closure_offline() {
+    let fixture = Fixture::new();
+    fixture.add_dependency_pair();
+    let remote = fixture.remote();
+    let output = publish(fixture.root(), &remote);
+    assert_eq!(output.exit_code(), 0, "stderr: {}", output.stderr());
+
+    let checkout = fixture.root().join("checkout");
+    clone_branch(&remote, &checkout);
+
+    // The consumer asks for one package only. Nothing but the channel can supply the other.
+    let project = fixture.root().join("consumer");
+    std::fs::create_dir_all(&project).expect("consumer directory");
+    std::fs::write(
+        project.join("pixi.toml"),
+        format!(
+            r#"[project]
+name = "dependency-edge-consumer"
+channels = ["{}"]
+platforms = ["linux-64"]
+
+[dependencies]
+{PACKAGE} = "*"
+"#,
+            checkout.display()
+        ),
+    )
+    .expect("pixi.toml");
+
+    let solved = Command::new(pixi())
+        .args(["install", "--offline"])
+        .current_dir(&project)
+        .output()
+        .expect("run pixi install");
+    assert!(
+        solved.status.success(),
+        "pixi could not resolve the closure\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&solved.stdout),
+        String::from_utf8_lossy(&solved.stderr)
+    );
+    let environment = project.join(".pixi/envs/default");
+    assert_eq!(
+        runs(&environment.join(BINARY)).as_deref(),
+        Some("example-airlock 1.0.0"),
+        "the requested package did not install and run"
+    );
+    assert_eq!(
+        runs(&environment.join(PROVIDER_BINARY)).as_deref(),
+        Some("example-lib 1.2.3"),
+        "the solve installed only the requested package, so the dependency edge was lost"
+    );
+
+    // The edge is also visible in the published metadata, in the exact words the fragment
+    // used — an independent source rather than a value the renderer recomputed.
+    let repodata: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(checkout.join("linux-64/repodata.json")).expect("repodata"),
+    )
+    .expect("repodata is JSON");
+    let entries = repodata["packages.conda"]
+        .as_object()
+        .expect("packages.conda is an object");
+    assert_eq!(
+        entries.len(),
+        2,
+        "the channel serves only one of the two packages"
+    );
+    assert_eq!(
+        repodata["packages.conda"][format!("{PACKAGE}-{VERSION}-0.conda")]["depends"],
+        serde_json::json!([DEPENDENCY_SPEC]),
+        "the consumer's dependency spec did not reach repodata"
     );
 }
