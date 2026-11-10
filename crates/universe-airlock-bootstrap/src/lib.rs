@@ -56,9 +56,9 @@ commands:
   doctor  [--payload <dir>] [--state <dir>]
 
 The payload defaults to .universe-airlock/payload and the state root to
-.universe-airlock/state, both under the working directory — which the restore
-entrypoint has already changed into the pinned checkout. UNIVERSE_AIRLOCK_STATE
-overrides the state root.
+.universe-airlock/state, both under the working directory; the restore
+entrypoint does not change it, so put the payload in the project you run the
+script from. UNIVERSE_AIRLOCK_STATE overrides the state root.
 
 --lane developer (the default until a signed release exists) allows an unsigned
 payload and says so; --lane sealed refuses anything this binary cannot verify.";

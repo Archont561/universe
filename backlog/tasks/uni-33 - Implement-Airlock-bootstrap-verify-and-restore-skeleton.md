@@ -4,7 +4,7 @@ title: Implement Airlock bootstrap verify and restore skeleton
 status: In Progress
 assignee: []
 created_date: '2026-10-27'
-updated_date: '2026-11-08'
+updated_date: '2026-11-10'
 labels:
   - airlock
   - bootstrap
@@ -42,7 +42,7 @@ consumer restore flow distinct from UNI-36's developer-toolchain transport.
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [x] #1 Clean-environment fixture restores on Linux x86_64. — 2026-11-08: `the_handover_contract_restores_with_the_working_directory_as_the_checkout` runs the real binary with the exact invocation the rendered entrypoint makes (`restore --commit <pin>`, cwd = the checkout, no other flags) and asserts the artifact is materialised under the default state root. The entrypoint half of the same loop is `crates/universe-kit/tests/airlock_restore.rs`.
+- [x] #1 Clean-environment fixture restores on Linux x86_64. — 2026-11-08: `the_handover_contract_restores_from_the_callers_working_directory` (renamed 2026-11-10) runs the real binary with the exact invocation the rendered entrypoint makes (`restore --commit <pin>`, no other flags) and asserts the artifact is materialised under the default state root. **2026-11-10 correction:** the original note said `cwd = the checkout`. The rendered entrypoint execs the binary from the pinned checkout but does not change the working directory, so the payload and state defaults resolve in the project the script was run from. `UNI-53` DoD #3 now proves both halves in one process tree.
 - [ ] #2 `pixi run gates` passes.
 <!-- DOD:END -->
 
@@ -50,9 +50,16 @@ consumer restore flow distinct from UNI-36's developer-toolchain transport.
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-06 — the entrypoint that will call this binary is rendered and tested (`UNI-53`,
 `crates/universe-kit/src/airlock.rs`). It fixes the invocation the bootstrapper should accept:
-`universe-airlock-bootstrap restore --commit <40-hex>`, run with the pinned checkout as the
-working tree and the pin verified by the entrypoint before the handover, so the binary can
-trust the ref it was started from but must still verify the payload inside it.
+`universe-airlock-bootstrap restore --commit <40-hex>`, with the pin verified by the entrypoint
+before the handover, so the binary must still verify the payload against it.
+
+**2026-11-10 correction of the paragraph above.** It originally said the binary is "run with
+the pinned checkout as the working tree" and must "verify the payload inside it". Neither is
+true. The entrypoint `exec`s the binary from the checkout but keeps the caller's working
+directory, and the closed payload lives in the project's `.universe-airlock/payload` — it
+cannot be inside the ref, because a release manifest that named the commit of the tree holding
+itself could never be written. The text is corrected in place rather than left to mislead the
+next reader.
 
 2026-11-08 — the verbs exist: `version`, `verify`, `restore`, `doctor`. What is still open, and
 why, so the next slice does not have to rediscover it:
@@ -67,9 +74,15 @@ why, so the next slice does not have to rediscover it:
   removed in favour of `sha2` and `tempfile` (dev-only) once the manifests could be edited for
   the bot to lock, and the signature verifier came with them as `minisign-verify` — zero
   transitive dependencies, which is why it is the only crypto crate here.
-- **The end-to-end loop is covered in two halves**, not one process tree: the rendered
+- **The end-to-end loop was covered in two halves**, not one process tree: the rendered
   entrypoint is executed against a real bare repository in `universe-kit` (with a stub
   bootstrapper, because a test cannot portably reach another crate's binary path), and the real
   binary restores under the exact same invocation in this crate. Both are needed; neither alone
-  proves the loop.
+  proves the loop. **2026-11-10 correction:** this bullet describes the state at the time, not
+  today. `UNI-53` DoD #3 publishes the real binary into the pinned ref and restores in one
+  process tree; the portable seam is the directory that `CARGO_BIN_EXE_universe-kit` names.
+
+2026-11-10 — the help text now says the payload and state defaults resolve under the caller's
+working directory, and the handover test is named for that fact; `the_usage_says_where_the_payload_really_lives`
+holds the correction. A sealed restore and a Pixi handover remain open for the reasons above.
 <!-- SECTION:NOTES:END -->

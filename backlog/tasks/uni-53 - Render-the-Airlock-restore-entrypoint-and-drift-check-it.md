@@ -4,7 +4,7 @@ title: Render the Airlock restore entrypoint and drift-check it
 status: In Progress
 assignee: []
 created_date: '2026-10-31'
-updated_date: '2026-11-09'
+updated_date: '2026-11-10'
 labels:
   - airlock
   - cli
@@ -52,8 +52,9 @@ and its drift verification.
 
 ## Definition of Done
 <!-- DOD.BEGIN -->
-- [ ] #1 A rendered entrypoint restores the fixture environment on a clean container. — **Open, and now blocked only on being one process tree.** `UNI-33` landed on 2026-11-08, so both halves exist and are tested: this crate's `tests/airlock_restore.rs` publishes a real ref to a bare repository, renders the entrypoint, runs it with `sh`, and proves the clone lands on the pin and that the bootstrapper is handed `restore --commit <pin>`; and `crates/universe-airlock-bootstrap/tests/cli.rs::the_handover_contract_restores_with_the_working_directory_as_the_checkout` runs the real binary with exactly that invocation and proves the environment is materialised. What is still unproven is the two in one run — a test cannot portably reach another crate's binary path, so the entrypoint half uses a stub bootstrapper. Also unproven, and larger: a *sealed* restore (no key until `UNI-55`) and a Pixi-managed environment (`UNI-51`).
-- [x] #2 `pixi run gates` passes. — 2026-11-09: `pixi run gates` exits 0 at `09331fd5` with 594 tests, 82 alint rules and every static check green; `airlock-check` is in the `check` gate set and green.
+- [ ] #1 A rendered entrypoint restores the fixture environment on a clean container. — **Open, now only on the clean-container transcript.** 2026-11-10: the one-process-tree blocker is closed by DoD #3 below; what remains is a transcript naming the container image, which is `UNI-59` AC#5. Also outside this task, and still open: a *sealed* restore (no key until `UNI-55`) and a Pixi-managed environment (`UNI-51`).
+- [x] #2 `pixi run gates` passes. — 2026-11-09: `pixi run gates` exits 0 at `09331fd5` with 594 tests, 82 alint rules and every static check green; `airlock-check` is in the `check` gate set and green. 2026-11-10: gates exit 0 again with 598 Rust tests and 149 Python tests; the `coverage` task (which uses `cargo llvm-cov` and a different target directory) runs the new one-process-tree test, so the binary-location seam is not an artefact of the plain test task.
+- [x] #3 The rendered entrypoint and the real `universe-airlock-bootstrap` binary restore a fixture payload in one process tree. — 2026-11-10: `crates/universe-kit/tests/airlock_restore.rs::the_rendered_entrypoint_restores_a_payload_with_the_real_bootstrapper` publishes a bare Git ref carrying the binary this workspace built, renders the entrypoint, runs it with `sh` from the project, and asserts `restored: 0.1.0`, the unsigned-lane diagnostic, the exact artifact bytes under `state/current`, and a checkout at the pin. The binary is copied from the directory `CARGO_BIN_EXE_universe-kit` lives in — the same directory the workspace build puts every other binary in, including under `cargo llvm-cov` — which is the portable seam this note previously said did not exist. The test was red against the stub bootstrapper first. This is **not** a clean-container run, and it is a developer-lane restore of files, not a sealed or Pixi-managed one.
 <!-- DOD.END -->
 
 ## Notes
@@ -114,7 +115,22 @@ corrected in place rather than left for the next reader to reconcile. The facade
 is also now literal: PR #78 added `universe-airlock verify`, so `airlock exec`, `verify` and
 `restore` all name real consumer verbs.
 
-Status stays **In Progress** because DoD #1 is genuinely open: the two halves have never run
-as one process tree, and a clean-container restore transcript is a `UNI-59` acceptance
-criterion. Ticking the gate box is not the same thing as completing that criterion.
+Status stays **In Progress** because DoD #1 is genuinely open: the clean-container restore
+transcript is a `UNI-59` acceptance criterion. Ticking the gate box is not the same thing as
+completing that criterion.
+
+2026-11-10 — correction, recorded as a correction. DoD #1's note said the two halves could
+not be joined because "a test cannot portably reach another crate's binary path". That was
+true of the first fixture, not of the workspace: `CARGO_BIN_EXE_universe-kit` names the
+directory Cargo puts this crate's binary in, and the same build puts the real bootstrap binary
+beside it. DoD #3 is the one-process-tree proof that was missing.
+
+The same run disproved a second stale claim. `universe-airlock-bootstrap --help` and the
+handover test in that crate both said the rendered entrypoint had already changed into the
+pinned checkout. It does not: the script `exec`s the binary from the checkout but keeps the
+caller's working directory, which is where the payload and state defaults resolve. A payload
+manifest also cannot name the commit of the tree that contains it, so the closed payload must
+live outside the ref. The help text, the handover test's name and comment, the rendered README
+usage block, and `UNI-33`'s DoD #1 note are corrected in place rather than left for the next
+reader to reconcile.
 <!-- SECTION:NOTES:END -->

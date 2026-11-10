@@ -34,3 +34,16 @@ the initializer proper is `UNI-13`.
 ## 27 October 2026 refinement
 
 Bootstrap carries the tool-install closure and catalog pins, not the whole project environment. It can establish PATH availability before a profile is fully prefetched; see decision-115 and doc-109.
+
+## 10 November 2026 correction
+
+The status boundary above says "no initializer and no bootstrap program exists yet", and the
+2026-11-06 update says the bootstrapper "is still `UNI-33`". Both describe 2026-10-25, not
+today: `UNI-33` landed the real `version`/`verify`/`restore`/`doctor` verbs on 2026-11-08, and
+`UNI-53` DoD #3 now proves the rendered entrypoint and that binary restoring a real payload in
+one process tree. The generated script `exec`s the binary from the pinned checkout but keeps the
+caller's working directory, which is where the closed payload (`.universe-airlock/payload`) and
+the state root live; a release manifest inside the ref could not name the commit of its own
+tree. The bootstrap's `--help` and the rendered README usage block were corrected to say this.
+The initializer proper (`UNI-13`), the Pixi handover (`UNI-51`) and the sealed lane (`UNI-55`)
+remain open. This is recorded as a correction rather than a silent rewrite of dated statements.
