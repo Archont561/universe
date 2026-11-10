@@ -30,9 +30,10 @@ recorded artifact, verifies the digest, and stores the bytes under a content-add
 path. A digest mismatch is a hard failure, never a warning.
 
 The first adapter covers conda archives (`.conda`, `.tar.bz2`) **and** PyPI wheels,
-because a real Pixi lock mixes both: the development lock in this repository contains
-164 conda entries and 4 pypi entries. An adapter that silently skipped the pypi half
-would either break restore or refuse the repository it was written for.
+because a real Pixi lock mixes both: the development lock in this repository holds 97
+distinct conda archives and 7 PyPI wheels (counted 2026-11-09). An adapter that silently
+skipped the PyPI half would either break restore or refuse the repository it was written
+for.
 
 The same trait boundary must accept further lock formats later (Cargo lockfiles,
 `package-lock.json`, `uv.lock`) without touching the CLI or the workflow renderer; the
@@ -57,3 +58,12 @@ connected host publishes; a disconnected host only ever restores.
 - [ ] #1 A disconnected host can restore the development environment's artifacts from the mirror branches alone.
 - [ ] #2 `pixi run gates` passes, including the audit and crate-boundary checks.
 <!-- DOD.END -->
+
+## Notes
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-09 — correction, recorded as a correction. The description above quoted "164 conda
+entries and 4 pypi entries". Counting `pixi.lock` on this date gives 97 distinct conda
+archives and 7 PyPI wheels in `packages:`, with 192 and 14 references respectively across
+the declared environments in `environments:`. Both counts drifted from the quoted figures; the point of the sentence — a
+real Pixi lock mixes both kinds, so an adapter cannot skip wheels — is unchanged.
+<!-- SECTION:NOTES:END -->

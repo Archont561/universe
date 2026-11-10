@@ -121,6 +121,14 @@ Only `UNI-58` and `UNI-59` belong to M12. Everything else is consumed from the m
 that already owns it; this checkpoint re-scopes no task, and a task's remaining criteria
 are still the ones that decide when it is done.
 
+Correction of an implied ordering (2026-11-09): the S3 sprint row below lists `UNI-51` and
+`UNI-52` before S3.5, but neither is a prerequisite for this checkpoint. `m-12`'s beat table
+and `decision-132` name neither, and `UNI-53`'s own notes record a Pixi-managed environment
+(`UNI-51`) as unproven future work. Sprint placement suggests an order; it is not a gate. The
+S3.5 row names `UNI-57`, `UNI-38`, `UNI-53` and the channel-publication tasks; the
+`pixi.lock` mirror slices are not named. Adding them to the checkpoint needs an amendment to
+`decision-132`, not a status edit.
+
 `M12` does not gate `M10`. It is a checkpoint the owner asked for on the Conda track, and
 the v1 gate in `decision-119` continues to require all six surfaces regardless of whether
 this checkpoint is reached.
