@@ -206,4 +206,10 @@ remained owner-side; see the note below.
   test asserts all three. The same slice translates `--force` into `?force=true` on this
   endpoint, which the docs say defaults to false and is required to overwrite an occupied
   name; `force_replaces_a_changed_digest` pins it. `UNI-59` records the re-watch.
+- **The publisher is proven against the live channel.** Run 42903356074 from `main` at
+  `e9ec1b34` finished green, including `publish / prefix-dev` and `publish / verdict`.
+  prefix.dev's package API reports `universe-airlock 0.1.0` for `linux-64` with one variant,
+  sha256 `b148b2152d4c096c24264f5e1c8f40419053c4d51a5f81f97c289efa9b95e0f8` and size
+  298583 — the same digest the `channel` branch carries. `UNI-59` records the run, the
+  digest and the remaining offline-solve gap. This does not advance the release tag.
 <!-- SECTION:NOTES:END -->

@@ -287,4 +287,27 @@ a repository check rather than a release-time computation.
   considered. AC#2, AC#4, AC#5 and every DoD box stay open; no `v0.1.0` tag was cut, and
   `linux-64/repodata.json` on the prefix.dev channel still names no `universe-airlock`
   package.
+- **A green publish verdict, and the package is on both destinations.** A
+  `workflow_dispatch` of `release.yml` from `main` at `e9ec1b34` (run 42903356074) finished
+  green: `publish / build`, `publish / prefix-dev`, `publish / branch` and
+  `publish / verdict` all succeeded, with no failure annotations. The OIDC token was minted,
+  the upload POST was accepted, and reindexing followed. `publish / branch` rewrote
+  `refs/heads/channel` as orphan commit `499c70f0`, whose `linux-64/repodata.json` records
+  `universe-airlock-0.1.0-h41f06ac_0.conda` with sha256
+  `b148b2152d4c096c24264f5e1c8f40419053c4d51a5f81f97c289efa9b95e0f8` and size 298583.
+  prefix.dev's package API reports the same name, version `0.1.0`, platform `linux-64`, and
+  one variant with that filename, digest and size. The public `linux-64/repodata.json` URL is
+  served through a CDN that still returned the older index even when read with a no-cache
+  header, so the package API — not the cached repodata file — is the evidence here. A
+  temporary diagnostic workflow (runs 42904758077, 42904964211 and 42905156000) read that
+  API; it was removed and the branch force-pushed back to `e9ec1b34`, so no diagnostic
+  workflow remains in the repository.
+- **What this closes and what it does not.** Every owner-side prerequisite named above is
+  now met: the `prefix` environment, the `release.yml` workflow filename, the 405 `HEAD`
+  probe, and the upload headers. AC#4's "prefix.dev by digest" half is proven. AC#4's
+  "offline branch solve" half is still open: `pixi install --offline` from the branch channel
+  asking only for `universe-airlock=0.1.0` still needs `libgcc >=16` and `__glibc >=2.17`,
+  which the branch channel does not carry. AC#2 (an annotated `v0.1.0` tag from green
+  gates), AC#5 (a clean Git+Pixi container transcript with the image name) and every DoD
+  box stay open. No `v0.1.0` tag was cut or pushed.
 <!-- SECTION:NOTES.END -->
