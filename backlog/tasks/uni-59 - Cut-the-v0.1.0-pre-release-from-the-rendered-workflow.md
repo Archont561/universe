@@ -194,4 +194,30 @@ a repository check rather than a release-time computation.
   consumer therefore needs those runtime packages in its cache or in the channel itself.
   AC#4 stays open on both halves; AC#2, AC#5 and every DoD box stay open. No `v0.1.0` tag
   was created or pushed; both RC tags remain on the remote as evidence.
+- **2026-11-10 — re-watch after the owner updated prefix.dev publishing: the same 401 three
+  times.** The owner reported updating publishing on prefix.dev. Three further publish runs
+  still failed `publish / prefix-dev` with the identical `publish.store.failed: ... 401: Failed
+  to find OIDC publisher: GitHub publisher not found`: a rerun of failed jobs on the
+  `v0.1.0-rc2` run (attempt 2, 18:52 UTC), a full rerun of that run (attempt 3, 18:55 UTC),
+  and a `workflow_dispatch` of `universe-publish.yml` from `main` at `b4b9b326` (run
+  42880702045, 18:59 UTC). Every run had `publish / build` and `publish / branch` green and a
+  red verdict. A `main` dispatch failing the same way rules out a tag-ref or event-name
+  restriction: the mismatch is in the publisher entry's owner, repository, workflow filename,
+  or environment fields, or in which channel the entry was added to. The job presents
+  `Archont561/universe`, workflow file `universe-publish.yml` (full path
+  `.github/workflows/universe-publish.yml`), audience `prefix.dev`, and **no environment** —
+  the rendered job declares none, so an entry that names one cannot match. The manifest's
+  channel is `archont561/archont561`; its `linux-64/repodata.json` still names no
+  `universe-airlock` package. AC#2, AC#4, AC#5 and all DoD boxes stay open.
+- **A reproducibility defect the reruns exposed, recorded as a correction.** Each rebuild of
+  `universe-airlock-0.1.0-h41f06ac_0.conda` produced different bytes with the same name,
+  version and build string: the first rc2 publish recorded sha256
+  `f85ac96a833a2297543e9e7b60eb5bf8095a62f522ae8e62e15ce11e95f6fbe2` / 298506 bytes at channel
+  commit `267c589f`, the full rerun `e4b527541467930fe013091cbbf33298132732bcf008602dbe4b098e6d2c9caf`
+  / 298502 at `8f2ca660`, and the `main` dispatch
+  `ca0aa2f788bc2d8456e51e4b7ab878b475a033cf172f09f76d162ea8094a52c0` / 298513 at `00056f30`.
+  `publish / branch` rewrites the channel branch as an orphan commit each time. The digest
+  verification in the note above was true of that commit at that time, but a release that pins
+  a digest must pin the digest of the exact run that publishes it, not one measured from an
+  earlier rehearsal.
 <!-- SECTION:NOTES.END -->
