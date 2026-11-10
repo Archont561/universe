@@ -8,6 +8,13 @@ updated_date: '2026-10-27'
 
 # Universe Portal mockup — component extraction
 
+**2026-11-10 — correction, recorded as a correction.** This inventory is a **feature list**,
+not an implementation mandate. `decision-140` (proposed) would keep these data views and render
+them as Fumadocs UI components bound to the JSON registry, instead of building 45 SvelteKit
+components. The catalogue below is therefore still the answer to "what must the portal show",
+while the "real SvelteKit portal in `packages/portal`" wording below is historical. `UNI-73`
+holds the first slice.
+
 Source analysed: `assets/universe-portal-mockup.html` (320 lines, one inline stylesheet,
 one inline script). The mockup is a single static file, but its DOM, CSS class
 system (`47` classes), IDs (`26`), and JavaScript already imply a clear

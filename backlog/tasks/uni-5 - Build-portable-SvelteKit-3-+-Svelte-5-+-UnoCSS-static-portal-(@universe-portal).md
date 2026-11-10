@@ -20,6 +20,12 @@ type: feature
 ordinal: 5000
 ---
 
+> **2026-11-10 — status note.** `decision-140` (proposed) reverses `decision-6`'s direction:
+> the portal UI source would be a curated Fumadocs UI site built in a docs job from the JSON
+> registry, not a SvelteKit/UnoCSS SSG. This task stays open with its acceptance criteria
+> unchanged until that decision is accepted and this task is re-scoped. `UNI-73` holds the
+> first slice of the replacement; nothing here widens `v0.1.0`.
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

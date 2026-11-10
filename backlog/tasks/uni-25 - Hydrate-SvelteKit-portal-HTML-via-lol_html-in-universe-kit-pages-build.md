@@ -24,6 +24,12 @@ type: feature
 ordinal: 25000
 ---
 
+> **2026-11-10 — status note.** `decision-140` (proposed) retires the `lol_html`
+> template-route cloning described below: TypeScript loaders would generate real per-package
+> pages with real metadata at build time from the JSON registry. This is a reversal to record
+> when the decision is accepted, not a silent edit. The task stays open until then; `UNI-73`
+> holds the replacement slice.
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

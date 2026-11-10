@@ -39,7 +39,7 @@ not a new Backlog record type or date commitment.
 | **M4** | Trusted producer and release lanes | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34`, `UNI-54`, `UNI-56` | Pinned release intake, independent package lanes, installed-prefix evidence, isolated publishing. |
 | **M5** | Airlock snapshot/bootstrap foundation | `UNI-32`, `UNI-33`, `UNI-38`, `UNI-51`, `UNI-52`, `UNI-53`, `UNI-55` | Verified transactional restore, a lock-verified mirror, generated entrypoints, and separate bootstrap/component packages. |
 | **M6** | Native Cargo, Python-wheel, and npm adapters | `UNI-42`–`UNI-44`, `UNI-69` | Protocol fixtures and native clients pass without external egress. |
-| **M7** | Portal from pinned catalog snapshots | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-46` | Deterministic portal from the verified snapshot; browser tests pass; portal remains distinct from registries. |
+| **M7** | Portal from pinned catalog snapshots | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-46`, `UNI-73` | Deterministic portal from the verified snapshot; browser tests pass; portal remains distinct from registries. `UNI-73` is the proposed Fumadocs UI direction (`decision-140`); the SvelteKit tasks are re-scoped if it is accepted. |
 | **M8** | Unified command facade and umbrella install | `UNI-40` | Thin `universe` dispatches to independently installable Kit and Airlock packages. |
 | **M9** | Airlock native views and integrated v1 evidence | `UNI-45`, `UNI-47`, `UNI-70` | Four protocols work through scoped Airlock views; independent evidence review passes. |
 | **M10** | Integrated Universe v1 release | `UNI-16` | All required packages, native indexes, portal, and static Conda channel publish together. |
@@ -65,7 +65,7 @@ an execution proposal, not a task hierarchy:
 | S3 | Conda channel and Airlock foundation | `UNI-11`, `UNI-12`, `UNI-13`, `UNI-32`, `UNI-33`, `UNI-38`, `UNI-51`, `UNI-52`, `UNI-53` |
 | S3.5 | `v0.1.0` pre-release checkpoint | `UNI-58`, `UNI-59` |
 | S4 | Trusted releases and native registries | `UNI-14`, `UNI-15`, `UNI-20`, `UNI-23`, `UNI-34`, `UNI-42`, `UNI-43`, `UNI-44`, `UNI-54`, `UNI-55`, `UNI-56`, `UNI-69` |
-| S5 | Portal and command facade | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-40`, `UNI-46` |
+| S5 | Portal and command facade | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-40`, `UNI-46`, `UNI-73` |
 | S6 | Airlock integration and evidence review | `UNI-45`, `UNI-47`, `UNI-70` |
 | S7 | Integrated v1 release | `UNI-16` |
 | S8 | Post-v1 adoption and native developer transport | `UNI-17`, `UNI-18`, `UNI-35`, `UNI-37`, `UNI-48` |

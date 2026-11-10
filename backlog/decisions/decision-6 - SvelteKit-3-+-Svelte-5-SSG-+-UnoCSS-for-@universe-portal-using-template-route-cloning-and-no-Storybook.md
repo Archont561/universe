@@ -5,6 +5,18 @@ date: '2026-10-26 20:15'
 status: accepted
 ---
 
+## Status note
+
+**2026-11-10 — direction reversal proposed, recorded as a reversal.** `decision-140` proposes
+building the documentation half of the portal from pinned Fumadocs UI at build time, with
+Universe-owned source embedded in `crates/universe-assets` and a TypeScript loader reading the
+JSON registry `pages build` emits. If accepted, that supersedes this record's SvelteKit 3,
+Svelte 5, UnoCSS, template-route cloning, and `lol_html` hydration choices, and re-scopes
+`UNI-5`, `UNI-6`, `UNI-25`, and `UNI-26`. Until `decision-140` is accepted this record remains
+the approved specification; its arbitrary-depth relative-path and zero-Node-runtime
+constraints remain the acceptance bar that the replacement has to meet. `UNI-73` holds the
+first implementation slice.
+
 ## Context
 
 `universe-kit` bundles a pre-built static documentation + channel explorer frontend at compile time (`crates/universe-assets`) and emits a self-contained static site when a consumer runs `universe-kit pages build`. This imposes strict constraints:

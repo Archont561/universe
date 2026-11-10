@@ -23,6 +23,12 @@ type: feature
 ordinal: 26000
 ---
 
+> **2026-11-10 — status note.** This task still describes the retired `v0.2.0` portal-only
+> release stage, which `decision-119` already superseded; its integrated-v1 wording in the
+> acceptance criteria is the part that survives. `decision-140` (proposed) further changes
+> what the release builds: pinned Fumadocs UI in a docs job rather than a SvelteKit SSG
+> bundle. Re-scope when the decision is accepted; `UNI-73` holds the first slice.
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
