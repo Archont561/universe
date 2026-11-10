@@ -12,8 +12,8 @@ browsable portal, the umbrella facade, and every platform beyond `linux-64` rema
 scope.
 
 - `universe-airlock` is published as a Conda package to prefix.dev and to a static channel on
-  a Git branch. The installed binary reports its version, verifies a sealed payload, and
-  restores one.
+  a Git branch. The installed consumer reports its version and verifies a closed payload;
+  `universe-airlock-bootstrap` restores one into an immutable state root.
 - The publishing workflow is rendered from `universe.toml` and drift-checked rather than
   written by hand.
 - A branch channel that carries a Conda dependency edge resolves offline with Pixi.

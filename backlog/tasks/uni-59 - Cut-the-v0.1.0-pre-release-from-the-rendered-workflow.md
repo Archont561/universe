@@ -4,7 +4,7 @@ title: Cut the v0.1.0 pre-release from the rendered workflow
 status: To Do
 assignee: []
 created_date: '2026-11-01'
-updated_date: '2026-11-09'
+updated_date: '2026-11-10'
 labels:
   - release
   - airlock
@@ -50,7 +50,7 @@ a repository check rather than a release-time computation.
 <!-- AC.BEGIN -->
 - [x] #1 The workspace version, the `universe-airlock` recipe version, and the changelog's top section agree on `0.1.0`, and the existing parity check is what proves it rather than a manual reading. — 2026-11-09: `CHANGELOG.md` has a `## 0.1.0` section whose body says pre-release and `scripts/repo_check.py::validate_release_version` compares its first versioned heading with `Cargo.toml` and the recipe; `pixi run repo-check` is green.
 - [ ] #2 The `v0.1.0` tag is cut from a commit whose full gate run is green, and the tag is annotated with the same message the release notes open with.
-- [ ] #3 Release notes state the pre-release status and the `linux-64`-only scope, name what `universe-airlock` actually does at this tag (verify, restore, version), and claim none of `decision-119`'s six v1 surfaces.
+- [x] #3 Release notes state the pre-release status and the `linux-64`-only scope, name what `universe-airlock` actually does at this tag (verify, restore, version), and claim none of `decision-119`'s six v1 surfaces. — 2026-11-10: `docs/releases/0.1.0.md` opens with the one-line annotated-tag message, states the `decision-132` checkpoint, names all three verbs with the binary that owns each, and has a `## Not a v1 release` table disclaiming all six numbered surfaces of `decision-119` as absent or single-platform. `scripts/repo_check.py::validate_release_notes` enforces the file's existence from the workspace version, the annotation's shape, the five required facts, the six surface keys, and — once a `v0.1.0` tag exists — that its `%(contents:subject)` equals the opening line. Six Python tests were red before green, and a temporary annotated tag proved the drift check both ways; the tag was deleted. AC#2 is still open: no tag has been cut.
 - [ ] #4 Both destinations are verified after the run: the branch channel solves for `universe-airlock=0.1.0` from a local checkout with network denied, and the prefix.dev channel resolves the same artifact by digest.
 - [ ] #5 A clean container with only Git and Pixi runs the rendered restore entrypoint against the tag and prints `universe-airlock version`; the transcript is recorded in this task's notes, with the container image named.
 - [x] #6 A repository check fails if the changelog's top section and the tag disagree, so the next release cannot drift by memory. — 2026-11-09: a temporary local `v0.2.0` tag made `pixi run repo-check` exit 1 naming both values; the tag was removed and the check returned to green.
@@ -123,4 +123,30 @@ a repository check rather than a release-time computation.
   `changelog_version` returns the heading itself rather than a parsed substring, so
   `repo-check` reaches the same verdict as the CI job. A fourth red-before-green test pins
   that contract. This changes no scope and no acceptance criterion.
+- **2026-11-10 — AC#3 is ticked before the tag; the rest of the task is not.** The
+  2026-11-09 note above says the release notes and the annotated tag message "are written
+  with the tag in AC#2". That was a plan, not a rule: the notes are a pre-tag deliverable and
+  are now written and checked. AC#2 must annotate the tag with their first line verbatim, so
+  the two cannot disagree. The exact command at cut time is
+  `git tag -a v0.1.0 -m "$(head -1 docs/releases/0.1.0.md)"`, run from a commit whose
+  `pixi run gates` is green; `repo-check` reads the tag's `%(contents:subject)` and fails if
+  it differs. AC#4 and AC#5 stay open for the reasons already recorded: both need a real tag
+  run, prefix.dev's owner-side OIDC binding, and a named clean-container image. No tag was
+  created, pushed, or approved here.
+- **2026-11-10 — correction, recorded as a correction.** `CHANGELOG.md`'s `0.1.0` bullet
+  said "The installed binary reports its version, verifies a sealed payload, and restores
+  one." The installed `universe-airlock` Conda package implements `version` and `verify`
+  only; `restore` is a verb of `universe-airlock-bootstrap`, which is a separate binary. The
+  bullet now names which binary owns which verb, and the release notes say the same. Writing
+  notes that "name what `universe-airlock` actually does" is what surfaced the overclaim.
+  The `## 0.1.0` heading is unchanged, so `universe lint`'s parity check is unaffected.
+- **A check that reads an independent source.** The six keys the notes must disclaim are
+  transcribed from `decision-119`'s numbered `## Decision` list;
+  `test_the_v1_surface_keys_are_transcribed_from_decision_119` parses that list and fails if
+  the decision gains, loses, or reorders a surface. The notes file is selected from
+  `[workspace.package].version`, not from a hardcoded `0.1.0`, so a version bump cannot
+  leave the previous release's notes standing in for the new one. The check enforces that
+  all six surfaces are *enumerated* in a dedicated section; whether the prose beside each
+  one is truthful stays a review question, which is why the section is a table a reviewer
+  can read rather than a hidden field.
 <!-- SECTION:NOTES.END -->
