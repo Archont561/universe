@@ -163,6 +163,35 @@ a repository check rather than a release-time computation.
   build writes `output/fragments` **before** `actions/upload-artifact`, and the renderer emits
   that step for the publish file only; `universe.yml` keeps its own audit job. Generated
   workflows were re-rendered with `ci-render`. AC#2, AC#4, AC#5 and all DoD boxes stay open:
-  a second rehearsal from a commit containing the fix is still needed before any `v0.1.0`
-  tag, and `v0.1.0-rc1` stays on the remote as the evidence of the failure.
+  a second rehearsal from a commit containing the fix was needed before any `v0.1.0` tag;
+  the note below records it. `v0.1.0-rc1` stays on the remote as the evidence of the failure.
+- **2026-11-10 — second rehearsal: `v0.1.0-rc2` proves the fragment fix and isolates the
+  remaining owner-side prerequisite.** An annotated `v0.1.0-rc2` tag was pushed from
+  `5414f7c4`, the merge of PR #86, whose `main` push had `gates` and every `universe` job
+  green. `universe` run 42875315717 finished green. `universe publish` run 42875315697 had
+  `publish / build` green (now including the "Audit the built artifacts" step) and
+  `publish / branch` green; `publish / prefix-dev` failed, so `publish / verdict` is red.
+  The branch job created `refs/heads/channel` at `267c589f` —
+  `channel universe: 1 package(s) linux-64 universe-airlock 0.1.0` — containing
+  `linux-64/universe-airlock-0.1.0-h41f06ac_0.conda`, `linux-64/repodata.json`,
+  `noarch/repodata.json`, `channeldata.json`, `.nojekyll`, `README.md`, and the fragment under
+  `meta/linux-64/`. A local `git archive` of that branch confirms the archive's sha256
+  (`f85ac96a833a2297543e9e7b60eb5bf8095a62f522ae8e62e15ce11e95f6fbe2`) and size (298506) match
+  the repodata record exactly. This is the first real publish to the static channel, and the
+  built-in `GITHUB_TOKEN` was enough to push it, as `decision-127` claims.
+- **What still blocks AC#4, recorded rather than glossed.** `publish / prefix-dev` failed with
+  `publish.store.failed: store 'prefix-dev': https://prefix.dev/api/oidc/mint_token: the token
+  exchange answered 401: Failed to find OIDC publisher: GitHub publisher not found`. The
+  `archont561/archont561` channel exists and already holds other packages, but its
+  `linux-64/repodata.json` names no `universe-airlock` record, so nothing was uploaded. The
+  owner must add a GitHub trusted publisher on that channel for owner `Archont561`, repository
+  `universe`, workflow file `universe-publish.yml`, with no environment (the job declares
+  none); `id-token: write` is already rendered. This is configuration, not a code fix.
+  Separately, `pixi install --offline` from a local checkout of the channel, asking only for
+  `universe-airlock=0.1.0`, failed with `libgcc >=16, for which no candidates were found`. The
+  recipe declares no runtime requirements, but rattler-build detects `__glibc >=2.17` and
+  `libgcc >=16`, and the branch channel carries only `universe-airlock`. A network-denied
+  consumer therefore needs those runtime packages in its cache or in the channel itself.
+  AC#4 stays open on both halves; AC#2, AC#5 and every DoD box stay open. No `v0.1.0` tag
+  was created or pushed; both RC tags remain on the remote as evidence.
 <!-- SECTION:NOTES.END -->
