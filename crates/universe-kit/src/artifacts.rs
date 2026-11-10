@@ -593,6 +593,7 @@ mod tests {
             auth: universe_core::manifest::StoreAuth::Token,
             verifier: universe_core::manifest::Verifier::File,
             secrets: Vec::new(),
+            environment: None,
             channel: Some("acme/acme".to_owned()),
             url: Some("http://127.0.0.1:8080".to_owned()),
             budgets: universe_core::manifest::StoreBudgets::default(),

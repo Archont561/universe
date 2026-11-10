@@ -155,6 +155,11 @@ There is no autodetection and no "publish everywhere" switch: a package names it
   also declares the npm output — a wrapper that was never built cannot be uploaded.
 - **The reverse is checked too.** A writable store that no package names is a half-applied
   rename, and it warns.
+- **A trusted publisher can name a GitHub environment.** Declare it with `environment` on the
+  store, for example `environment = "prefix"`. The renderer puts that name on the one publish
+  job for that store, so its OIDC token carries the matching `environment` claim. An empty name
+  is an error; naming one on a store that does not publish with `auth = "oidc"` warns, because
+  no identity token is minted there.
 
 `ci render` prints both derived views — the job each store produces, and the packages that land
 in it — so the mapping is inspectable instead of inferred from a YAML file.

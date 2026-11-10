@@ -215,6 +215,19 @@ fn project_publishing_nothing(project: &mut Project) {
     );
 }
 
+#[given("a project whose hosted channel names a GitHub environment")]
+fn project_with_a_named_environment(project: &mut Project) {
+    let source = TWO_STORES.replace(
+        "auth = \"oidc\"",
+        "auth = \"oidc\"\nenvironment = \"prefix\"",
+    );
+    load(project, &source);
+    assert!(
+        project.manifest.is_some(),
+        "the manifest with a named environment is valid"
+    );
+}
+
 #[given("a project whose Conda package publishes to an npm store")]
 fn project_with_incompatible_store(project: &mut Project) {
     load(project, WRONG_STORE_KIND);
@@ -588,6 +601,33 @@ fn later_jobs_download(project: &Project) {
     );
 }
 
+#[then("only the hosted publish job declares that environment")]
+fn only_the_hosted_job_declares_an_environment(project: &Project) {
+    // The written file is the seam a maintainer sees: an environment on the wrong job, or
+    // on every job, changes which identity each publisher presents to its registry.
+    let publish = project.workflow("universe-publish.yml");
+    let jobs = job_blocks(&publish);
+    let hosted = jobs
+        .iter()
+        .find(|(name, _)| name == "conda-prefix")
+        .expect("the hosted store's job")
+        .1
+        .clone();
+    assert!(
+        hosted.contains("environment: prefix"),
+        "the hosted publish job declares no environment:\n{hosted}"
+    );
+    for (name, body) in jobs {
+        if name == "conda-prefix" {
+            continue;
+        }
+        assert!(
+            !body.contains("environment:"),
+            "job {name} declares the hosted store's environment:\n{body}"
+        );
+    }
+}
+
 #[then("the publish build writes fragments into the artifact before uploading it")]
 fn publish_build_writes_fragments_before_upload(project: &Project) {
     // The written file is the seam a maintainer sees. `channel.fragment.none` in the
@@ -802,6 +842,14 @@ fn every_command_goes_through_the_pixi_task(project: Project) {
     name = "A build's artifacts reach the jobs that audit and publish them"
 )]
 fn artifacts_reach_the_jobs_that_need_them(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "features/render.feature",
+    name = "A hosted channel names the GitHub environment its publisher expects"
+)]
+fn a_named_environment_reaches_one_job(project: Project) {
     let _ = project;
 }
 

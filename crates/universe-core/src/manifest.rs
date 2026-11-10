@@ -273,6 +273,15 @@ pub struct Store {
     /// Secret *names*, never values; the renderer emits the reference.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub secrets: Vec<String>,
+    /// The GitHub environment this store's publish job must declare.
+    ///
+    /// A trusted publisher can be registered with an environment name. GitHub then puts that
+    /// name in the OIDC token's `environment` claim, but only for a job that declares the
+    /// environment; a publisher bound to one refuses a token without it. The name belongs to
+    /// the store rather than the workflow file because two destinations in one file can use
+    /// different publishers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environment: Option<String>,
     /// Channel or owner path, for stores addressed that way.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub channel: Option<String>,
@@ -1112,6 +1121,31 @@ impl Manifest {
                     .with_path(format!("{path}.tag_prefix")),
                 );
             }
+            if let Some(environment) = store.environment.as_deref() {
+                if environment.trim().is_empty() {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            Severity::Error,
+                            "manifest.store.environment.empty",
+                            format!("store '{}' declares an empty environment", store.name),
+                        )
+                        .with_path(format!("{path}.environment")),
+                    );
+                } else if store.auth != StoreAuth::Oidc {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            Severity::Warning,
+                            "manifest.store.environment.unused",
+                            format!(
+                                "store '{}' names a GitHub environment but does not publish with \
+                                 OIDC, so no identity token will carry that claim",
+                                store.name
+                            ),
+                        )
+                        .with_path(format!("{path}.environment")),
+                    );
+                }
+            }
             for (secret_index, secret) in store.secrets.iter().enumerate() {
                 if secret.trim().is_empty() {
                     diagnostics.push(
@@ -1901,6 +1935,39 @@ verifier = "registry"
             !diagnostics[0].is_error(),
             "naming a secret is redundancy, not a mistake that stops the build"
         );
+    }
+
+    #[test]
+    fn a_store_may_name_the_github_environment_its_oidc_publisher_expects() {
+        // A trusted publisher declared with an environment makes prefix.dev match the token's
+        // `environment` claim. GitHub only puts that claim in a token when the job declares
+        // the environment, so the manifest has to carry the name to the renderer.
+        let text = MINIMAL.replace(
+            "auth = \"oidc\"",
+            "auth = \"oidc\"\nenvironment = \"prefix\"",
+        );
+        let store = &parsed(&text).stores[0];
+        let value = serde_json::to_value(store).expect("store serializes");
+        assert_eq!(value["environment"], serde_json::json!("prefix"));
+    }
+
+    #[test]
+    fn an_empty_store_environment_is_refused() {
+        let text = MINIMAL.replace("auth = \"oidc\"", "auth = \"oidc\"\nenvironment = \" \"");
+        assert_eq!(
+            codes(&problems(&text)),
+            ["manifest.store.environment.empty"]
+        );
+    }
+
+    #[test]
+    fn an_environment_on_a_store_that_does_not_use_oidc_is_a_warning() {
+        let text = MINIMAL.replace(
+            "auth = \"oidc\"",
+            "auth = \"token\"\nsecrets = [\"TOKEN\"]\nenvironment = \"prefix\"",
+        );
+        let diagnostics = findings(&text);
+        assert_eq!(codes(&diagnostics), ["manifest.store.environment.unused"]);
     }
 
     #[test]
