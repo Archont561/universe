@@ -8,7 +8,7 @@
 use reqwest::blocking::Client;
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, HeaderMap, HeaderName, HeaderValue};
 
-use super::{Object, Remote, StoreError, Target, Upload};
+use super::{Kind, Object, Remote, StoreError, Target, Upload};
 
 /// The HTTP method one request uses.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -301,10 +301,25 @@ impl Remote for HttpRemote {
         Ok(Some(Object { sha256, size }))
     }
 
-    fn put(&self, path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+    fn put(&self, path: &str, bytes: &[u8], force: bool) -> Result<(), StoreError> {
         let upload = Upload::new(path, bytes.to_vec());
-        let mut request = Request::new(self.target.kind.method(), self.url_for(&upload)?)
-            .with_body(bytes.to_vec());
+        let url = self.url_for(&upload)?;
+        let url = if force && self.target.kind == Kind::PrefixDev {
+            // prefix.dev defaults to `force=false` and rejects an upload under an occupied
+            // name. Only an explicit `--force` may ask the server to overwrite one.
+            format!("{url}?force=true")
+        } else {
+            url
+        };
+        let mut request = Request::new(self.target.kind.method(), url).with_body(bytes.to_vec());
+        if self.target.kind == Kind::PrefixDev {
+            // prefix.dev's REST upload endpoint reads the file name and digest from headers,
+            // not from the URL, and refuses a body with no declared content type.
+            request = request
+                .with_header("Content-Type", "application/octet-stream")
+                .with_header("X-File-Name", upload.file_name())
+                .with_header("X-File-SHA256", upload.sha256.as_str());
+        }
         if let Some(token) = &self.target.token {
             request = request.with_header(AUTHORIZATION.as_str(), format!("Bearer {token}"));
         }

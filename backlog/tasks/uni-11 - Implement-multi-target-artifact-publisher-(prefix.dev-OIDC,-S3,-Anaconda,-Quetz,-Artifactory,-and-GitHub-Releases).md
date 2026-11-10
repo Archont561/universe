@@ -199,4 +199,11 @@ remained owner-side; see the note below.
   the run stopped before sending the artifact. A red-first wiremock test now pins that a 405
   means the unchanged probe is unavailable and the POST must proceed; the registry decides
   whether it already holds the bytes. `UNI-59` records the run and the re-watch.
+- **The POST then needed the headers the REST endpoint documents.** Run 42900930515 answered
+  `400: Header of type 'content-type' was missing`. prefix.dev's `/api/v1/upload/:channel`
+  requires `Content-Type: application/octet-stream`, `X-File-Name` and `X-File-SHA256` in
+  addition to `Authorization`; `Content-Length` is derived by the client. A red-first wiremock
+  test asserts all three. The same slice translates `--force` into `?force=true` on this
+  endpoint, which the docs say defaults to false and is required to overwrite an occupied
+  name; `force_replaces_a_changed_digest` pins it. `UNI-59` records the re-watch.
 <!-- SECTION:NOTES:END -->

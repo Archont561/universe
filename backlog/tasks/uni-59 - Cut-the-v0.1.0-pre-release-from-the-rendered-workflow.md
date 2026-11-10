@@ -273,4 +273,18 @@ a repository check rather than a release-time computation.
   re-watch after that fix is required before AC#4 can be considered. AC#2, AC#4, AC#5 and
   every DoD box stay open; no `v0.1.0` tag was cut, and `linux-64/repodata.json` on the
   prefix.dev channel still names no `universe-airlock` package.
+- **The next re-watch reached the upload body and found the missing headers.** A
+  `workflow_dispatch` of `release.yml` from `main` at `d2c099c4` (run 42900930515), after the
+  405 fix, again had `publish / build` and `publish / branch` green. `publish / prefix-dev`
+  minted the token, tolerated the 405 probe, and sent the POST; it failed with
+  `publish.store.failed: store 'prefix-dev':
+  https://prefix.dev/api/v1/upload/archont561/archont561: POST answered 400: Header of type
+  'content-type' was missing`. The verdict is red. prefix.dev's REST upload endpoint requires
+  `Content-Type: application/octet-stream`, `X-File-Name` and `X-File-SHA256` besides
+  `Authorization`. A red-first wiremock test now pins those headers, and `--force` is
+  translated into `?force=true` on this endpoint so an occupied name can be overwritten when
+  the caller asks. Another re-watch after that change is required before AC#4 can be
+  considered. AC#2, AC#4, AC#5 and every DoD box stay open; no `v0.1.0` tag was cut, and
+  `linux-64/repodata.json` on the prefix.dev channel still names no `universe-airlock`
+  package.
 <!-- SECTION:NOTES.END -->

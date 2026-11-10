@@ -129,7 +129,7 @@ fn a_path_that_climbs_out_of_the_channel_is_refused() {
     let remote = FilesystemRemote::new(directory.path());
 
     let error = remote
-        .put("../escaped.conda", b"artifact")
+        .put("../escaped.conda", b"artifact", false)
         .expect_err("a climbing path is refused");
 
     assert!(matches!(error, StoreError::Unsupported { .. }));
@@ -149,7 +149,7 @@ fn a_written_artifact_leaves_no_staging_file_behind() {
     let remote = FilesystemRemote::new(directory.path());
 
     remote
-        .put("linux-64/foo-1.0.0-0.conda", b"artifact")
+        .put("linux-64/foo-1.0.0-0.conda", b"artifact", false)
         .expect("the artifact is written");
 
     let names: Vec<String> = fs::read_dir(directory.path().join("linux-64"))
