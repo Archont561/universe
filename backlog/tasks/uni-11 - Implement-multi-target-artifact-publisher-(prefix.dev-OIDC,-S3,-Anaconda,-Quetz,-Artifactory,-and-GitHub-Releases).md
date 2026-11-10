@@ -179,14 +179,24 @@ description. The open items listed above are still open and are not implied by t
   `rustls`; `auth = "oidc"` trusted publishing is what a tag run uses.
 
 `decision-132` limits the checkpoint to two stores — `prefix-dev` and the `branch` static
-channel — and both are exercised. This status does not advance the tag: the prefix.dev trusted
-publisher binding remains the one owner-side prerequisite (`UNI-59`). The branch channel needs
-no stored secret — see the 2026-11-09 correction below.
+channel — and both are exercised. When this status was written the prefix.dev trusted
+publisher binding was the one owner-side prerequisite (`UNI-59`); it has since been configured
+and matched, as the note below records. The branch channel needs no stored secret — see the
+2026-11-09 correction below.
 
 2026-11-09 — correction, recorded as a correction. This note previously named
 `UNIVERSE_CHANNEL_TOKEN` as an owner-side prerequisite. `universe.toml`'s branch store now
 declares the built-in `GITHUB_TOKEN`, which GitHub injects per run; there is no repository
 secret to create or rotate, and the job's `contents: write` is the only permission it needs.
 `decision-127` already says a `GITHUB_TOKEN` with `contents: write` suffices for these public,
-unprotected mirror branches. Only the prefix.dev trusted publisher binding remains owner-side.
+unprotected mirror branches. At that point only the prefix.dev trusted publisher binding
+remained owner-side; see the note below.
+- **A real tag rehearsal exposed a HEAD probe the upload endpoint refuses.** Once the
+  workflow filename and environment matched the channel's trusted publisher, the OIDC token
+  was minted and `publish / prefix-dev` reached the upload. prefix.dev answered 405 to
+  `HEAD /api/v1/upload/archont561/archont561` because that endpoint accepts POST only.
+  `HttpRemote::head` had treated every non-404 non-success status as a transport failure, so
+  the run stopped before sending the artifact. A red-first wiremock test now pins that a 405
+  means the unchanged probe is unavailable and the POST must proceed; the registry decides
+  whether it already holds the bytes. `UNI-59` records the run and the re-watch.
 <!-- SECTION:NOTES:END -->

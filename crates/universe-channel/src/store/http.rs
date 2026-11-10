@@ -276,6 +276,12 @@ impl Remote for HttpRemote {
         if response.status == 404 {
             return Ok(None);
         }
+        // An upload endpoint that accepts only POST answers 405 to HEAD. That is not a
+        // failed publish: it says the cheap unchanged probe is unavailable, so `apply`
+        // sends the artifact and the registry decides whether it already holds it.
+        if response.status == 405 {
+            return Ok(None);
+        }
         if !response.is_success() {
             return Err(StoreError::Transport {
                 url: request.url,

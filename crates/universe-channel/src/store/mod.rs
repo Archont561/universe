@@ -9,7 +9,9 @@
 //!
 //! - **An unchanged file is not re-sent.** A destination that reports the digest it already
 //!   holds compares equal, and the upload is skipped. A retried job then costs a `HEAD` per
-//!   artifact instead of a full transfer.
+//!   artifact instead of a full transfer. An endpoint that answers 405 to `HEAD` does not
+//!   implement the probe at all; the upload proceeds and the registry decides whether it
+//!   already holds the bytes.
 //! - **A changed file under an occupied name is refused, not overwritten.** Two builds of
 //!   `foo-1.0.0-0.conda` in one channel is an index that disagrees with itself. Only `--force`
 //!   asks for the overwrite, and the refusal names both digests.
