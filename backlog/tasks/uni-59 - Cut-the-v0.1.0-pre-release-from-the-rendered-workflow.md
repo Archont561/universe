@@ -186,7 +186,9 @@ a repository check rather than a release-time computation.
   `linux-64/repodata.json` names no `universe-airlock` record, so nothing was uploaded. The
   owner must add a GitHub trusted publisher on that channel for owner `Archont561`, repository
   `universe`, workflow file `universe-publish.yml`, with no environment (the job declares
-  none); `id-token: write` is already rendered. This is configuration, not a code fix.
+  none); `id-token: write` is already rendered. **This sentence is superseded below:** the
+  owner later declared a `prefix` environment and the job now declares it too. The rest of
+  the paragraph still stands. This is configuration, not a code fix.
   Separately, `pixi install --offline` from a local checkout of the channel, asking only for
   `universe-airlock=0.1.0`, failed with `libgcc >=16, for which no candidates were found`. The
   recipe declares no runtime requirements, but rattler-build detects `__glibc >=2.17` and
@@ -220,4 +222,35 @@ a repository check rather than a release-time computation.
   verification in the note above was true of that commit at that time, but a release that pins
   a digest must pin the digest of the exact run that publishes it, not one measured from an
   earlier rehearsal.
+- **The `prefix` environment became a store facet, and the re-watch still failed.** PR #89
+  merged `2d814a3b`: `Store.environment` is validated, `universe.toml` names `prefix` on
+  `prefix-dev`, and `ci-render` emits `environment: prefix` on `publish / prefix-dev` and on
+  no other job. A `workflow_dispatch` of `universe-publish.yml` from `main` at that commit
+  (run 42888243912) had `publish / build` and `publish / branch` green; `publish / prefix-dev`
+  failed again with `publish.store.failed: store 'prefix-dev':
+  https://prefix.dev/api/oidc/mint_token: the token exchange answered 401: Failed to find
+  OIDC publisher: GitHub publisher not found`, so `publish / verdict` is red. The environment
+  claim was necessary but not sufficient. No `v0.1.0` tag was created or pushed.
+- **Correction, recorded as a correction.** The note above says the owner must add a publisher
+  "with no environment (the job declares none)". That is no longer true: the owner declared a
+  `prefix` environment, the rendered job declares it, and the exchange still finds no
+  publisher. The stale requirement is superseded by the measurement below; it is not a
+  description of the current configuration.
+- **The remaining mismatch is the workflow filename, measured rather than guessed.** A
+  temporary diagnostic workflow on the working branch (runs 42889858141, 42890244038 and
+  42890480692) decoded this repository's OIDC identity claims — never the token — and read
+  the channel's registered publishers from prefix.dev's public GraphQL endpoint. The claims
+  carry `aud=prefix.dev`, `environment=prefix`, `repository_owner=Archont561` and
+  `repository=Archont561/universe`; `workflow_ref` and `job_workflow_ref` both name the file
+  that requested the token, so this is not a reusable-workflow mismatch. The channel
+  `archont561/archont561` has 12 GitHub publishers. The only one whose repository is
+  `universe` is `Archont561 / universe / release.yml / environment prefix`. The rendered
+  publish file is `universe-publish.yml`, so no publisher entry matches the token. This is
+  owner-side configuration, not a renderer defect: the trusted publisher for this repository
+  must name `universe-publish.yml` (with environment `prefix`), or the rendered publish file
+  must be renamed to `release.yml`. Until one of those changes, another rerun cannot
+  succeed. The diagnostic workflow was removed and the branch force-pushed back to
+  `2d814a3b`; no diagnostic workflow remains in the repository. AC#2, AC#4, AC#5 and every
+  DoD box stay open, and `linux-64/repodata.json` on the prefix.dev channel still names no
+  `universe-airlock` package.
 <!-- SECTION:NOTES.END -->
