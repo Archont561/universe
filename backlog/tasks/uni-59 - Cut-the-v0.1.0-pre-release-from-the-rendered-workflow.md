@@ -354,24 +354,42 @@ a repository check rather than a release-time computation.
   every destination to be rewritten. The re-watch below is the evidence that the releases and
   branch destinations accepted the changed digest while prefix.dev did not. AC#2, AC#4, AC#5
   and every DoD box stay open. No `v0.1.0` tag was cut.
-- **The forced re-watch is red because prefix.dev needs a broader owner-side permission.**
-  After PR #97 merged `f86617cf`, `workflow_dispatch` run `42920755513` from `main` had green
-  `publish / build`, `publish / releases` and `publish / branch` jobs. `publish / prefix-dev`
-  failed with `publish.store.failed: store 'prefix-dev':
+- **Attempt 1 of the forced re-watch is red because prefix.dev needs a broader owner-side
+  permission.** After PR #97 merged `f86617cf`, `workflow_dispatch` run `42920755513` from
+  `main` had green `publish / build`, `publish / releases` and `publish / branch` jobs.
+  `publish / prefix-dev` failed with `publish.store.failed: store 'prefix-dev':
   https://prefix.dev/api/v1/upload/archont561/archont561?force=true: POST answered 403: Not
-  authorized`, so `publish / verdict` is red. The URL proves `--force` reached the endpoint.
-  The GitHub Release asset `universe-airlock-0.1.0-h41f06ac_0.conda` was replaced at
-  `2026-11-10T23:09:58Z` with sha256
+  authorized`, so attempt 1's `publish / verdict` was red. The URL proves `--force` reached
+  the endpoint. The GitHub Release asset `universe-airlock-0.1.0-h41f06ac_0.conda` was
+  replaced at `2026-11-10T23:09:58Z` with sha256
   `17337dbb208182060e4ccd002473ae0bf64482a1b0fe3813585124569a982ec8`, size 298582; the
   `channel` branch at `1a93b8df91bbbc736ec7a154b08a5c4434411d7d` carries the same digest and
-  size in `linux-64/repodata.json`. prefix.dev did not accept this run's bytes, so its earlier
-  `b148b2152d4c096c24264f5e1c8f40419053c4d51a5f81f97c289efa9b95e0f8` variant remains and
-  all-three-destination digest parity is not proven.
+  size in `linux-64/repodata.json`. prefix.dev did not accept attempt 1's bytes, so its earlier
+  `b148b2152d4c096c24264f5e1c8f40419053c4d51a5f81f97c289efa9b95e0f8` variant remained.
   `https://prefix.dev/docs/prefix/api` states that `force=true` needs a scoped key with
   read/write/delete, and gives the same read-write-delete mode to a Repository Access entry
   for force-replacing an existing filename. The `Archont561 / universe / release.yml /
   environment prefix` publisher is consistent with a read/write entry that can upload a new
-  filename but cannot force-replace one. The renderer change is correct and complete; the
-  remaining action is owner-side. AC#2, AC#4 (including the offline-solve half), AC#5 and all
+  filename but cannot force-replace one.
+- **Attempt 2 is green after the owner removed the occupied prefix.dev variant manually.**
+  The owner deleted the old `universe-airlock` variant from prefix.dev and reran the failed
+  jobs of run `42920755513`; its `run_attempt` is 2 and its conclusion is `success` at
+  `2026-11-10T23:23:11Z`. The rerun's `publish / prefix-dev` job downloaded artifact
+  `13811507086` with expected digest
+  `sha256:4f050f05a7de76ac3433fcfd7e7fa1c64d95ca784306d913026efd16548a07ff` and reported
+  `"ok":true`, `"force":true`, `"bytes":298582`, and
+  `"uploaded":["linux-64/universe-airlock-0.1.0-h41f06ac_0.conda"]`; `publish / verdict`
+  saw `build`, `prefix-dev`, `branch`, and `releases` all `success`.
+  The build job's audit fragment pins the package at sha256
+  `17337dbb208182060e4ccd002473ae0bf64482a1b0fe3813585124569a982ec8`, size 298582, and the
+  same package bytes are read back from the GitHub Release asset and the `channel` branch at
+  `1a93b8df91bbbc736ec7a154b08a5c4434411d7d`. All three publish jobs consumed the same
+  artifact (`sha256:4f050f05a7de76ac3433fcfd7e7fa1c64d95ca784306d913026efd16548a07ff`), so
+  the three destinations received one digest. prefix.dev's public repodata still serves the
+  older index; a package API read-back is not recorded here. This proves a clean prefix.dev
+  channel accepts the forced upload. It does **not** prove that the current Repository Access
+  entry can force-replace an occupied filename, and it does not fix the non-reproducible
+  build. `decision-126`, `decision-132`, `UNI-11`, and the prose docs record the correction.
+  AC#2, AC#4 (including the offline-solve half and a fresh prefix.dev read-back), AC#5 and all
   DoD boxes remain open. No `v0.1.0` tag was cut.
 <!-- SECTION:NOTES.END -->

@@ -231,6 +231,8 @@ remained owner-side; see the note below.
   records this as a scoped reversal of the no-overwrite release semantics. Run `42920755513`
   proved the GitHub Release and branch stores accept the changed digest, but prefix.dev
   answered `403 Not authorized` on `?force=true`. `https://prefix.dev/docs/prefix/api` says
-  force-replacing requires a read-write-delete Repository Access entry; the remaining action
-  is owner-side. The renderer slice is complete, and the build is still not reproducible.
+  force-replacing requires a read-write-delete Repository Access entry. The owner then removed
+  the occupied variant manually and reran the failed jobs; attempt 2 of run `42920755513` is
+  green. That proves a clean channel accepts the forced upload, not force-replace permission.
+  The renderer slice is complete, and the build is still not reproducible.
 <!-- SECTION:NOTES:END -->

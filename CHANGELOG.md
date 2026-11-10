@@ -9,9 +9,15 @@ All notable changes to Universe are recorded here.
   changed digest. The branch store is unchanged. `decision-132` records this as a scoped
   reversal of the no-overwrite release semantics; it does not make the build reproducible.
   prefix.dev accepts `?force=true` only from a Repository Access entry with read-write-delete.
-- Run `42920755513` replaced the GitHub Release asset and the branch snapshot, but prefix.dev
-  answered `403 Not authorized` on the forced upload and the publish verdict stayed red. The
-  owner-side permission, not the rendered command, is the remaining blocker.
+- Run `42920755513` attempt 1 answered `403 Not authorized` on the forced prefix.dev upload.
+  The owner removed the occupied package variant manually and reran the failed jobs; attempt 2
+  uploaded the same artifact and `publish / verdict` is green. This does not prove that the
+  current Repository Access entry can force-replace an occupied filename.
+- All three publish jobs consumed one artifact (`sha256:4f050f05a7de76ac3433fcfd7e7fa1c64d95ca784306d913026efd16548a07ff`)
+  whose audit fragment pins the package at `sha256:17337dbb208182060e4ccd002473ae0bf64482a1b0fe3813585124569a982ec8`,
+  size 298582. The GitHub Release asset and branch repodata read back with that digest; the
+  prefix.dev upload reported 298582 bytes. The public repodata still serves an older index, so
+  a package API read-back remains to be recorded.
 
 ## 0.1.0
 

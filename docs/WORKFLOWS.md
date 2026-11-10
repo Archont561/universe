@@ -45,8 +45,10 @@ Six things are worth noticing, because they are the design:
   is asked to accept the upload with `?force=true` and the rolling release replaces its asset.
   This is a scoped reversal of the no-overwrite release semantics, recorded in `decision-132`;
   it does not make the build reproducible. prefix.dev grants force-replacing only to a
-  Repository Access entry with read-write-delete; run `42920755513` received `403 Not
-  authorized` until that owner-side permission is granted. `publish --store branch` takes no
+  Repository Access entry with read-write-delete. Run `42920755513` attempt 1 received `403
+  Not authorized`; the owner removed the occupied variant manually and reran the failed jobs,
+  so attempt 2 is green. This does not prove force-replacing an occupied name with the current
+  entry. `publish --store branch` takes no
   `--force`, because it already replaces one snapshot tree.
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
