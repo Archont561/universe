@@ -561,6 +561,13 @@ fn later_jobs_download(project: &Project) {
     for file in ["universe.yml", "universe-publish.yml"] {
         let text = project.workflow(file);
         for (name, body) in job_blocks(&text) {
+            // A job that uploads the artifact produced its own bytes; it has nothing to
+            // download. The publish build also audits, because its publishers read the
+            // fragments from that artifact, so treating every `audit --json` as a consumer
+            // would fail the build for uploading instead of downloading.
+            if body.contains("actions/upload-artifact@") {
+                continue;
+            }
             let consumes = body.contains("audit --json")
                 || body.contains("verify --artifact")
                 || body.contains("publish-artifacts --store")
@@ -578,6 +585,34 @@ fn later_jobs_download(project: &Project) {
     assert!(
         checked >= 3,
         "only {checked} consuming jobs were found, so this scenario proved little"
+    );
+}
+
+#[then("the publish build writes fragments into the artifact before uploading it")]
+fn publish_build_writes_fragments_before_upload(project: &Project) {
+    // The written file is the seam a maintainer sees. `channel.fragment.none` in the
+    // `v0.1.0-rc1` rehearsal came from a build that uploaded `output/` without ever
+    // running the audit that writes `output/fragments`.
+    let publish = project.workflow("universe-publish.yml");
+    let build = job_blocks(&publish)
+        .into_iter()
+        .find(|(name, _)| name == "build")
+        .expect("the publish file has a build job")
+        .1;
+    let audit = "audit --json --emit-fragment output/fragments";
+    let audit_at = build
+        .find(audit)
+        .unwrap_or_else(|| panic!("the build emits no fragments:\n{build}"));
+    let upload_at = build
+        .find("actions/upload-artifact@")
+        .expect("the build uploads an artifact");
+    assert!(
+        audit_at < upload_at,
+        "the artifact is uploaded before the fragments exist:\n{build}"
+    );
+    assert!(
+        build.contains("path: output"),
+        "the fragments are not written inside the uploaded directory:\n{build}"
     );
 }
 
@@ -767,6 +802,14 @@ fn every_command_goes_through_the_pixi_task(project: Project) {
     name = "A build's artifacts reach the jobs that audit and publish them"
 )]
 fn artifacts_reach_the_jobs_that_need_them(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "features/render.feature",
+    name = "A publish build emits the fragments its publishers read"
+)]
+fn publish_build_emits_fragments(project: Project) {
     let _ = project;
 }
 

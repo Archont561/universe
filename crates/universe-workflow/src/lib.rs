@@ -469,26 +469,39 @@ fn verb(arguments: &str) -> String {
 /// different workflow run: `actions/download-artifact` only sees its own run, and a release
 /// that depends on another run's retention is a release that can fail for a reason nobody
 /// changed. A rebuild costs minutes on the one run where being self-contained matters.
-fn build_job(manifest: &Manifest, workflow: &str) -> Job {
-    checkout_and_pixi(
-        Job::new("build", workflow, Vec::new())
-            .with_timeout(25)
-            .with_matrix("platform", manifest.project.platforms.clone())
-            .with_step(Step::Run {
-                label: "Build the declared packages".to_owned(),
-                command: verb(&format!(
-                    "build --json --receipts {ARTIFACT_PATH}/.receipts"
-                )),
-            })
-            .with_step(Step::uses_with(
-                universe_assets::UPLOAD_ARTIFACT,
-                &[
-                    ("name", ARTIFACT_NAME),
-                    ("path", ARTIFACT_PATH),
-                    ("if-no-files-found", "error"),
-                ],
+///
+/// `emit_fragments` is the difference between the two files. The main file audits in its own
+/// job and keeps the findings there; the publish file has no audit job, and its publishers
+/// read `output/fragments` from the artifact they download. Writing the fragments in the
+/// build, before the upload, is the only way they reach those jobs — the `v0.1.0-rc1`
+/// rehearsal failed both publishes with `channel.fragment.none` because receipts travelled
+/// and fragments did not.
+fn build_job(manifest: &Manifest, workflow: &str, emit_fragments: bool) -> Job {
+    let mut job = Job::new("build", workflow, Vec::new())
+        .with_timeout(25)
+        .with_matrix("platform", manifest.project.platforms.clone())
+        .with_step(Step::Run {
+            label: "Build the declared packages".to_owned(),
+            command: verb(&format!(
+                "build --json --receipts {ARTIFACT_PATH}/.receipts"
             )),
-    )
+        });
+    if emit_fragments {
+        job = job.with_step(Step::Run {
+            label: "Audit the built artifacts".to_owned(),
+            command: verb(&format!(
+                "audit --json --emit-fragment {ARTIFACT_PATH}/fragments"
+            )),
+        });
+    }
+    checkout_and_pixi(job.with_step(Step::uses_with(
+        universe_assets::UPLOAD_ARTIFACT,
+        &[
+            ("name", ARTIFACT_NAME),
+            ("path", ARTIFACT_PATH),
+            ("if-no-files-found", "error"),
+        ],
+    )))
 }
 
 fn main_jobs(manifest: &Manifest) -> Vec<Job> {
@@ -518,7 +531,7 @@ fn main_jobs(manifest: &Manifest) -> Vec<Job> {
     }
     validate = checkout_and_pixi(validate);
 
-    let build = build_job(manifest, "universe");
+    let build = build_job(manifest, "universe", false);
 
     let audit = checkout_and_pixi(
         Job::new("audit", "universe", vec!["build".to_owned()])
@@ -570,7 +583,7 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
     // *its own* run, so a publish job that downloads `universe-*` while this workflow has no
     // build of its own finds nothing — which is what the first tag would have done, silently:
     // a green pipeline that published no artifact.
-    let mut jobs = vec![build_job(manifest, "publish")];
+    let mut jobs = vec![build_job(manifest, "publish", true)];
     let mut publishes_anonymously = false;
 
     for store in manifest.stores.iter().filter(|store| store.writable) {
@@ -892,8 +905,8 @@ pub fn has_static_surface(kind: PackageKind) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        AIRLOCK_FILE, MAIN_FILE, PUBLISH_FILE, RenderError, VERSION, derived_files, render, sha256,
-        to_identifier,
+        AIRLOCK_FILE, ARTIFACT_PATH, MAIN_FILE, PUBLISH_FILE, RenderError, VERSION, derived_files,
+        render, sha256, to_identifier,
     };
     use universe_core::manifest::Manifest;
 
@@ -1228,6 +1241,47 @@ format = "cargo fmt --check"
             .nth(1)
             .expect("the verdict job");
         assert!(verdict.contains("build"));
+    }
+
+    #[test]
+    fn the_publish_build_emits_fragments_before_it_uploads_them() {
+        // The `v0.1.0-rc1` rehearsal failed with `channel.fragment.none` in both publish
+        // jobs. `universe.yml` audits in a separate job and keeps its findings there; the
+        // publish file never audited at all, so its artifact held receipts but no
+        // fragments. A publisher reads `output/fragments` from the artifact it downloads,
+        // so the publish build has to write them before it uploads `output/`.
+        let rendered = render(&manifest(), MANIFEST).expect("renders");
+        let publish = &rendered
+            .files
+            .iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+        let build = publish
+            .split("name: publish / conda-prefix")
+            .next()
+            .expect("the build job precedes the stores");
+
+        let audit = format!("audit --json --emit-fragment {ARTIFACT_PATH}/fragments");
+        let audit_at = build.find(&audit).unwrap_or_else(|| {
+            panic!("the publish build emits no fragments into the uploaded tree:\n{build}")
+        });
+        let upload_at = build
+            .find("actions/upload-artifact@")
+            .expect("the publish build uploads an artifact");
+        assert!(
+            audit_at < upload_at,
+            "fragments are written after the upload, so no publisher can read them:\n{build}"
+        );
+        assert!(
+            build.contains(&format!("path: {ARTIFACT_PATH}")),
+            "the uploaded directory is not the one the audit wrote into:\n{build}"
+        );
+
+        // This is a publish-file defect. The validation workflow keeps its own audit job
+        // rather than auditing twice inside the build.
+        let main = &rendered.files[0].content;
+        assert!(main.contains("name: universe / audit"));
     }
 
     #[test]

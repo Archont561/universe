@@ -149,4 +149,20 @@ a repository check rather than a release-time computation.
   all six surfaces are *enumerated* in a dedicated section; whether the prose beside each
   one is truthful stays a review question, which is why the section is a table a reviewer
   can read rather than a hidden field.
+- **2026-11-10 — a real release rehearsal, and the defect it found.** An annotated
+  `v0.1.0-rc1` tag was pushed from `4d387a74` to exercise the rendered workflows without
+  creating the release tag. `universe` (#42859692699) finished green, but `universe publish`
+  (#42859692446) failed: `publish / build` succeeded, then both `publish / branch` and
+  `publish / prefix-dev` stopped at the local check with
+  `channel.fragment.none: no fragments under ./output/fragments; run universe audit
+  --emit-fragment first`. No channel branch was pushed and nothing was uploaded, so the
+  prefix.dev trusted-publisher binding remains unproven. The cause is a renderer gap of the
+  same family as PR #74: `build_job` built and uploaded `output/`, while the only
+  `audit --emit-fragment` step lives in `universe.yml`'s separate audit job, whose fragments
+  never enter the publish run's artifact. A red-first renderer test now pins that the publish
+  build writes `output/fragments` **before** `actions/upload-artifact`, and the renderer emits
+  that step for the publish file only; `universe.yml` keeps its own audit job. Generated
+  workflows were re-rendered with `ci-render`. AC#2, AC#4, AC#5 and all DoD boxes stay open:
+  a second rehearsal from a commit containing the fix is still needed before any `v0.1.0`
+  tag, and `v0.1.0-rc1` stays on the remote as the evidence of the failure.
 <!-- SECTION:NOTES.END -->
