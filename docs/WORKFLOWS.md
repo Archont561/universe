@@ -39,6 +39,13 @@ Six things are worth noticing, because they are the design:
   with `release = true` without the package naming it; `release = false` opts out. The job
   holds `contents: write` and exports the store's `GITHUB_TOKEN`, and the rolling release is
   named `<tag_prefix>-<subdir>` (`packages-linux-64` by default).
+- **The `v0.1.0` artifact stores are allowed to replace changed bytes.** A rebuild can occupy
+  the same package filename with a different digest. The renderer adds `--force` to the
+  `publish-artifacts` commands for `prefix-dev` and `releases` stores, so the hosted channel
+  accepts the upload with `?force=true` and the rolling release replaces its asset. This is a
+  scoped reversal of the no-overwrite release semantics, recorded in `decision-132`; it does
+  not make the build reproducible. `publish --store branch` takes no `--force`, because it
+  already replaces one snapshot tree.
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.

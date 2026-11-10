@@ -109,6 +109,25 @@ carried a different digest. That is the non-reproducible-artifact defect already
 read as a green end-to-end release: the third destination exists and published, while the
 checkpoint's two-destination parity and offline-solve criteria remain open.
 
+## Amendment: the rendered artifact uploads overwrite a changed digest
+
+The owner chose `--force` for `prefix-dev` and `releases` after the first re-watch failed with
+a 409: a rebuild of `universe-airlock-0.1.0-h41f06ac_0.conda` carried a different digest under
+the same filename, and the hosted channel refused it. A later run would also have been refused
+by the rolling GitHub Release asset.
+
+**This is a reversal, and is recorded as a reversal.** Invariant 3 of `decision-126` says a
+second publish of one `(release-id, target)` is an error rather than an overwrite, and the
+`publish-artifacts` CLI still refuses a changed digest unless `--force` is given. For the
+`v0.1.0` rendered publish lane only, `ci render` now adds that flag to the `publish-artifacts`
+commands of `prefix-dev` and `releases` stores: prefix.dev receives `?force=true`, and the
+rolling release deletes and re-uploads the occupied asset. `publish --store branch` is
+unchanged; it replaces one snapshot tree and takes no overwrite flag. This does not amend the
+`universe release` journal semantics, does not fix the non-reproducible-artifact defect, and
+does not supersede the v1 gate in `decision-119`. A green verdict proves that one run's three
+destinations agree on one digest; it does not prove that every rebuild produces those bytes.
+No `v0.1.0` tag is cut by this amendment. `UNI-59` records the re-watch.
+
 ## Consequences
 
 - The v1 gate continues to require all six surfaces; `v0.1.0` is a checkpoint on the Conda

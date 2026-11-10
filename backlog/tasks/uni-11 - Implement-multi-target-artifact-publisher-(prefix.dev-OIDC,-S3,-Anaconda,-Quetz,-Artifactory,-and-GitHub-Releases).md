@@ -225,6 +225,9 @@ remained owner-side; see the note below.
   sha256 `dfc08b401414baebe182ad9a5971673d915d82bdd8ac4c9bb0b81adcb355e2b6`, size 298585.
   The same bytes are in the `channel` branch at `aa853bdb`. The overall verdict is red only
   because `publish / prefix-dev` refused a changed digest with 409; see `UNI-59` for the
-  non-reproducibility note. A later re-watch would need `--force` or reproducible bytes
-  before either artifact store accepts a rebuild.
+  non-reproducibility note. The owner chose `--force`: the renderer now adds it to the
+  `prefix-dev` and `releases` `publish-artifacts` commands so a later run replaces the changed
+  digest, and leaves `publish --store branch` alone. `decision-132` records this as a scoped
+  reversal of the no-overwrite release semantics. It unblocks the re-watch without making the
+  build reproducible.
 <!-- SECTION:NOTES:END -->

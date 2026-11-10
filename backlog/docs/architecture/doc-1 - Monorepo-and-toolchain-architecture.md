@@ -245,6 +245,7 @@ packager of our own.
    - `publish-prefix`: runs in `environment: prefix` (`id-token: write`, `contents: read`), publishing all 4 `.conda` packages via `rattler-build upload prefix -c archont561 "$pkg" --generate-attestation`.
    - `publish-github`: attaches `.conda` files, standalone archives, and `SHA256SUMS` to the GitHub Release (`contents: write`). This release is the **origin** every other destination fetches from.
    - Every destination is mandatory, publication is journaled and resumable, and a repeated publish of the same destination is an error rather than an overwrite (`decision-126`).
+   - **Status note: the `v0.1.0` checkpoint is narrower than this v1 lane.** Its rendered `release.yml` publishes one `linux-64` package to three destinations and, as a recorded reversal in `decision-132`, passes `--force` on `prefix-dev` and `releases` artifact uploads so a later run can replace a changed digest. The journal and no-overwrite invariant above still govern the integrated v1 lane; the checkpoint does not implement them.
    - `verify-artifact` proves each built artifact installs and passes its smoke commands in a clean environment; `verify-index` proves the published copy matches the built digest.
 
 ## Planned release-governance and supply-chain hardening (`decision-10`)

@@ -463,6 +463,19 @@ const fn publish_verb(kind: StoreKind) -> Option<&'static str> {
     }
 }
 
+/// Whether a rendered artifact upload asks its destination to overwrite a changed digest.
+///
+/// The two kinds this returns are the `v0.1.0` destinations that keep bytes at a filename a
+/// rebuild can occupy again. A dispatch of a non-reproducible build then changes the digest
+/// without changing the name; the registry and the rolling release both refuse that upload
+/// unless `--force` is rendered into their command. This is a deliberate reversal of the
+/// no-overwrite release semantics for the pre-release publish lane, not a fix for the
+/// reproducibility defect and not a general licence to rewrite every destination. The branch
+/// verb already replaces one snapshot tree and takes no overwrite flag.
+const fn overwrites_changed_digest(kind: StoreKind) -> bool {
+    matches!(kind, StoreKind::PrefixDev | StoreKind::Releases)
+}
+
 /// The remote a rendered branch publish pushes to.
 ///
 /// The manifest names the store, not its URL: for a branch store the remote *is* the
@@ -646,6 +659,8 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         // a registry store is uploaded to, and names nothing beyond itself.
         let arguments = if publish == "publish" {
             format!("publish --store {} --remote {BRANCH_REMOTE}", store.name)
+        } else if overwrites_changed_digest(store.kind) {
+            format!("publish-artifacts --store {} --force", store.name)
         } else {
             format!("publish-artifacts --store {}", store.name)
         };
@@ -1005,6 +1020,50 @@ command = ["cargo", "build"]
 outputs = ["output/**/*.conda"]
 smoke = ["example-airlock --version"]
 publish = []
+
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "someone/example"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
+"#;
+
+    /// The three `v0.1.0` destinations, spelled as this repository spells them.
+    const THREE_STORES: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+repository = "https://github.com/someone/example"
+
+[[packages]]
+name = "example-airlock"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-airlock --version"]
+publish = ["prefix-dev", "branch"]
+release = true
+
+[[stores]]
+name = "prefix-dev"
+kind = "prefix-dev"
+channel = "someone/channel"
+writable = true
+auth = "oidc"
+verifier = "registry"
+
+[[stores]]
+name = "branch"
+kind = "branch"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "file"
 
 [[stores]]
 name = "releases"
@@ -1425,8 +1484,9 @@ verifier = "registry"
             .next()
             .expect("the releases job's body");
         assert!(
-            releases
-                .contains("publish-artifacts --store releases --package example-airlock --json"),
+            releases.contains(
+                "publish-artifacts --store releases --force --package example-airlock --json"
+            ),
             "the releases job publishes no package:\n{releases}"
         );
         assert!(
@@ -1436,6 +1496,83 @@ verifier = "registry"
         assert!(
             releases.contains("RELEASES_GITHUB_TOKEN"),
             "the job does not export the store's token:\n{releases}"
+        );
+    }
+
+    #[test]
+    fn artifact_stores_ask_to_overwrite_a_changed_digest() {
+        // A rebuilt `.conda` under an occupied name carries a different sha256. prefix.dev
+        // and GitHub Releases both refuse a changed digest unless the job passes `--force`;
+        // the branch store pushes a snapshot and does not take that flag.
+        let manifest = manifest();
+        let rendered = render(&manifest, MANIFEST).expect("renders");
+        let publish = &rendered
+            .files
+            .iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+        assert!(
+            publish.contains(
+                "publish-artifacts --store conda-prefix --force --package example-airlock --json"
+            ),
+            "the hosted job does not ask to overwrite a changed digest:\n{publish}"
+        );
+        let static_job = publish
+            .split("name: publish / conda-static")
+            .nth(1)
+            .expect("the static store's job")
+            .split("name: publish /")
+            .next()
+            .expect("the static job's body");
+        assert!(
+            !static_job.contains("--force"),
+            "a snapshot push must not be given an overwrite flag:\n{static_job}"
+        );
+    }
+
+    #[test]
+    fn the_three_release_destinations_force_only_the_two_artifact_stores() {
+        // The owner chose `--force` for `prefix-dev` and `releases` after a rebuilt
+        // artifact occupied the same name with a different digest. The branch store's
+        // `publish` verb is a whole-snapshot push and does not accept that flag.
+        let manifest = Manifest::from_toml(THREE_STORES).expect("the manifest parses");
+        let rendered = render(&manifest, THREE_STORES).expect("renders");
+        let publish = &rendered
+            .files
+            .iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+        let job = |name: &str| {
+            publish
+                .split(&format!("name: publish / {name}"))
+                .nth(1)
+                .unwrap_or_else(|| panic!("no {name} job:\n{publish}"))
+                .split("name: publish /")
+                .next()
+                .expect("a job body")
+        };
+        assert!(
+            job("prefix-dev").contains(
+                "publish-artifacts --store prefix-dev --force --package example-airlock --json"
+            ),
+            "the hosted channel does not overwrite a changed digest:\n{publish}"
+        );
+        assert!(
+            job("releases").contains(
+                "publish-artifacts --store releases --force --package example-airlock --json"
+            ),
+            "the GitHub Release does not overwrite a changed digest:\n{publish}"
+        );
+        let branch = job("branch");
+        assert!(
+            branch.contains("publish --store branch --remote"),
+            "the branch store does not push its snapshot:\n{branch}"
+        );
+        assert!(
+            !branch.contains("--force"),
+            "a branch push was given an artifact-store overwrite flag:\n{branch}"
         );
     }
 

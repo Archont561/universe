@@ -676,8 +676,10 @@ fn the_releases_job_publishes_the_package(project: &Project) {
         .1
         .clone();
     assert!(
-        releases.contains("publish-artifacts --store releases --package universe-airlock --json"),
-        "the releases job publishes no package:\n{releases}"
+        releases.contains(
+            "publish-artifacts --store releases --force --package universe-airlock --json"
+        ),
+        "the releases job publishes no package with overwrite enabled:\n{releases}"
     );
     assert!(
         releases.contains("RELEASES_GITHUB_TOKEN"),
