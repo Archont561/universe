@@ -23,6 +23,12 @@ type: feature
 ordinal: 6000
 ---
 
+> **2026-11-10 — status note.** `decision-140` (proposed) replaces the SvelteKit SSG output
+> with Universe-owned Fumadocs UI source embedded in `crates/universe-assets` and built in a
+> docs job. Criterion 3 below would then mean "embeds the source tree with a freshness check",
+> and the subpath E2E promise of criterion 2 has to be re-proven against a Fumadocs export.
+> This task stays open, unmodified, until the decision is accepted; see `UNI-73`.
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

@@ -18,6 +18,15 @@ tags:
 
 ## Status
 
+**2026-11-10 — correction, recorded as a correction.** The channel and JSON-registry halves of
+this specification are unchanged. Its SvelteKit 3 + Svelte 5 + UnoCSS architecture, the
+`packages/__pkg__/` template route, and `lol_html` hydration describe `decision-6`, whose
+direction `decision-140` (proposed) reverses in favour of a pinned Fumadocs UI build with
+Universe-owned source embedded as assets and TypeScript loaders reading the emitted registry.
+Until that decision is accepted, this remains the approved specification; the arbitrary-depth
+relative-URL and zero-Node-runtime requirements are the bar the replacement must still meet.
+`UNI-73` holds the first slice.
+
 Approved specification for the static Conda channel plus browsable portal output, the Rust <-> TypeScript schema contract, and the `@universe/portal` SvelteKit 3 + Svelte 5 + UnoCSS architecture (`decision-4`, `decision-5`, `decision-6`, `decision-7`). Its delivery/release sequencing is amended by decision-119: the portal and standard static Conda channel are both required for the integrated v1, alongside Cargo, Python-wheel, and npm protocol surfaces and Airlock consumption.
 
 **V1 distribution invariant:** a portal is not a registry. It is generated from a pinned catalog snapshot and verified GitHub Release metadata/assets. Conda clients must be served package binaries and metadata at standard channel/subdirectory paths; release download links alone are insufficient. The other native adapters similarly publish their protocol-compatible indexes/metadata and artifacts. See doc-111 for the full package layout and release flow. The earlier headless `v0.1.0` / portal `v0.2.0` split in decision-11 is superseded.
