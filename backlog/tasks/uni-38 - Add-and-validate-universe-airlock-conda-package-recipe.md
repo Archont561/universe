@@ -27,7 +27,7 @@ A co-located `crates/universe-airlock/recipe/recipe.yaml` and platform variant f
 <!-- AC:BEGIN -->
 - [ ] #1 The recipe builds `universe-airlock` from the locked workspace for every supported native target and installs only the Airlock executable.
 - [x] #2 Conda package tests verify the version contract and representative offline-consumer behavior; runtime requirements do not add producer/build/network tooling.
-- [ ] #3 Recipe version and package identity are checked against the Cargo workspace and pass repository gates.
+- [x] #3 Recipe version and package identity are checked against the Cargo workspace and pass repository gates. — 2026-11-09: `scripts/repo_check.py` already compared `context.version` with `[workspace.package].version`; it now also compares the recipe's `package.name` with the crate's own `Cargo.toml` `package.name`. `test_a_recipe_name_must_agree_with_its_crate_manifest` is red without the second comparison, and `pixi run repo-check` is green.
 - [ ] #4 Release CI builds, tests, and publishes the Airlock package independently from `universe-kit` and the bootstrap artifact.
 <!-- AC:END -->
 
@@ -52,4 +52,12 @@ AC#1 (every supported native target) remains open and is out of scope for the ch
 `decision-132` makes `v0.1.0` `linux-64` only. AC#4 (independent release CI) is likewise a
 release-lane task. The flags in `universe.toml` that gate `universe-kit`'s verify verbs stay
 off; they are not this consumer's verb.
+
+2026-11-09 — AC#3 is ticked, and the reason it was open is recorded. The existing recipe
+check compared `package.name` against a hardcoded crate-directory name, which is not the
+Cargo workspace's identity; a recipe could agree with the directory and still name a package
+the crate manifest does not declare. The check now reads `crates/<name>/Cargo.toml` itself.
+`crates/universe-cli` is deliberately outside that loop: its recipe names the `universe`
+facade rather than the crate, and the existing facade check already handles it. AC#1 (every
+native target) and AC#4 (independent release CI) stay open for the reasons above.
 <!-- NOTES.END -->

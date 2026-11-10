@@ -4,7 +4,7 @@ title: Cut the v0.1.0 pre-release from the rendered workflow
 status: To Do
 assignee: []
 created_date: '2026-11-01'
-updated_date: '2026-11-01'
+updated_date: '2026-11-09'
 labels:
   - release
   - airlock
@@ -48,12 +48,12 @@ a repository check rather than a release-time computation.
 
 ## Acceptance Criteria
 <!-- AC.BEGIN -->
-- [ ] #1 The workspace version, the `universe-airlock` recipe version, and the changelog's top section agree on `0.1.0`, and the existing parity check is what proves it rather than a manual reading.
+- [x] #1 The workspace version, the `universe-airlock` recipe version, and the changelog's top section agree on `0.1.0`, and the existing parity check is what proves it rather than a manual reading. — 2026-11-09: `CHANGELOG.md` has a `## 0.1.0` section whose body says pre-release and `scripts/repo_check.py::validate_release_version` compares its first versioned heading with `Cargo.toml` and the recipe; `pixi run repo-check` is green.
 - [ ] #2 The `v0.1.0` tag is cut from a commit whose full gate run is green, and the tag is annotated with the same message the release notes open with.
 - [ ] #3 Release notes state the pre-release status and the `linux-64`-only scope, name what `universe-airlock` actually does at this tag (verify, restore, version), and claim none of `decision-119`'s six v1 surfaces.
 - [ ] #4 Both destinations are verified after the run: the branch channel solves for `universe-airlock=0.1.0` from a local checkout with network denied, and the prefix.dev channel resolves the same artifact by digest.
 - [ ] #5 A clean container with only Git and Pixi runs the rendered restore entrypoint against the tag and prints `universe-airlock version`; the transcript is recorded in this task's notes, with the container image named.
-- [ ] #6 A repository check fails if the changelog's top section and the tag disagree, so the next release cannot drift by memory.
+- [x] #6 A repository check fails if the changelog's top section and the tag disagree, so the next release cannot drift by memory. — 2026-11-09: a temporary local `v0.2.0` tag made `pixi run repo-check` exit 1 naming both values; the tag was removed and the check returned to green.
 <!-- AC.END -->
 
 ## Definition of Done
@@ -99,4 +99,28 @@ a repository check rather than a release-time computation.
   be created. The prefix.dev trusted publisher binding (OIDC) is still owner-side and is still
   unproven by the loopback rehearsal above. `decision-127` records why the built-in token is
   sufficient and when a future ruleset would change that answer.
+- **2026-11-09 — release version parity is in the repository check; no tag was cut.**
+  `CHANGELOG.md` now carries `## 0.1.0`, stating the `decision-132` checkpoint,
+  the `linux-64`-only scope, and that Cargo, Python wheels, npm, the portal, the facade and
+  other platforms remain out of scope. The scaffold entries moved under it; `## Unreleased`
+  stays above, empty. `scripts/repo_check.py` gained `validate_release_version`, which reads
+  the first **versioned** `##` heading (so `Unreleased` is not read as a release), compares it
+  with `[workspace.package].version` and with the recipe's `context.version`, and compares the
+  highest `v*` tag when one exists. Two readings the criteria left open are now decisions:
+  "top section" means the first versioned section, and a checkout with no tags is not an error
+  (`git tag -l` is empty here). A failing `git tag --list` is reported rather than treated as
+  "no tags". `tags` is injectable so the fixture tests need no Git repository.
+  Four tests in `scripts/tests/test_repo_check.py` were each red before green; `pixi run
+  gates` passes. AC#3 stays open: the changelog supplies the wording, but the release notes
+  and the annotated tag message are written with the tag in AC#2.
+- **2026-11-09 — correction, recorded as a correction.** The first version of this slice
+  wrote `## 0.1.0 (pre-release)`. The rendered `universe / validate` job failed in CI with
+  `lint.version.changelog: no CHANGELOG.md section for version 0.1.0`: `universe lint`
+  requires the released heading to equal the workspace version exactly, while the new Python
+  check extracted a version out of a suffixed heading and was happy. Local `gates` does not
+  run that verb, so the two checkers could disagree without anything local failing. The
+  heading is now `## 0.1.0` with the pre-release status stated in its body, and
+  `changelog_version` returns the heading itself rather than a parsed substring, so
+  `repo-check` reaches the same verdict as the CI job. A fourth red-before-green test pins
+  that contract. This changes no scope and no acceptance criterion.
 <!-- SECTION:NOTES.END -->
