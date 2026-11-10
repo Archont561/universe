@@ -11,9 +11,10 @@ release described by `decision-119`. It is `linux-64` only. Cargo, Python wheels
 browsable portal, the umbrella facade, and every platform beyond `linux-64` remain out of
 scope.
 
-- `universe-airlock` is published as a Conda package to prefix.dev and to a static channel on
-  a Git branch. The installed consumer reports its version and verifies a closed payload;
-  `universe-airlock-bootstrap` restores one into an immutable state root.
+- `universe-airlock` is published as a Conda package to prefix.dev, to a static channel on a
+  Git branch, and as a GitHub Release asset. The installed consumer reports its version and
+  verifies a closed payload; `universe-airlock-bootstrap` restores one into an immutable
+  state root.
 - The publishing workflow is rendered from `universe.toml` and drift-checked rather than
   written by hand.
 - A branch channel that carries a Conda dependency edge resolves offline with Pixi.

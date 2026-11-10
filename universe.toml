@@ -48,6 +48,8 @@ outputs = ["output/universe-airlock/linux-64/*.conda"]
 # whose installability nobody checked.
 smoke = ["universe-airlock --version"]
 # Publication order: the hosted channel first, then the branch that restores from Git.
+# GitHub Releases is implicit: `release = true` reaches the `releases` store below without
+# naming it here, per decision-127.
 publish = ["prefix-dev", "branch"]
 release = true
 
@@ -89,6 +91,20 @@ auth = "token"
 # branches are public and unprotected (`decision-127`).
 secrets = ["GITHUB_TOKEN"]
 verifier = "file"
+
+# The implicit GitHub Releases destination. Every package with `release = true` reaches
+# this store; the package does not name it, but the store carries the repository and the
+# built-in token the REST API needs. `contents: write` is rendered on its publish job.
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "Archont561/universe"
+writable = true
+needs_index = false
+read_auth = "none"
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
 
 [release]
 tag_pattern = "v*"

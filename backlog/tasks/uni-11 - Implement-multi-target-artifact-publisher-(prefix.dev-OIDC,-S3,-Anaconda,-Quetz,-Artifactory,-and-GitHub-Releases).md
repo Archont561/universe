@@ -212,4 +212,11 @@ remained owner-side; see the note below.
   sha256 `b148b2152d4c096c24264f5e1c8f40419053c4d51a5f81f97c289efa9b95e0f8` and size
   298583 — the same digest the `channel` branch carries. `UNI-59` records the run, the
   digest and the remaining offline-solve gap. This does not advance the release tag.
+- **The implicit releases destination is now wired into this repository.** `decision-127`
+  says `releases` is added to every `release = true` package, but `Manifest::destinations`
+  had only mapped stores that packages named, so no `publish / releases` job existed. A
+  declared `releases`-kind store now carries the repository and the built-in `GITHUB_TOKEN`,
+  and the renderer gives it every released package without the package naming it;
+  `release = false` opts out. `decision-132` records the scope widening, and `UNI-59` AC#4
+  stays open until the asset is verified after a tag run.
 <!-- SECTION:NOTES:END -->

@@ -139,6 +139,15 @@ kind = "crates-io"
 writable = true
 verifier = "registry"
 auth = "oidc"                        # same shape via rust-lang/crates-io-auth-action
+
+[[stores]]
+name = "releases"                    # the one implicit destination: no package names it
+kind = "releases"
+channel = "Archont561/universe"      # owner/repo for the GitHub REST API
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
 ```
 
 ### How a package finds its stores
@@ -148,8 +157,10 @@ There is no autodetection and no "publish everywhere" switch: a package names it
 
 - `publish` lists names, never kinds — two `npmjs` stores (a company scope, a public scope) are
   distinguishable in the manifest and indistinguishable by kind.
-- **`releases` is the only implicit destination.** It is added to every package, and opting out
-  is `release = false`.
+- **`releases` is the only implicit destination.** Declare one `releases`-kind store; the
+  renderer wires every package with `release = true` to it without the package naming it.
+  Opting out is `release = false`. The store carries the `owner/repo` channel and the token,
+  so the destination stays reviewable even though the package does not name it.
 - **Kind compatibility is a lint error, not a publish-time surprise.** `conda` may name
   `static`/`prefix-dev`/`anaconda`; a crate may name `crates-io` and an npm store, but only if it
   also declares the npm output — a wrapper that was never built cannot be uploaded.

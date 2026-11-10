@@ -16,7 +16,7 @@ $ universe ci render
   universe-airlock.yml  mirror/pixi · mirror/bun · mirror/cargo · render-airlock · verdict
 ```
 
-Four things are worth noticing, because they are the design:
+Six things are worth noticing, because they are the design:
 
 - **Publishing is split by destination, not by ecosystem.** Each job holds exactly one write
   scope and one secret. Within a destination, packages publish serially — two writers racing on
@@ -35,6 +35,10 @@ Four things are worth noticing, because they are the design:
   job's `workflow_ref` claim. A descriptive name the entry does not know cannot mint a token.
   `ci render` removes the former `universe-publish.yml`, so one tag never starts two publish
   workflows.
+- **GitHub Releases is implicit.** A declared `releases`-kind store receives every package
+  with `release = true` without the package naming it; `release = false` opts out. The job
+  holds `contents: write` and exports the store's `GITHUB_TOKEN`, and the rolling release is
+  named `<tag_prefix>-<subdir>` (`packages-linux-64` by default).
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.

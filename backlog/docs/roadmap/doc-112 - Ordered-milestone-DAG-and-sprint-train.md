@@ -112,14 +112,18 @@ record (`m-12`) states the checkpoint as one loop a consumer can walk:
 | --- | --- | --- |
 | Render the release workflow from `universe.toml` | `UNI-57` #5–#7 | M1 |
 | Build and audit `universe-airlock` | `UNI-10`, `UNI-38` | M2, M5 |
-| Publish to a Git-branch channel and prefix.dev | `UNI-11`, `UNI-12`, `UNI-58` | M3, M12 |
+| Publish to a Git-branch channel, prefix.dev, and GitHub Releases | `UNI-11`, `UNI-12`, `UNI-58` | M3, M12 |
 | Restore with a rendered entrypoint | `UNI-32`, `UNI-33`, `UNI-53` | M5 |
 | Develop against the channel locally | `UNI-58` exit condition | M12 |
-| Cut the tag and verify both destinations | `UNI-59` | M12 |
+| Cut the tag and verify every destination | `UNI-59` | M12 |
 
 Only `UNI-58` and `UNI-59` belong to M12. Everything else is consumed from the milestone
 that already owns it; this checkpoint re-scopes no task, and a task's remaining criteria
 are still the ones that decide when it is done.
+
+Status note: the two publication rows above were corrected when `decision-132` added
+GitHub Releases as a third destination. `UNI-59` AC#4 and DoD #3 carry the same correction;
+no criterion is ticked by it.
 
 Correction of an implied ordering (2026-11-09): the S3 sprint row below lists `UNI-51` and
 `UNI-52` before S3.5, but neither is a prerequisite for this checkpoint. `m-12`'s beat table

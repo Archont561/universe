@@ -84,3 +84,12 @@ Feature: Rendering the workflow set from a project manifest
     Given a project that verifies every published destination
     When the workflow set is rendered
     Then the publish file holds a separate reader for the anonymous destination
+
+  Scenario: A released package reaches GitHub Releases without naming the store
+    `releases` is the one implicit destination. A package with `release = true`
+    does not list it, but the renderer still gives it a publish job that creates
+    a GitHub Release asset.
+
+    Given a project whose package is released implicitly
+    When the workflow set is rendered
+    Then the publish file carries a releases job for that package
