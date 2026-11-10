@@ -343,4 +343,14 @@ a repository check rather than a release-time computation.
   re-watch would be refused by the releases store too unless `--force` or reproducibility
   is addressed. AC#2, AC#4's offline-solve half, AC#5 and every DoD box stay open. No
   `v0.1.0` tag was cut.
+- **The owner chose rendered `--force` for the two artifact stores.** `ci render` now emits
+  `publish-artifacts --store prefix-dev --force ...` and
+  `publish-artifacts --store releases --force ...`; `publish --store branch` is unchanged.
+  prefix.dev receives `?force=true` and the rolling release deletes and re-uploads the
+  occupied asset. This is a **reversal, recorded as a reversal**: `decision-126`'s status note
+  and the second amendment to `decision-132` scope it to the `v0.1.0` publish lane, and the
+  CLI still refuses a changed digest without `--force`. It clears the 409 without fixing the
+  non-reproducible build and without authorising every destination to be rewritten. A re-watch
+  from `main` is the evidence that all three destinations carry one digest; until that run is
+  read, AC#2, AC#4, AC#5 and every DoD box stay open. No `v0.1.0` tag was cut.
 <!-- SECTION:NOTES.END -->

@@ -71,7 +71,7 @@ jobs:
           path: output
       - name: Publish universe-airlock
         run: |
-          pixi run --frozen universe -- publish-artifacts --store prefix-dev --package universe-airlock --json
+          pixi run --frozen universe -- publish-artifacts --store prefix-dev --force --package universe-airlock --json
   branch:
     name: publish / branch
     runs-on: ubuntu-latest
@@ -125,7 +125,7 @@ jobs:
           path: output
       - name: Publish universe-airlock
         run: |
-          pixi run --frozen universe -- publish-artifacts --store releases --package universe-airlock --json
+          pixi run --frozen universe -- publish-artifacts --store releases --force --package universe-airlock --json
   verdict:
     name: publish / verdict
     runs-on: ubuntu-latest

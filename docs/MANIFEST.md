@@ -171,6 +171,11 @@ There is no autodetection and no "publish everywhere" switch: a package names it
   job for that store, so its OIDC token carries the matching `environment` claim. An empty name
   is an error; naming one on a store that does not publish with `auth = "oidc"` warns, because
   no identity token is minted there.
+- **`prefix-dev` and `releases` stores render `--force`.** Both keep one file under a stable
+  name and refuse a changed digest by default; their `publish-artifacts` commands carry the
+  flag so a later `v0.1.0` publish run can replace those bytes. This is a scoped reversal of
+  `decision-126`, recorded in `decision-132`. The CLI default is unchanged, and the `publish`
+  command for a branch or static channel never carries `--force`.
 
 `ci render` prints both derived views — the job each store produces, and the packages that land
 in it — so the mapping is inspectable instead of inferred from a YAML file.

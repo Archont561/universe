@@ -4,6 +4,12 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- The rendered `release.yml` passes `--force` to its `prefix-dev` and `releases` artifact
+  uploads, so a rebuild under an occupied package name replaces the changed digest instead of
+  failing with a conflict. The branch store is unchanged. `decision-132` records this as a
+  scoped reversal of the no-overwrite release semantics; it does not make the build
+  reproducible.
+
 ## 0.1.0
 
 `decision-132` makes this tag a pre-release packaging checkpoint, not the integrated v1
