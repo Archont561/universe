@@ -56,6 +56,15 @@ Feature: Rendering the workflow set from a project manifest
     Then the build job uploads the artifacts it produced
     And every job that audits, verifies, or publishes downloads them
 
+  Scenario: A hosted channel names the GitHub environment its publisher expects
+    A trusted publisher declared with an environment only accepts a token whose
+    `environment` claim names it, and GitHub adds that claim to a job that declares
+    the environment. The name belongs to the store, not to every job in the file.
+
+    Given a project whose hosted channel names a GitHub environment
+    When the workflow set is rendered
+    Then only the hosted publish job declares that environment
+
   Scenario: A publish build emits the fragments its publishers read
     A publisher refuses an artifact with no `output/fragments`, so the publish file
     cannot leave auditing to a different workflow run. The fragments have to be

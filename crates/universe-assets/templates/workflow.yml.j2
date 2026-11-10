@@ -24,6 +24,9 @@ jobs:
     name: << job.name >>
     runs-on: << job.runs_on >>
     timeout-minutes: << job.timeout_minutes >>
+{%- if job.environment %}
+    environment: << job.environment >>
+{%- endif %}
 {%- if job.needs | length %}
     needs: [<< job.needs | join(", ") >>]
 {%- endif %}

@@ -68,6 +68,10 @@ writable = true
 needs_index = false
 read_auth = "none"
 auth = "oidc"
+# The owner registered this channel's trusted publisher under the `prefix` environment.
+# GitHub puts that name in the OIDC token only for a job that declares the environment,
+# so the renderer emits `environment: prefix` on this store's publish job and no other.
+environment = "prefix"
 verifier = "registry"
 
 # Universe's own static channel, served from a git branch: metadata and package bytes in

@@ -180,6 +180,12 @@ struct Job {
     matrix: Vec<String>,
     fail_fast: bool,
     env: Vec<(String, String)>,
+    /// GitHub environment the job runs in, when its trusted publisher expects one.
+    ///
+    /// GitHub adds an `environment` claim to the job's OIDC token only when the job declares
+    /// an environment. A publisher registered with an environment refuses a token without
+    /// it, so the manifest's store facet has to reach this field on exactly that store's job.
+    environment: Option<String>,
     /// Ceiling for the whole job, in minutes.
     ///
     /// Without one, a stalled step holds a runner for GitHub's default six hours and the pull
@@ -202,6 +208,7 @@ impl Job {
             matrix: Vec::new(),
             fail_fast: true,
             env: Vec::new(),
+            environment: None,
             timeout_minutes: 15,
             steps: Vec::new(),
         }
@@ -233,6 +240,11 @@ impl Job {
 
     fn with_env(mut self, variable: &str, secret: &str) -> Self {
         self.env.push((variable.to_owned(), secret.to_owned()));
+        self
+    }
+
+    fn with_environment(mut self, environment: &str) -> Self {
+        self.environment = Some(environment.to_owned());
         self
     }
 
@@ -308,6 +320,7 @@ impl Job {
             "matrix": self.matrix,
             "fail_fast": if self.fail_fast { "true" } else { "false" },
             "env": env,
+            "environment": self.environment.as_deref(),
             "steps": steps,
         })
     }
@@ -588,6 +601,9 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
 
     for store in manifest.stores.iter().filter(|store| store.writable) {
         let mut job = Job::new(&store.name, "publish", vec!["build".to_owned()]).with_timeout(30);
+        if let Some(environment) = &store.environment {
+            job = job.with_environment(environment);
+        }
         if let Some(scope) = store_write_scope(store.kind) {
             job = job.with_permissions(&[(scope, "write")]);
         }
@@ -1282,6 +1298,54 @@ format = "cargo fmt --check"
         // rather than auditing twice inside the build.
         let main = &rendered.files[0].content;
         assert!(main.contains("name: universe / audit"));
+    }
+
+    #[test]
+    fn a_store_environment_is_declared_on_the_one_job_that_publishes_there() {
+        // prefix.dev matches the OIDC token's `environment` claim when its trusted publisher
+        // was declared with one. GitHub adds that claim only for a job that declares the
+        // environment, so the name travels from the manifest to exactly one job — declaring
+        // it on every job would put an unrelated environment on the branch publisher too.
+        let text = MANIFEST.replace(
+            "auth = \"oidc\"",
+            "auth = \"oidc\"\nenvironment = \"prefix\"",
+        );
+        let manifest = Manifest::from_toml(&text).expect("a store may name an environment");
+        let rendered = render(&manifest, &text).expect("renders");
+        let publish = &rendered
+            .files
+            .iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+
+        let hosted = publish
+            .split("name: publish / conda-prefix")
+            .nth(1)
+            .expect("the hosted store's job")
+            .split("name: publish /")
+            .next()
+            .expect("the hosted job's body");
+        assert!(
+            hosted.contains("environment: prefix"),
+            "the hosted publish job declares no environment:\n{hosted}"
+        );
+
+        let build = publish
+            .split("name: publish / conda-prefix")
+            .next()
+            .expect("the build job precedes the stores");
+        let static_store = publish
+            .split("name: publish / conda-static")
+            .nth(1)
+            .expect("the static store's job")
+            .split("name: publish /")
+            .next()
+            .expect("the static job's body");
+        assert!(
+            !build.contains("environment:") && !static_store.contains("environment:"),
+            "an unrelated job declares the hosted store's environment:\n{publish}"
+        );
     }
 
     #[test]
