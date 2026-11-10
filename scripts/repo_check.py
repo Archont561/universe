@@ -393,6 +393,129 @@ def validate_scheduled_audit(repo_root: Path) -> list[str]:
     return errors
 
 
+#: Where the release notes for each version live. `UNI-59` AC#3 needs one file per release.
+RELEASE_NOTES_DIR = "docs/releases"
+
+#: Facts `UNI-59` AC#3 requires the notes to state, and the verbs the tag actually ships.
+REQUIRED_RELEASE_FACTS = ("pre-release", "linux-64", "version", "verify", "restore")
+
+#: The six numbered v1 surfaces of `decision-119`, as short keys. The test that reads them
+#: back out of that decision is what keeps this transcription honest.
+V1_SURFACE_KEYS = ("conda", "cargo", "python", "npm", "airlock", "portal")
+
+
+def tag_annotation(text: str) -> str | None:
+    """The first prose line of the release notes, which AC#2 reuses to annotate the tag.
+
+    A heading, a frontmatter fence or a blank line is not a message `git tag -a -m` can
+    carry. The line is returned verbatim; `validate_release_notes` decides whether its shape
+    is one a tag may hold.
+    """
+    for line in text.splitlines():
+        if line.strip():
+            return line.strip()
+    return None
+
+
+def release_tag_subject(root: Path, version: str) -> str | None:
+    """The subject of an annotated `v<version>` tag, or `None` before one exists."""
+    if not path_exists(root / ".git"):
+        return None
+    completed = subprocess.run(
+        ["git", "for-each-ref", "--format=%(contents:subject)", f"refs/tags/v{version}"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or "git for-each-ref failed")
+    return completed.stdout.strip() or None
+
+
+def _markdown_section(text: str, heading: str) -> str | None:
+    """The body of one `##` section, stopping before the next heading."""
+    marker = f"## {heading}"
+    start = text.find(marker)
+    if start < 0:
+        return None
+    rest = text[start + len(marker) :]
+    boundary = rest.find("\n## ")
+    return rest if boundary < 0 else rest[:boundary]
+
+
+def _workspace_version(root: Path) -> str | None:
+    """The one version literal `decision-126` puts in the root manifest."""
+    try:
+        manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+        version: object = manifest["workspace"]["package"]["version"]
+    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError):
+        return None
+    return version if isinstance(version, str) else None
+
+
+def validate_release_notes(root: Path, tag_subject: str | None = None) -> list[str]:
+    """`UNI-59` AC#3, checked the way AC#1 checks version parity.
+
+    The notes for the workspace version must exist, open with a line that can be handed to
+    `git tag -a -m` unchanged, state the pre-release scope and the three verbs the tag ships,
+    and disclaim all six v1 surfaces of `decision-119` in a section of their own. A checkout
+    without a changelog or a workspace manifest is not a release-lane repository. The tag
+    subject is injectable so the AC#2 comparison needs no Git repository in a test.
+    """
+    changelog = root / "CHANGELOG.md"
+    manifest = root / "Cargo.toml"
+    if not path_exists(changelog) or not path_exists(manifest):
+        return []
+    version = _workspace_version(root)
+    if version is None:
+        return ["cannot read workspace version for the release notes"]
+
+    notes = root / RELEASE_NOTES_DIR / f"{version}.md"
+    relative = notes.relative_to(root).as_posix()
+    if not path_exists(notes):
+        return [f"release notes are missing: {relative}"]
+    try:
+        text = notes.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"cannot read release notes {relative}: {exc}"]
+
+    errors: list[str] = []
+    first = tag_annotation(text)
+    if first is None:
+        return [f"release notes {relative} are empty; AC#2 needs a line to tag with"]
+    if first.startswith(("#", "---", ">", "-", "`")) or "`" in first:
+        errors.append(
+            f"release notes {relative} must open with a plain tag annotation, not Markdown"
+        )
+    if len(first) > 140:
+        errors.append(f"release notes {relative} open with more than 140 characters")
+    if version not in first:
+        errors.append(f"tag annotation does not name {version}: {first}")
+    if not first.endswith("."):
+        errors.append("tag annotation must end with a period")
+
+    body = text.lower()
+    for fact in REQUIRED_RELEASE_FACTS:
+        if fact not in body:
+            errors.append(f"release notes do not state {fact}")
+
+    section = _markdown_section(text, "Not a v1 release")
+    if section is None:
+        errors.append("release notes have no 'Not a v1 release' section disclaiming decision-119")
+    else:
+        missing = [key for key in V1_SURFACE_KEYS if key not in section.lower()]
+        if missing:
+            errors.append("release notes do not disclaim the v1 surfaces: " + ", ".join(missing))
+
+    if tag_subject is not None and first != tag_subject.strip():
+        errors.append(
+            f'tag annotation drift: v{version} tag subject is "{tag_subject.strip()}" '
+            f'but the notes open with "{first}"'
+        )
+    return errors
+
+
 def changelog_version(text: str) -> str | None:
     """The first released `##` heading, exactly as the release must spell its version.
 
@@ -841,6 +964,14 @@ def validate_repo(repo_root: Path | None = None, tags: Sequence[str] | None = No
             errors.append(f"cannot read release tags: {exc}")
             tags = []
     errors.extend(validate_release_version(root, tags))
+    tag_subject = None
+    version = _workspace_version(root)
+    if version is not None and f"v{version}" in tags:
+        try:
+            tag_subject = release_tag_subject(root, version)
+        except (OSError, RuntimeError) as exc:
+            errors.append(f"cannot read the v{version} tag annotation: {exc}")
+    errors.extend(validate_release_notes(root, tag_subject=tag_subject))
     return errors
 
 

@@ -1,19 +1,23 @@
 """Tests for the Python repository checker."""
 
+import re
 from pathlib import Path
 
 import pytest
 
 from scripts.repo_check import (
     ROADMAP_DOCUMENTS,
+    V1_SURFACE_KEYS,
     extract_recipe_context_version,
     extract_recipe_package_name,
     extract_task_ids,
     main,
+    tag_annotation,
     validate_audit_gate,
     validate_documented_pixi_tasks,
     validate_gate_order,
     validate_offline_cargo_transport,
+    validate_release_notes,
     validate_release_version,
     validate_repo,
     validate_required_gate_name,
@@ -130,12 +134,33 @@ def test_main_prints_success_and_failure(
     assert captured.out == "repo-check: repository invariants are valid\n"
 
 
+#: A minimal valid body for the release notes the fixture now has to provide. The first line
+#: is written separately because `UNI-59` AC#2 reuses it as the annotated tag message.
+_NOTES_BODY = (
+    "\n\n## Not a v1 release\n\n"
+    "Conda, Cargo, Python, npm, Airlock and portal: none of the six v1 surfaces is complete.\n\n"
+    "The three verbs are `version`, `verify` and `restore`.\n"
+)
+
+
+def _notes_first_line(version: str = "0.1.0") -> str:
+    return f"Universe {version} is a linux-64-only pre-release checkpoint, not v1."
+
+
+def _write_notes(root: Path, first: str, body: str = _NOTES_BODY) -> None:
+    path = root / "docs" / "releases" / "0.1.0.md"
+    path.write_text(first + body, encoding="utf-8")
+
+
 def _release_fixture(root: Path, changelog: str, workspace_version: str = "0.1.0") -> None:
-    """The two files release parity reads, and nothing else it needs."""
+    """The files release parity reads, and nothing else it needs."""
     (root / "Cargo.toml").write_text(
         f'[workspace.package]\nversion = "{workspace_version}"\n', encoding="utf-8"
     )
     (root / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
+    notes = root / "docs" / "releases" / f"{workspace_version}.md"
+    notes.parent.mkdir(parents=True, exist_ok=True)
+    notes.write_text(_notes_first_line(workspace_version) + _NOTES_BODY, encoding="utf-8")
 
 
 def test_a_changelog_whose_first_version_disagrees_with_the_workspace_is_reported(
@@ -558,3 +583,109 @@ def test_documented_tasks_are_checked_in_the_agent_and_contributor_guides(
     assert validate_documented_pixi_tasks(root) == [
         "AGENTS.md: `pixi run lint` names no declared Pixi task and no known executable"
     ]
+
+
+def test_the_workspace_version_selects_which_release_notes_must_exist(tmp_path: Path) -> None:
+    # `UNI-59` AC#3 needs a notes file for the version the tag will carry. Deriving the name
+    # from `Cargo.toml` means a bump cannot leave the previous release's notes standing in for
+    # the new one's.
+    _release_fixture(tmp_path, "# Changelog\n\n## Unreleased\n\n## 0.1.0\n\n- First.\n")
+    (tmp_path / "docs" / "releases" / "0.1.0.md").unlink()
+    assert "release notes are missing: docs/releases/0.1.0.md" in validate_release_notes(tmp_path)
+
+    later = tmp_path / "later"
+    later.mkdir()
+    _release_fixture(later, "# Changelog\n\n## 0.2.0\n\n- Later.\n", workspace_version="0.2.0")
+    (later / "docs" / "releases" / "0.2.0.md").unlink()
+    assert "release notes are missing: docs/releases/0.2.0.md" in validate_release_notes(later)
+
+
+def test_the_tag_annotation_is_the_first_non_empty_line() -> None:
+    assert tag_annotation("\n\nUniverse 0.1.0 is a checkpoint.\n\nBody.\n") == (
+        "Universe 0.1.0 is a checkpoint."
+    )
+    assert tag_annotation("\n\n") is None
+
+
+def test_the_notes_open_with_a_plain_annotation_naming_the_version(tmp_path: Path) -> None:
+    # AC#2 annotates the tag with the message the notes open with. A heading, a frontmatter
+    # marker or a wrapped first line would put Markdown or YAML into `git tag -a -m`.
+    _release_fixture(tmp_path, "# Changelog\n\n## Unreleased\n\n## 0.1.0\n\n- First.\n")
+    _write_notes(tmp_path, "# Universe 0.1.0")
+    assert "plain tag annotation" in "\n".join(validate_release_notes(tmp_path))
+
+    _write_notes(tmp_path, "A pre-release checkpoint.")
+    assert "tag annotation does not name 0.1.0" in "\n".join(validate_release_notes(tmp_path))
+
+    _write_notes(tmp_path, "Universe 0.1.0 is a pre-release checkpoint")
+    assert "tag annotation must end with a period" in "\n".join(validate_release_notes(tmp_path))
+
+    _write_notes(tmp_path, _notes_first_line())
+    assert validate_release_notes(tmp_path) == []
+
+
+def test_the_notes_state_the_pre_release_scope_and_the_three_verbs(tmp_path: Path) -> None:
+    _release_fixture(tmp_path, "# Changelog\n\n## Unreleased\n\n## 0.1.0\n\n- First.\n")
+    _write_notes(
+        tmp_path,
+        _notes_first_line(),
+        "\n\n## Not a v1 release\n\nConda Cargo Python npm Airlock portal.\n\n"
+        "Only `version` and `verify`.\n",
+    )
+    assert "release notes do not state restore" in validate_release_notes(tmp_path)
+
+    _write_notes(
+        tmp_path,
+        "Universe 0.1.0 is a checkpoint, not v1.",
+        "\n\n## Not a v1 release\n\nConda Cargo Python npm Airlock portal.\n\n"
+        "`version`, `verify` and `restore`.\n",
+    )
+    errors = validate_release_notes(tmp_path)
+    assert "release notes do not state pre-release" in errors
+    assert "release notes do not state linux-64" in errors
+
+
+def test_the_notes_disclaim_every_v1_surface_named_by_decision_119(tmp_path: Path) -> None:
+    _release_fixture(tmp_path, "# Changelog\n\n## Unreleased\n\n## 0.1.0\n\n- First.\n")
+    _write_notes(
+        tmp_path,
+        _notes_first_line(),
+        "\n\nThe three verbs are `version`, `verify` and `restore`.\n",
+    )
+    assert "no 'Not a v1 release' section" in "\n".join(validate_release_notes(tmp_path))
+
+    _write_notes(
+        tmp_path,
+        _notes_first_line(),
+        "\n\n## Not a v1 release\n\nCargo, Python and npm are absent.\n\n"
+        "`version`, `verify` and `restore`.\n",
+    )
+    errors = "\n".join(validate_release_notes(tmp_path))
+    for key in ("conda", "airlock", "portal"):
+        assert key in errors, errors
+
+
+def test_the_v1_surface_keys_are_transcribed_from_decision_119() -> None:
+    # The six keys are not an invented list: they name the six numbered surfaces of the
+    # decision AC#3 says the notes must not claim. If that decision gains or reorders a
+    # surface, this test fails and the check has to be revisited rather than quietly
+    # disclaiming a v1 the repository no longer describes.
+    root = Path(__file__).resolve().parents[2]
+    name = "decision-119 - Full-multi-ecosystem-v1-and-static-catalog-distribution.md"
+    decision = (root / "backlog" / "decisions" / name).read_text(encoding="utf-8")
+    section = decision.split("## Decision", 1)[1].split("## Consequences", 1)[0]
+    items = [line for line in section.splitlines() if re.match(r"^\d+\. ", line)]
+    assert len(items) == len(V1_SURFACE_KEYS)
+    for item, key in zip(items, V1_SURFACE_KEYS, strict=True):
+        assert key in item.lower(), (key, item)
+
+
+def test_a_tag_annotation_that_differs_from_the_notes_is_reported(tmp_path: Path) -> None:
+    _release_fixture(tmp_path, "# Changelog\n\n## Unreleased\n\n## 0.1.0\n\n- First.\n")
+    assert validate_release_notes(tmp_path, tag_subject=_notes_first_line()) == []
+
+    errors = "\n".join(
+        validate_release_notes(tmp_path, tag_subject="Universe 0.1.0 is a v1 release.")
+    )
+    assert "tag annotation drift" in errors
+    assert "Universe 0.1.0 is a v1 release." in errors
