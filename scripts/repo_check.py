@@ -4,16 +4,18 @@ Repository shape — required files, forbidden paths and basenames, naming, and
 immutable CI refs — is owned by `.alint.yml` (decision-121, `pixi run
 alint-check`). What stays here is the rest: a legacy-token scan that must not
 match its own configuration, version inheritance through a Cargo workspace,
-recipe drift, and set/graph reasoning over the offline transport and the audit
-gate.
+recipe and release-version parity, and set/graph reasoning over the offline
+transport and the audit gate.
 """
 
 import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import tomllib
+from collections.abc import Sequence
 from pathlib import Path
 
 from scripts.lib.files import path_exists
@@ -391,6 +393,105 @@ def validate_scheduled_audit(repo_root: Path) -> list[str]:
     return errors
 
 
+def changelog_version(text: str) -> str | None:
+    """The first released `##` heading, exactly as the release must spell its version.
+
+    `## Unreleased` starts with a letter and is skipped. The heading itself is returned rather
+    than a version parsed out of it: `universe lint` requires the heading to equal the
+    workspace version, so `## 0.1.0 (pre-release)` is a drift finding, not the version 0.1.0.
+    Local gates do not run that verb, and this keeps `repo-check`'s verdict the same as the
+    rendered validate job's.
+    """
+    for line in text.splitlines():
+        if not line.startswith("## "):
+            continue
+        heading = line[3:].strip().removeprefix("[").removesuffix("]")
+        if heading and heading[0].isascii() and heading[0].isdigit():
+            return heading
+    return None
+
+
+def newest_release_tag(tags: Sequence[str]) -> str | None:
+    """The highest `vX.Y.Z` tag, or `None` before the first release is tagged.
+
+    Git prints tags in its own order, so "the tag" means the highest version rather than the
+    last line. Tags outside the release pattern are ignored: an unrelated `v*` ref must not
+    decide what the changelog is compared against.
+    """
+    versions = [
+        match.group(1)
+        for tag in tags
+        if (match := re.fullmatch(r"v(\d+\.\d+\.\d+)", tag.strip())) is not None
+    ]
+    if not versions:
+        return None
+    return max(versions, key=lambda version: tuple(int(part) for part in version.split(".")))
+
+
+def release_tags(root: Path) -> list[str]:
+    """The `v*` tags of a checkout. A tree that is not a Git checkout has no tags."""
+    if not path_exists(root / ".git"):
+        return []
+    completed = subprocess.run(
+        ["git", "tag", "--list", "v*"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        # Failing closed matters here: a checker that silently saw no tags would let a tag
+        # disagree with the changelog and still report a clean repository.
+        raise RuntimeError(completed.stderr.strip() or "git tag --list failed")
+    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+
+def validate_release_version(root: Path, tags: Sequence[str] = ()) -> list[str]:
+    """The changelog, workspace version and recipe version agree on one release.
+
+    `decision-126` puts version parity in a repository check rather than a release-time
+    computation, and `UNI-59` #1 names the three sources. A checkout without a changelog or
+    a workspace manifest is not a release-lane repository, so there is nothing to compare.
+    """
+    errors: list[str] = []
+    changelog = root / "CHANGELOG.md"
+    manifest = root / "Cargo.toml"
+    if not path_exists(changelog) or not path_exists(manifest):
+        return errors
+    try:
+        workspace = tomllib.loads(manifest.read_text(encoding="utf-8"))["workspace"]["package"][
+            "version"
+        ]
+        text = changelog.read_text(encoding="utf-8")
+    except (OSError, KeyError, tomllib.TOMLDecodeError) as exc:
+        return [f"cannot read release version inputs: {exc}"]
+
+    top = changelog_version(text)
+    if top is None:
+        return [f"CHANGELOG.md has no versioned section; the workspace declares {workspace}"]
+    if top != workspace:
+        errors.append(
+            f"changelog/workspace version drift: CHANGELOG.md={top}, Cargo.toml={workspace}"
+        )
+
+    recipe = root / "crates" / "universe-airlock" / "recipe" / "recipe.yaml"
+    if path_exists(recipe):
+        try:
+            recipe_version = extract_recipe_context_version(recipe.read_text(encoding="utf-8"))
+        except OSError as exc:
+            return [f"cannot read the Airlock recipe version: {exc}"]
+        if recipe_version != top:
+            errors.append(
+                f"changelog/recipe version drift: CHANGELOG.md={top}, "
+                f"recipe={recipe_version or '<missing>'}"
+            )
+
+    latest = newest_release_tag(tags)
+    if latest is not None and latest != top:
+        errors.append(f"changelog/tag version drift: CHANGELOG.md={top}, newest v* tag={latest}")
+    return errors
+
+
 def extract_recipe_context_version(text: str) -> str | None:
     """Extract a Rattler recipe's ``context.version`` literal."""
     match = re.search(r"(?ms)^context:\s*\n\s+version:\s*['\"]?([^'\"\s]+)", text)
@@ -577,7 +678,7 @@ def _contains_legacy_token(data: bytes) -> bool:
     return any(token.encode() in lowered for token in LEGACY_TOKENS)
 
 
-def validate_repo(repo_root: Path | None = None) -> list[str]:
+def validate_repo(repo_root: Path | None = None, tags: Sequence[str] | None = None) -> list[str]:
     """Validate the non-declarative repository invariants."""
     root = Path.cwd() if repo_root is None else repo_root
     errors: list[str] = []
@@ -650,6 +751,23 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
                         f"recipe package name drift in {recipe.relative_to(root)}: "
                         f"found {recipe_name or '<missing>'}, expected {crate_name}"
                     )
+                # The directory name is not the Cargo workspace's identity: the crate's own
+                # manifest is the source of truth for what its recipe is allowed to name.
+                crate_manifest = root / "crates" / crate_name / "Cargo.toml"
+                if path_exists(crate_manifest):
+                    try:
+                        crate_identity = tomllib.loads(crate_manifest.read_text(encoding="utf-8"))[
+                            "package"
+                        ]["name"]
+                    except (OSError, KeyError, tomllib.TOMLDecodeError) as exc:
+                        errors.append(f"cannot read crate identity for {crate_name}: {exc}")
+                    else:
+                        if recipe_name != crate_identity:
+                            errors.append(
+                                f"recipe identity drift in {recipe.relative_to(root)}: "
+                                f"recipe={recipe_name or '<missing>'}, "
+                                f"Cargo.toml={crate_identity}"
+                            )
                 if recipe_version != canonical_version:
                     errors.append(
                         f"recipe version drift in {recipe.relative_to(root)}: "
@@ -716,6 +834,13 @@ def validate_repo(repo_root: Path | None = None) -> list[str]:
             )
         )
 
+    if tags is None:
+        try:
+            tags = release_tags(root)
+        except (OSError, RuntimeError) as exc:
+            errors.append(f"cannot read release tags: {exc}")
+            tags = []
+    errors.extend(validate_release_version(root, tags))
     return errors
 
 

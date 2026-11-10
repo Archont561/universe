@@ -14,6 +14,7 @@ from scripts.repo_check import (
     validate_documented_pixi_tasks,
     validate_gate_order,
     validate_offline_cargo_transport,
+    validate_release_version,
     validate_repo,
     validate_required_gate_name,
     validate_roadmap_coverage,
@@ -127,6 +128,86 @@ def test_main_prints_success_and_failure(
     assert main(["--root", str(repo_root)]) == 0
     captured = capsys.readouterr()
     assert captured.out == "repo-check: repository invariants are valid\n"
+
+
+def _release_fixture(root: Path, changelog: str, workspace_version: str = "0.1.0") -> None:
+    """The two files release parity reads, and nothing else it needs."""
+    (root / "Cargo.toml").write_text(
+        f'[workspace.package]\nversion = "{workspace_version}"\n', encoding="utf-8"
+    )
+    (root / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
+
+
+def test_a_changelog_whose_first_version_disagrees_with_the_workspace_is_reported(
+    tmp_path: Path,
+) -> None:
+    # `## Unreleased` is not a version; the first versioned heading is the release the
+    # workspace claims. A 0.2.0 section beside a 0.1.0 workspace is drift the checker has to
+    # name, not something a reader is left to notice at the tag.
+    _release_fixture(
+        tmp_path,
+        "# Changelog\n\n## Unreleased\n\n## 0.2.0\n\n- A later release.\n",
+    )
+    errors = "\n".join(validate_repo(tmp_path))
+    assert "changelog/workspace version drift: CHANGELOG.md=0.2.0, Cargo.toml=0.1.0" in errors, (
+        errors
+    )
+
+
+def test_a_suffixed_version_heading_is_not_the_version(tmp_path: Path) -> None:
+    # `universe lint` requires the released heading to equal the workspace version exactly;
+    # `## 0.1.0 (pre-release)` is a heading with a suffix, not the version 0.1.0. Local
+    # gates do not run that verb, so `repo-check` has to reach the same verdict.
+    _release_fixture(
+        tmp_path,
+        "# Changelog\n\n## Unreleased\n\n## 0.1.0 (pre-release)\n\n- First.\n",
+    )
+    assert (
+        "changelog/workspace version drift: "
+        "CHANGELOG.md=0.1.0 (pre-release), Cargo.toml=0.1.0" in validate_release_version(tmp_path)
+    )
+
+
+def test_a_tag_that_disagrees_with_the_changelog_is_reported(tmp_path: Path) -> None:
+    # A checkout before the first tag has nothing to disagree with. Once `v0.1.0` is cut, a
+    # newer `v*` tag beside an older changelog is the drift AC#6 guards against. The highest
+    # version wins, not the last tag in whatever order git happened to print them.
+    _release_fixture(
+        tmp_path,
+        "# Changelog\n\n## Unreleased\n\n## 0.1.0\n\n- First release.\n",
+    )
+    assert (
+        "changelog/tag version drift: CHANGELOG.md=0.1.0, newest v* tag=0.2.0"
+        in validate_release_version(tmp_path, tags=["v0.1.0", "v0.2.0"])
+    )
+    assert "changelog/tag version drift: CHANGELOG.md=0.1.0, newest v* tag=0.2.0" in "\n".join(
+        validate_repo(tmp_path, tags=["v0.2.0"])
+    )
+    assert validate_release_version(tmp_path, tags=[]) == []
+    assert validate_release_version(tmp_path, tags=["v0.1.0"]) == []
+
+
+def test_a_recipe_name_must_agree_with_its_crate_manifest(tmp_path: Path) -> None:
+    # The directory name is not the Cargo workspace's identity. A recipe can match
+    # `crates/universe-airlock/` and still name a package the crate manifest does not declare.
+    _release_fixture(
+        tmp_path,
+        "# Changelog\n\n## Unreleased\n\n## 0.1.0\n\n- First release.\n",
+    )
+    crate = tmp_path / "crates" / "universe-airlock"
+    (crate / "recipe").mkdir(parents=True)
+    (crate / "Cargo.toml").write_text(
+        '[package]\nname = "renamed-airlock"\nversion.workspace = true\n', encoding="utf-8"
+    )
+    (crate / "recipe" / "recipe.yaml").write_text(
+        'context:\n  version: "0.1.0"\n\npackage:\n  name: universe-airlock\n',
+        encoding="utf-8",
+    )
+    errors = "\n".join(validate_repo(tmp_path))
+    assert (
+        "recipe identity drift in crates/universe-airlock/recipe/recipe.yaml: "
+        "recipe=universe-airlock, Cargo.toml=renamed-airlock" in errors
+    ), errors
 
 
 def test_versioned_packages_must_match_their_versions_files(tmp_path: Path) -> None:
