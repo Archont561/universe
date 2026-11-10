@@ -10,12 +10,15 @@ updated_date: '2026-10-31'
 
 **Scoped reversal for the `v0.1.0` pre-release lane, recorded as a reversal.** The rendered
 `release.yml` now passes `--force` to its `prefix-dev` and `releases` artifact uploads, so a
-later run can replace bytes under an occupied name when that name carries a different digest.
-Invariant 3 below remains the accepted rule for the `universe release` controller and for the
-integrated v1 release: a second publish of one `(release-id, target)` is an error, not an
-overwrite. The pre-release workflow is a separate lane and does not implement this record's
-journal. `decision-132` records the exception, its reason, and the evidence that the build is
-still not reproducible; nothing here advances the `v0.1.0` tag.
+later run asks those destinations to replace bytes under an occupied name when that name
+carries a different digest. prefix.dev accepts that request only from a Repository Access
+entry with read-write-delete; the first forced run returned `403 Not authorized`. Invariant 3
+below remains the accepted rule for the `universe release` controller and for the integrated v1
+release: a second publish of one `(release-id, target)` is an error, not an overwrite. The
+pre-release workflow is a separate lane and does not implement this record's journal.
+`decision-132` records the exception, its reason, and the evidence that the build is still not
+reproducible; `UNI-59` records the run and the owner-side permission still required. Nothing
+here advances the `v0.1.0` tag.
 
 ## Context
 

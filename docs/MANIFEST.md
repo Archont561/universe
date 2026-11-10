@@ -173,7 +173,9 @@ There is no autodetection and no "publish everywhere" switch: a package names it
   no identity token is minted there.
 - **`prefix-dev` and `releases` stores render `--force`.** Both keep one file under a stable
   name and refuse a changed digest by default; their `publish-artifacts` commands carry the
-  flag so a later `v0.1.0` publish run can replace those bytes. This is a scoped reversal of
+  flag so a later `v0.1.0` publish run asks to replace those bytes. prefix.dev accepts
+  `?force=true` only from a Repository Access entry with read-write-delete; the first forced
+  run returned `403 Not authorized` on that destination. This is a scoped reversal of
   `decision-126`, recorded in `decision-132`. The CLI default is unchanged, and the `publish`
   command for a branch or static channel never carries `--force`.
 

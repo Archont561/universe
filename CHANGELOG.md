@@ -5,10 +5,13 @@ All notable changes to Universe are recorded here.
 ## Unreleased
 
 - The rendered `release.yml` passes `--force` to its `prefix-dev` and `releases` artifact
-  uploads, so a rebuild under an occupied package name replaces the changed digest instead of
-  failing with a conflict. The branch store is unchanged. `decision-132` records this as a
-  scoped reversal of the no-overwrite release semantics; it does not make the build
-  reproducible.
+  uploads, so a rebuild under an occupied package name asks those destinations to replace the
+  changed digest. The branch store is unchanged. `decision-132` records this as a scoped
+  reversal of the no-overwrite release semantics; it does not make the build reproducible.
+  prefix.dev accepts `?force=true` only from a Repository Access entry with read-write-delete.
+- Run `42920755513` replaced the GitHub Release asset and the branch snapshot, but prefix.dev
+  answered `403 Not authorized` on the forced upload and the publish verdict stayed red. The
+  owner-side permission, not the rendered command, is the remaining blocker.
 
 ## 0.1.0
 
