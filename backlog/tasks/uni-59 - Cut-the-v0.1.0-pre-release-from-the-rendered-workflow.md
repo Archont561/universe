@@ -321,4 +321,26 @@ a repository check rather than a release-time computation.
   the green run above did not create a GitHub Release asset, and a re-watch after the
   renderer change is required. No `v0.1.0` tag was cut; AC#2, AC#5 and every DoD box stay
   open.
+- **The GitHub Release asset exists, and the re-watch is red for a different reason.** After
+  PR #95 merged `5f102cd2`, a `workflow_dispatch` of `release.yml` from `main` (run
+  42914663367) had `publish / build`, `publish / releases` and `publish / branch` green.
+  `publish / prefix-dev` failed with `publish.store.failed: store 'prefix-dev':
+  https://prefix.dev/api/v1/upload/archont561/archont561: POST answered 409: A package with
+  the filename 'universe-airlock-0.1.0-h41f06ac_0.conda' already exists in the channel with
+  a different SHA256 hash`, so `publish / verdict` is red. The 409 is the recorded
+  non-reproducible-artifact defect: a rebuild of the same name, version and build string
+  carries different bytes, and the hosted channel refuses a changed digest unless the caller
+  passes `--force`. The rendered publish commands do not pass it.
+- **What the release job actually wrote.** GitHub now has a published rolling release
+  `packages-linux-64 artifacts` under tag `packages-linux-64`, created 2026-11-10T22:26:50Z,
+  with asset `universe-airlock-0.1.0-h41f06ac_0.conda`, sha256
+  `dfc08b401414baebe182ad9a5971673d915d82bdd8ac4c9bb0b81adcb355e2b6`, size 298585. The
+  `channel` branch at `aa853bdb` carries the same digest and size in
+  `linux-64/repodata.json`. prefix.dev still holds the earlier digest
+  `b148b2152d4c096c24264f5e1c8f40419053c4d51a5f81f97c289efa9b95e0f8` from run 42903356074,
+  because the 409 refused this run's bytes. This proves AC#4's GitHub Release-asset half for
+  one run; it does not prove that the three destinations agree on one digest, and a later
+  re-watch would be refused by the releases store too unless `--force` or reproducibility
+  is addressed. AC#2, AC#4's offline-solve half, AC#5 and every DoD box stay open. No
+  `v0.1.0` tag was cut.
 <!-- SECTION:NOTES.END -->

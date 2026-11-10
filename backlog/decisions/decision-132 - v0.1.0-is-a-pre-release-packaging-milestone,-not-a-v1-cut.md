@@ -101,6 +101,14 @@ superseded: this adds a package destination, not a product surface. `UNI-59` AC#
 are reworded to cover all three destinations and stay open until each is verified after the
 tag run. No `v0.1.0` tag is cut by this amendment.
 
+The first re-watch after the amendment created the rolling GitHub Release
+`packages-linux-64 artifacts` with the `universe-airlock` asset, but its verdict was red:
+`publish / prefix-dev` refused the rebuilt package with a 409 because the same filename
+carried a different digest. That is the non-reproducible-artifact defect already recorded in
+`UNI-59`, not a failure of the new destination. It is recorded here so the amendment is not
+read as a green end-to-end release: the third destination exists and published, while the
+checkpoint's two-destination parity and offline-solve criteria remain open.
+
 ## Consequences
 
 - The v1 gate continues to require all six surfaces; `v0.1.0` is a checkpoint on the Conda
