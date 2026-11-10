@@ -226,8 +226,11 @@ remained owner-side; see the note below.
   The same bytes are in the `channel` branch at `aa853bdb`. The overall verdict is red only
   because `publish / prefix-dev` refused a changed digest with 409; see `UNI-59` for the
   non-reproducibility note. The owner chose `--force`: the renderer now adds it to the
-  `prefix-dev` and `releases` `publish-artifacts` commands so a later run replaces the changed
-  digest, and leaves `publish --store branch` alone. `decision-132` records this as a scoped
-  reversal of the no-overwrite release semantics. It unblocks the re-watch without making the
-  build reproducible.
+  `prefix-dev` and `releases` `publish-artifacts` commands so a later run asks those stores to
+  replace the changed digest, and leaves `publish --store branch` alone. `decision-132`
+  records this as a scoped reversal of the no-overwrite release semantics. Run `42920755513`
+  proved the GitHub Release and branch stores accept the changed digest, but prefix.dev
+  answered `403 Not authorized` on `?force=true`. `https://prefix.dev/docs/prefix/api` says
+  force-replacing requires a read-write-delete Repository Access entry; the remaining action
+  is owner-side. The renderer slice is complete, and the build is still not reproducible.
 <!-- SECTION:NOTES:END -->

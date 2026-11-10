@@ -349,8 +349,29 @@ a repository check rather than a release-time computation.
   prefix.dev receives `?force=true` and the rolling release deletes and re-uploads the
   occupied asset. This is a **reversal, recorded as a reversal**: `decision-126`'s status note
   and the second amendment to `decision-132` scope it to the `v0.1.0` publish lane, and the
-  CLI still refuses a changed digest without `--force`. It clears the 409 without fixing the
-  non-reproducible build and without authorising every destination to be rewritten. A re-watch
-  from `main` is the evidence that all three destinations carry one digest; until that run is
-  read, AC#2, AC#4, AC#5 and every DoD box stay open. No `v0.1.0` tag was cut.
+  CLI still refuses a changed digest without `--force`. It changes the hosted failure from 409
+  to a permission question without fixing the non-reproducible build and without authorising
+  every destination to be rewritten. The re-watch below is the evidence that the releases and
+  branch destinations accepted the changed digest while prefix.dev did not. AC#2, AC#4, AC#5
+  and every DoD box stay open. No `v0.1.0` tag was cut.
+- **The forced re-watch is red because prefix.dev needs a broader owner-side permission.**
+  After PR #97 merged `f86617cf`, `workflow_dispatch` run `42920755513` from `main` had green
+  `publish / build`, `publish / releases` and `publish / branch` jobs. `publish / prefix-dev`
+  failed with `publish.store.failed: store 'prefix-dev':
+  https://prefix.dev/api/v1/upload/archont561/archont561?force=true: POST answered 403: Not
+  authorized`, so `publish / verdict` is red. The URL proves `--force` reached the endpoint.
+  The GitHub Release asset `universe-airlock-0.1.0-h41f06ac_0.conda` was replaced at
+  `2026-11-10T23:09:58Z` with sha256
+  `17337dbb208182060e4ccd002473ae0bf64482a1b0fe3813585124569a982ec8`, size 298582; the
+  `channel` branch at `1a93b8df91bbbc736ec7a154b08a5c4434411d7d` carries the same digest and
+  size in `linux-64/repodata.json`. prefix.dev did not accept this run's bytes, so its earlier
+  `b148b2152d4c096c24264f5e1c8f40419053c4d51a5f81f97c289efa9b95e0f8` variant remains and
+  all-three-destination digest parity is not proven.
+  `https://prefix.dev/docs/prefix/api` states that `force=true` needs a scoped key with
+  read/write/delete, and gives the same read-write-delete mode to a Repository Access entry
+  for force-replacing an existing filename. The `Archont561 / universe / release.yml /
+  environment prefix` publisher is consistent with a read/write entry that can upload a new
+  filename but cannot force-replace one. The renderer change is correct and complete; the
+  remaining action is owner-side. AC#2, AC#4 (including the offline-solve half), AC#5 and all
+  DoD boxes remain open. No `v0.1.0` tag was cut.
 <!-- SECTION:NOTES.END -->

@@ -42,10 +42,12 @@ Six things are worth noticing, because they are the design:
 - **The `v0.1.0` artifact stores are allowed to replace changed bytes.** A rebuild can occupy
   the same package filename with a different digest. The renderer adds `--force` to the
   `publish-artifacts` commands for `prefix-dev` and `releases` stores, so the hosted channel
-  accepts the upload with `?force=true` and the rolling release replaces its asset. This is a
-  scoped reversal of the no-overwrite release semantics, recorded in `decision-132`; it does
-  not make the build reproducible. `publish --store branch` takes no `--force`, because it
-  already replaces one snapshot tree.
+  is asked to accept the upload with `?force=true` and the rolling release replaces its asset.
+  This is a scoped reversal of the no-overwrite release semantics, recorded in `decision-132`;
+  it does not make the build reproducible. prefix.dev grants force-replacing only to a
+  Repository Access entry with read-write-delete; run `42920755513` received `403 Not
+  authorized` until that owner-side permission is granted. `publish --store branch` takes no
+  `--force`, because it already replaces one snapshot tree.
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.

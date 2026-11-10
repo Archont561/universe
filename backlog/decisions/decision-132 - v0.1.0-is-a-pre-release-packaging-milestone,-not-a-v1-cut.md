@@ -126,7 +126,18 @@ unchanged; it replaces one snapshot tree and takes no overwrite flag. This does 
 `universe release` journal semantics, does not fix the non-reproducible-artifact defect, and
 does not supersede the v1 gate in `decision-119`. A green verdict proves that one run's three
 destinations agree on one digest; it does not prove that every rebuild produces those bytes.
-No `v0.1.0` tag is cut by this amendment. `UNI-59` records the re-watch.
+No `v0.1.0` tag is cut by this amendment.
+
+The first re-watch after this change moved the failure rather than closing it. Run
+`42920755513` from `main` at `f86617cf` had green `publish / build`, `publish / releases` and
+`publish / branch` jobs, but `publish / prefix-dev` answered `403 Not authorized` at
+`https://prefix.dev/api/v1/upload/archont561/archont561?force=true`, so `publish / verdict`
+stayed red. The URL proves the flag reached the endpoint. `https://prefix.dev/docs/prefix/api`
+states that force-replacing an occupied filename requires a scoped key with read/write/delete,
+and that a Repository Access entry must carry the same read-write-delete mode to grant it. The
+renderer change is complete; the remaining action is owner-side, on the channel's Repository
+Access entry. `UNI-59` records the run, the new release and branch digest, and the still-open
+acceptance criteria.
 
 ## Consequences
 
