@@ -37,6 +37,9 @@ jobs:
       - name: Build the declared packages
         run: |
           pixi run --frozen universe -- build --json --receipts output/.receipts
+      - name: Audit the built artifacts
+        run: |
+          pixi run --frozen universe -- audit --json --emit-fragment output/fragments
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: universe-${{ matrix.platform }}

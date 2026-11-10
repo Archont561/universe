@@ -56,6 +56,15 @@ Feature: Rendering the workflow set from a project manifest
     Then the build job uploads the artifacts it produced
     And every job that audits, verifies, or publishes downloads them
 
+  Scenario: A publish build emits the fragments its publishers read
+    A publisher refuses an artifact with no `output/fragments`, so the publish file
+    cannot leave auditing to a different workflow run. The fragments have to be
+    inside the tree the build uploads, not merely produced somewhere on a runner.
+
+    Given a project that publishes its Airlock package to a hosted channel and to a static channel
+    When the workflow set is rendered
+    Then the publish build writes fragments into the artifact before uploading it
+
   Scenario: Lock adapters add the Airlock file with a job per declared format
     Given a project that declares Pixi and Bun lock adapters
     When the workflow set is rendered
