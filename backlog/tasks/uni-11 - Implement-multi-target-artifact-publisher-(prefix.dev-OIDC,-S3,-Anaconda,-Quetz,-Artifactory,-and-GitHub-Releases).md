@@ -219,4 +219,12 @@ remained owner-side; see the note below.
   and the renderer gives it every released package without the package naming it;
   `release = false` opts out. `decision-132` records the scope widening, and `UNI-59` AC#4
   stays open until the asset is verified after a tag run.
+- **The releases publisher is proven against the live repository.** Run 42914663367 had a
+  green `publish / releases` job; it created the published rolling release
+  `packages-linux-64 artifacts` with asset `universe-airlock-0.1.0-h41f06ac_0.conda`,
+  sha256 `dfc08b401414baebe182ad9a5971673d915d82bdd8ac4c9bb0b81adcb355e2b6`, size 298585.
+  The same bytes are in the `channel` branch at `aa853bdb`. The overall verdict is red only
+  because `publish / prefix-dev` refused a changed digest with 409; see `UNI-59` for the
+  non-reproducibility note. A later re-watch would need `--force` or reproducible bytes
+  before either artifact store accepts a rebuild.
 <!-- SECTION:NOTES:END -->
