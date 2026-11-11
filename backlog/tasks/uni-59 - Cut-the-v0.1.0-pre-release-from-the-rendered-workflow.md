@@ -445,9 +445,51 @@ a repository check rather than a release-time computation.
   BDD scenario and a Python scope test were red before the renderer changed, and the workflows
   were re-rendered with `ci-render`. `decision-132`, `decision-126`, `UNI-11`, `CHANGELOG.md`
   and the prose docs record the correction and the evidence.
-- **What stays open.** AC#2 (an annotated `v0.1.0` tag from green gates), AC#4 (the offline
-  branch solve with network denied, for all three packages at all three destinations, after a
-  re-watch with the corrected renderer), AC#5 (a clean Git+Pixi container transcript with the
-  image name) and every DoD box remain open. The fresh prefix.dev read-back by digest for all
-  three packages is recorded above; the branch half of AC#4 is not. No `v0.1.0` tag was cut.
+- **What stays open after the first re-watch.** AC#2 (an annotated `v0.1.0` tag from green
+  gates), AC#4 (the offline branch solve with network denied, for all three packages at all
+  three destinations, after a re-watch with the corrected renderer), AC#5 (a clean Git+Pixi
+  container transcript with the image name) and every DoD box remain open. The fresh prefix.dev
+  read-back by digest for all three packages is recorded above; the branch half of AC#4 is not.
+  No `v0.1.0` tag was cut.
+- **2026-11-11 — the corrected re-watch is green, and force-replacement is proven.** The owner
+  granted read-write-delete on the prefix.dev Repository Access entry and asked for a re-watch
+  with no manual removal. `workflow_dispatch` run `43061441347` from `main` at
+  `fa785a323d146974b742fe8a390748f56472b832` started at `2026-11-11T16:45:25Z` and finished
+  `success` at `16:50:52Z` on attempt 1: `publish / build`, `publish / prefix-dev`,
+  `publish / branch`, `publish / releases` and `publish / verdict` are all green. All four
+  consuming jobs downloaded one artifact (`13872723957`,
+  `sha256:322f9e051dd0668509b8f268d684c2767c0b4d7af530decdb619ce26c0a6e4f7`, 3989110 bytes).
+  The build audited `universe-airlock` at
+  `134f5e7dfd2d249f08195a2678e7ff6200f54b53fe04bc95c3229ff1ca8e651d` (298595 bytes),
+  `universe-kit` at
+  `63b958b773573e158ff30bdd682a0669311d58058a790c2783ae1c90902e9c12` (3491258 bytes), and the
+  umbrella `universe` facade at
+  `470f52e41e4dfaae20ce22d893cf1e098b2784c123ae623cdacab07c84667e69` (195021 bytes); the facade
+  declares run dependencies on the other two.
+- **All three destinations now agree on those three digests.** `publish / prefix-dev` reported
+  three forced uploads (`298595`, `3491258`, `195021` bytes) with no `403` — the occupied
+  filenames from run `43045274207` were replaced under changed digests with no owner-side
+  removal, so this run proves force-replacement with the read-write-delete entry. A fresh,
+  cache-busted read of the channel's `linux-64/repodata.json` (publication `87896`) reads back
+  all three filenames with exactly those digests and sizes. The plain URL and publication
+  `87577` still served the older CDN-cached index for several minutes after reindexing, so the
+  cache-busted read is the evidence. The three GitHub Release assets of `packages-linux-64
+  artifacts` read back the same digests and sizes through the release API.
+- **The branch store is fixed.** `publish / branch` now runs one step, `Publish the channel
+  snapshot`, and pushed orphan commit `7afdff10e32c28d368caaf07acc18a118d81ea74` with twelve
+  files: all three `.conda` archives, all three audit receipts, and the generated metadata.
+  Its `linux-64/repodata.json` lists all three packages with those three digests and the
+  facade's two dependency edges now have matching records in the same tree. A local
+  verification of the same one-command publish against a temporary remote produced one tree
+  with all three packages before this run.
+- **What this closes and what it does not.** AC#4's "all three packages at all three
+  destinations by digest" is now verified for a run, including a fresh prefix.dev read-back
+  and a branch tree that carries every package. AC#4 stays open on its offline half: a
+  `pixi install --offline` from a local checkout of that branch with network denied has not
+  been recorded, and the recipes declare `libgcc >=16` and `__glibc >=2.17` that the branch
+  channel does not carry. AC#2 (the annotated `v0.1.0` tag from green gates), AC#5 (a clean
+  Git+Pixi container transcript with the image named) and every DoD box remain open. The build
+  is still not reproducible: the same name, version and build string carried different bytes
+  in runs `43045274207` and `43061441347`. No `v0.1.0` tag was cut. `decision-126`,
+  `decision-132`, `UNI-11`, `CHANGELOG.md` and the prose docs record the correction.
 <!-- SECTION:NOTES.END -->

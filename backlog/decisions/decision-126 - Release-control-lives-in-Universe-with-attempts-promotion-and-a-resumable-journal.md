@@ -34,6 +34,18 @@ records the correction, `UNI-59` records the evidence, and the offline branch so
 open. Invariant 3 below is unchanged for the `universe release` controller and the integrated
 v1 lane. No `v0.1.0` tag is cut.
 
+**Evidence correction, recorded as a correction (2026-11-11).** The owner then granted
+read-write-delete on the prefix.dev Repository Access entry. Run `43061441347` re-watched the
+corrected renderer with no manual removal and is green on attempt 1. Its three forced uploads
+replaced occupied filenames under changed digests with no `403`, and a fresh prefix.dev
+repodata read (publication `87896`) resolves all three by the new digests; the GitHub Release
+assets and the one-snapshot `channel` branch resolve the same bytes. Force-replacement with
+this Repository Access entry is now proven — the earlier sentence that it was not proven is a
+true statement about runs `42920755513` and `43045274207`, not about this one. The branch
+channel now carries all three packages; its offline solve is still unrecorded. The build is
+still not reproducible. `decision-132` records the correction, `UNI-59` records the evidence,
+and Invariant 3 below is unchanged for the integrated v1 lane. No `v0.1.0` tag is cut.
+
 ## Context
 
 Release control for this repository has been provided by a separate controller tool with its

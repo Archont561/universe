@@ -36,8 +36,21 @@ All notable changes to Universe are recorded here.
   `1d30ef21701497dd196eeaa1599d7ec3ee24edc6` holding only the `universe` facade. A green
   verdict is not proof that all three packages reached all three destinations. `ci render`
   now emits one command naming every package for a branch or static store; artifact stores
-  keep one upload step per package. `decision-132` records the correction. Re-watch with the
-  corrected renderer before considering the offline solve; no `v0.1.0` tag is cut.
+  keep one upload step per package. `decision-132` records the correction.
+- Run `43061441347` re-watched the corrected renderer from `main` at `fa785a32` after the
+  owner granted read-write-delete on the prefix.dev Repository Access entry. All five jobs are
+  green on attempt 1 with no manual removal. Its build audited `universe-airlock` at
+  `sha256:134f5e7dfd2d249f08195a2678e7ff6200f54b53fe04bc95c3229ff1ca8e651d` (298595 bytes),
+  `universe-kit` at
+  `sha256:63b958b773573e158ff30bdd682a0669311d58058a790c2783ae1c90902e9c12` (3491258 bytes), and the
+  umbrella `universe` facade at
+  `sha256:470f52e41e4dfaae20ce22d893cf1e098b2784c123ae623cdacab07c84667e69` (195021 bytes). The
+  three forced prefix.dev uploads replaced occupied names under changed digests with no `403`,
+  so this run proves force-replacement with the granted entry. The three GitHub Release assets,
+  the `channel` branch at `7afdff10e32c28d368caaf07acc18a118d81ea74` (one snapshot, twelve
+  files) and a fresh prefix.dev repodata read (publication `87896`) all resolve those three
+  digests. The plain repodata URL and publication `87577` were briefly CDN-stale. The offline
+  branch solve and a clean-container restore transcript remain open; no `v0.1.0` tag is cut.
 
 ## 0.1.0
 
