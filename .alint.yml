@@ -107,6 +107,12 @@ rules:
     id: universe-required-kit-variants
     vars: { path: crates/universe-kit/recipe/variants.yaml }
   - extends_template: universe-required-file
+    id: universe-required-cli-recipe
+    vars: { path: crates/universe-cli/recipe/recipe.yaml }
+  - extends_template: universe-required-file
+    id: universe-required-cli-variants
+    vars: { path: crates/universe-cli/recipe/variants.yaml }
+  - extends_template: universe-required-file
     id: universe-required-development-doc
     vars: { path: docs/DEVELOPMENT.md }
   - extends_template: universe-required-file

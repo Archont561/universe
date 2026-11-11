@@ -6,9 +6,11 @@
 # as a criterion, and `crates/universe-kit/tests/manifest.rs` fails if this file does not
 # parse cleanly or lints with any finding.
 #
-# Scope is `decision-132`: `v0.1.0` publishes `universe-airlock` for `linux-64` only. The
-# package list, the platform list, and the store list are the whole of it — a second
-# package or platform is a change to this file, not to the workflow.
+# Scope is `decision-132`, widened by its main-CLI amendment: `v0.1.0` publishes three
+# `linux-64` Conda packages — the Airlock consumer, the `universe-kit` producer, and the
+# umbrella `universe` facade. The package list, the platform list, and the store list are
+# the whole of it — another package or platform is a change to this file, not to the
+# workflow.
 
 schema = 1
 
@@ -58,6 +60,43 @@ release = true
 [packages.catalog]
 title = "Universe Airlock"
 summary = "Finite offline consumer for verified sealed snapshots"
+license = "MIT"
+
+[[packages]]
+name = "universe-kit"
+kind = "conda"
+# The producer CLI has its own recipe and Pixi task. It is published with Airlock so an
+# owner lane can install the tool that rendered this manifest without building from source.
+command = ["pixi", "run", "-e", "packaging", "--frozen", "package-kit"]
+platforms = ["linux-64"]
+outputs = ["output/universe-kit/linux-64/*.conda"]
+smoke = ["universe-kit --version"]
+publish = ["prefix-dev", "branch"]
+release = true
+
+[packages.catalog]
+title = "Universe Kit"
+summary = "Connected owner and producer CLI for portable Universe catalogs"
+license = "MIT"
+
+[[packages]]
+name = "universe"
+kind = "conda"
+# The thin facade depends on both published components. `depends_on` makes that order
+# explicit for `plan`; `package-cli` skips rattler-build's post-build test because the
+# run dependencies are not in the channel until this same release publishes them. The
+# workspace gates prove the facade binary itself.
+command = ["pixi", "run", "-e", "packaging", "--frozen", "package-cli"]
+depends_on = ["universe-kit", "universe-airlock"]
+platforms = ["linux-64"]
+outputs = ["output/universe/linux-64/*.conda"]
+smoke = ["universe --version"]
+publish = ["prefix-dev", "branch"]
+release = true
+
+[packages.catalog]
+title = "Universe"
+summary = "Thin front door for separately installable Universe producer and consumer tools"
 license = "MIT"
 
 # The hosted channel. `prefix.dev` exchanges the workflow identity for a short-lived

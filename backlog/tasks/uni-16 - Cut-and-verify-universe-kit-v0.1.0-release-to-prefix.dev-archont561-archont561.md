@@ -20,6 +20,14 @@ type: task
 ordinal: 16000
 ---
 
+## Status note
+
+**Scope widened, recorded as a reversal.** The main-CLI amendment to `decision-132` publishes
+`universe-kit` as part of the still-uncut `v0.1.0` pre-release. This task remains To Do: it owns
+the integrated v1 release, the release controller journal, and independent verification, none of
+which a dispatched `release.yml` run proves. No `v0.1.0` tag is cut.
+
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

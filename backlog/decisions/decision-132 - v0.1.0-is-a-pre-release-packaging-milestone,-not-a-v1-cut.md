@@ -28,8 +28,9 @@ artifacts to real destinations, and is explicitly *not* the integrated v1 releas
 
 The scope of `v0.1.0` is:
 
-1. `universe-airlock` packaged as a Conda package, `linux-64` only, with its version asserted
-   against the workspace rather than restated in the recipe.
+1. Three `linux-64` Conda packages: `universe-airlock`, `universe-kit`, and the umbrella
+   `universe` facade. Each version is asserted against the workspace rather than restated in
+   its recipe. The two main-CLI packages joined the checkpoint in the amendment below.
 2. Airlock's verify and restore skeleton (`UNI-32`, `UNI-33`) present, so the installed
    binary does something a consumer would want. A package whose only behaviour is `--version`
    is a pipeline proof, and calling it a product release would be the mislabelling this record
@@ -42,8 +43,9 @@ The scope of `v0.1.0` is:
    argument for hand-writing the first file does not apply.
 
 Explicitly out of scope, and staying with `decision-119`: Cargo, Python wheels, npm, the
-browsable portal, `universe-kit` publication, the umbrella `universe` facade, and any platform
-beyond `linux-64`.
+browsable portal, and any platform beyond `linux-64`. The main-CLI amendment below adds
+`universe-kit` and the umbrella `universe` facade to this pre-release only; their four-platform
+and integrated v1 work remains with `UNI-15`, `UNI-16`, and `UNI-40`.
 
 Three things keep this honest:
 
@@ -51,7 +53,7 @@ Three things keep this honest:
   claim the v1 surfaces.
 - **`decision-119` is not superseded.** This record narrows the *schedule*, and the v1
   acceptance gate stands exactly as written.
-- **Nothing already accepted is relaxed.** Static-channel publication, the store/package
+- **No v1 acceptance surface is relaxed.** Static-channel publication, the store/package
   mapping, and the per-store publish jobs all follow `decision-127` and `decision-128`.
 
 ## Amendment (2026-11-01): the checkpoint is a closed loop, and its channel rides a branch
@@ -76,12 +78,12 @@ The scope above stands. Three things are now stated rather than implied:
    subdir paths and the package bytes at them.
 3. **The cost of that choice is recorded, not discovered.** A branch is a poor CDN: every
    build grows the repository and cloners pay for history. The transport is therefore
-   scoped to this checkpoint, to one package, and to a retention rule that is an
-   acceptance criterion rather than a later improvement. When the channel outgrows a
+   scoped to this checkpoint, to the three declared `linux-64` packages, and to a retention
+   rule that is an acceptance criterion rather than a later improvement. When the channel outgrows a
    branch, `UNI-11`'s hosted publication is already the general path.
 
-Before the GitHub Releases amendment below, nothing here enlarged the release: the v1 gate
-in `decision-119` still requires all six surfaces, and `UNI-59`'s notes must state the
+The later amendments enlarge only the checkpoint's package and destination lists. The v1
+gate in `decision-119` still requires all six surfaces, and `UNI-59`'s notes must state the
 pre-release status rather than borrow them.
 
 ## Amendment: GitHub Releases is a third destination
@@ -142,6 +144,28 @@ prefix.dev channel accepts the forced upload; it does not prove that the current
 Access entry can force-replace an occupied filename, and it does not make the build
 reproducible. `UNI-59` records both attempts, the common artifact and digests, and the
 still-open acceptance criteria. No `v0.1.0` tag is cut.
+
+## Amendment: the main CLI packages are in scope
+
+The owner asked why only Airlock was published. The answer was the out-of-scope line above:
+`v0.1.0` declared one package while the repository already shipped a producer CLI and an
+umbrella facade. Leaving that contradiction standing would promise a main CLI the checkpoint
+did not publish.
+
+**This amendment widens the scope, and is recorded as a reversal.** `v0.1.0` now declares
+three `linux-64` Conda packages in `universe.toml`: `universe-airlock`, `universe-kit`, and
+the umbrella `universe` facade. The rendered `release.yml` builds and publishes all three to
+`prefix-dev`, the Git-branch static channel, and GitHub Releases. The facade declares
+`depends_on = ["universe-kit", "universe-airlock"]` so `plan` orders its build after both
+components; `package-cli` skips rattler-build's post-build test because those run dependencies
+are not in the channel until the same release publishes them. The workspace gates prove the
+facade binary itself.
+
+This does not supersede `decision-119`, does not close `UNI-15`, `UNI-16`, or `UNI-40`, and
+does not make the artifacts reproducible. Those tasks still own four-platform packaging and
+the integrated v1 release; one `linux-64` pre-release is not their completion. `UNI-59` AC#4
+is reworded to cover all three packages at all three destinations and stays open until the
+tag run proves them. No `v0.1.0` tag is cut by this amendment.
 
 ## Consequences
 

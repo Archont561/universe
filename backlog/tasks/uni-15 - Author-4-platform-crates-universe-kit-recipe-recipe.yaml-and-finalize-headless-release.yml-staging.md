@@ -25,6 +25,14 @@ type: feature
 ordinal: 15000
 ---
 
+## Status note
+
+**Scope widened, recorded as a reversal.** The main-CLI amendment to `decision-132` adds
+`universe-kit` to the still-uncut `v0.1.0` publish lane as one `linux-64` Conda package. This
+task remains To Do: four-platform recipes, the full recipe matrix, and the v1 release lane are
+not completed by a single-platform pre-release. No `v0.1.0` tag is cut.
+
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

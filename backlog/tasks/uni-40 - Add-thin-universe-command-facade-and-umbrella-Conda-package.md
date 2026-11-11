@@ -18,6 +18,16 @@ type: feature
 ordinal: 40000
 ---
 
+## Status note
+
+**Scope widened, recorded as a reversal.** The main-CLI amendment to `decision-132` adds the
+umbrella `universe` facade to the still-uncut `v0.1.0` publish lane. Its recipe declares
+`universe-kit` and `universe-airlock` as run dependencies; `package-cli` skips rattler-build's
+post-build test because those dependencies are published in the same release, while the
+workspace gates prove the facade binary. This task remains To Do: a clean-channel install and
+offline dispatcher tests are not proven by one `linux-64` dispatch. No `v0.1.0` tag is cut.
+
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

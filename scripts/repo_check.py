@@ -17,6 +17,7 @@ import sys
 import tomllib
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from scripts.lib.files import path_exists
 
@@ -782,6 +783,65 @@ def validate_documented_pixi_tasks(repo_root: Path) -> list[str]:
     return errors
 
 
+def validate_manifest_build_tasks(repo_root: Path) -> list[str]:
+    """Ensure every package build command names a declared Pixi task.
+
+    A `[[packages]].command` is not documentation: the rendered build job runs it
+    verbatim. A task that was renamed or never written would otherwise fail on the
+    release runner, after the tag, instead of in `repo-check`.
+    """
+    manifest_path = repo_root / "universe.toml"
+    pixi_path = repo_root / "pixi.toml"
+    if not path_exists(manifest_path) or not path_exists(pixi_path):
+        return []
+    try:
+        manifest: dict[str, Any] = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        pixi: dict[str, Any] = tomllib.loads(pixi_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        return [f"cannot read the manifest build tasks: {exc}"]
+
+    tasks_value = pixi.get("tasks", {})
+    if not isinstance(tasks_value, dict):
+        return ["pixi.toml has no [tasks] table"]
+    tasks: dict[str, Any] = tasks_value
+
+    packages_value = manifest.get("packages", [])
+    if not isinstance(packages_value, list):
+        return ["universe.toml has no [[packages]] list"]
+
+    errors: list[str] = []
+    for package_value in packages_value:
+        if not isinstance(package_value, dict):
+            continue
+        name = str(package_value.get("name", "<unnamed>"))
+        command_value = package_value.get("command", [])
+        if not isinstance(command_value, list):
+            errors.append(f"universe.toml: package '{name}' has no command list")
+            continue
+        command: list[str] = [token for token in command_value if isinstance(token, str)]
+        if not command:
+            continue
+        if len(command) < 2 or command[0] != "pixi" or command[1] != "run":
+            errors.append(f"universe.toml: package '{name}' build command is not `pixi run`")
+            continue
+        task_name: str | None = None
+        index = 2
+        while index < len(command):
+            token = command[index]
+            if token.startswith("-"):
+                index += 1 + (token in PIXI_VALUE_FLAGS)
+                continue
+            task_name = token
+            break
+        if task_name is None:
+            errors.append(f"universe.toml: package '{name}' names no Pixi task")
+        elif task_name not in tasks:
+            errors.append(
+                f"universe.toml: package '{name}' names no declared Pixi task '{task_name}'"
+            )
+    return errors
+
+
 def _task_number(identifier: str) -> int:
     """Sort task identifiers numerically rather than lexicographically."""
     return int(identifier.split("-")[1])
@@ -922,6 +982,7 @@ def validate_repo(repo_root: Path | None = None, tags: Sequence[str] | None = No
 
     errors.extend(validate_roadmap_coverage(root))
     errors.extend(validate_documented_pixi_tasks(root))
+    errors.extend(validate_manifest_build_tasks(root))
     errors.extend(validate_scheduled_audit(root))
     ci_workflow_path = root / ".github" / "workflows" / "ci.yml"
     if path_exists(ci_workflow_path):
