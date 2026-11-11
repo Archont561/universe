@@ -123,6 +123,40 @@ def test_the_three_package_re_watch_evidence_is_recorded() -> None:
     assert "one command" in notes, "the branch snapshot fix is not recorded"
 
 
+def test_the_force_replacement_re_watch_evidence_is_recorded() -> None:
+    """Independent source: run 43061441347's audit, repodata, release assets and branch tree."""
+    notes = (
+        ROOT
+        / "backlog"
+        / "tasks"
+        / "uni-59 - Cut-the-v0.1.0-pre-release-from-the-rendered-workflow.md"
+    ).read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    decision = (
+        ROOT
+        / "backlog"
+        / "decisions"
+        / "decision-132 - v0.1.0-is-a-pre-release-packaging-milestone,-not-a-v1-cut.md"
+    ).read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    workflows = (ROOT / "docs" / "WORKFLOWS.md").read_text(encoding="utf-8")
+
+    for document in (notes, changelog, decision, readme, workflows):
+        assert "43061441347" in document, "the corrected re-watch is missing"
+    for digest in (
+        "134f5e7dfd2d249f08195a2678e7ff6200f54b53fe04bc95c3229ff1ca8e651d",
+        "63b958b773573e158ff30bdd682a0669311d58058a790c2783ae1c90902e9c12",
+        "470f52e41e4dfaae20ce22d893cf1e098b2784c123ae623cdacab07c84667e69",
+    ):
+        assert digest in notes, f"the audit digest {digest} is not recorded"
+    assert "7afdff10e32c28d368caaf07acc18a118d81ea74" in notes, (
+        "the three-package branch snapshot is not recorded"
+    )
+    assert "87896" in notes, "the fresh prefix.dev read-back is not recorded"
+    assert "read-write-delete" in notes, "the force-replace outcome is not recorded"
+    assert "offline" in notes, "the still-open offline solve is not recorded"
+
+
 def test_the_release_records_name_all_three_packages() -> None:
     notes = (ROOT / "docs" / "releases" / "0.1.0.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")

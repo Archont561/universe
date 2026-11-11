@@ -196,8 +196,33 @@ branch --remote ... --package universe-airlock --package universe-kit --package 
 and `--force` still applies only to them. A Rust unit test, a BDD scenario and a Python scope
 test were red before the renderer changed, and the workflows were re-rendered. `UNI-59`,
 `decision-126`, `UNI-11`, `CHANGELOG.md` and the prose docs record the evidence and the
-correction. AC#2, AC#4's offline branch solve, AC#5 and every DoD box remain open; a re-watch
-with the corrected renderer is needed before AC#4 can be considered. No `v0.1.0` tag is cut.
+correction. No `v0.1.0` tag is cut.
+
+## Amendment: the corrected re-watch, and force-replacement proven
+
+The owner granted read-write-delete on the prefix.dev Repository Access entry and asked for a
+re-watch with no manual removal. Run `43061441347` from `main` at `fa785a32` is green on
+attempt 1: all five jobs succeeded. Its build audited `universe-airlock` at
+`134f5e7dfd2d249f08195a2678e7ff6200f54b53fe04bc95c3229ff1ca8e651d` (298595 bytes),
+`universe-kit` at
+`63b958b773573e158ff30bdd682a0669311d58058a790c2783ae1c90902e9c12` (3491258 bytes) and the
+umbrella `universe` facade at
+`470f52e41e4dfaae20ce22d893cf1e098b2784c123ae623cdacab07c84667e69` (195021 bytes). All three
+forced prefix.dev uploads replaced occupied names under changed digests with no `403` and no
+owner-side removal — the read-write-delete grant is now proven, which the two earlier runs
+could not show. A fresh cache-busted prefix.dev repodata read (publication `87896`), the three
+GitHub Release assets, and the `channel` branch at
+`7afdff10e32c28d368caaf07acc18a118d81ea74` all resolve those three digests. The branch job ran
+one `Publish the channel snapshot` step and pushed twelve files, including all three archives
+and receipts; the earlier one-package branch defect is fixed.
+
+**This is an evidence correction, recorded as a correction, not a scope change.** `UNI-59`
+AC#4's "all three packages at all three destinations by digest" is verified for this run. AC#4
+stays open on its offline branch solve with network denied, which has not been recorded and is
+blocked by `libgcc >=16` and `__glibc >=2.17` declarations the branch channel does not carry.
+AC#2, AC#5 and every DoD box remain open. The build is still not reproducible — the same
+filename carried different bytes in runs `43045274207` and `43061441347`. No `v0.1.0` tag is
+cut. `decision-126`, `UNI-11`, `CHANGELOG.md` and the prose docs record the correction.
 
 ## Consequences
 

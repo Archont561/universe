@@ -251,4 +251,19 @@ remained owner-side; see the note below.
   `1d30ef21701497dd196eeaa1599d7ec3ee24edc6` holding only the facade. `ci render` now emits
   one command naming every package for a branch or static store; `decision-132` records the
   correction and `UNI-59` records the evidence. The offline branch solve remains open.
+- **Force-replacement is proven against the live channel.** After the owner granted
+  read-write-delete on the Repository Access entry, run `43061441347` from `main` at
+  `fa785a32` is green on attempt 1 with no manual removal. Its build audited
+  `universe-airlock` (`134f5e7dfd2d249f08195a2678e7ff6200f54b53fe04bc95c3229ff1ca8e651d`),
+  `universe-kit` (`63b958b773573e158ff30bdd682a0669311d58058a790c2783ae1c90902e9c12`) and
+  the umbrella `universe` facade
+  (`470f52e41e4dfaae20ce22d893cf1e098b2784c123ae623cdacab07c84667e69`). Three forced
+  prefix.dev uploads replaced the occupied filenames from the previous run under changed
+  digests with no `403`. A fresh cache-busted repodata read (publication `87896`), the three
+  GitHub Release assets and the `channel` branch at
+  `7afdff10e32c28d368caaf07acc18a118d81ea74` all resolve those three digests. The plain
+  repodata URL and publication `87577` were briefly CDN-stale. `publish / branch` now runs
+  one snapshot push carrying twelve files, including all three archives and receipts.
+  `decision-132` records the correction and `UNI-59` records the evidence. The offline
+  branch solve remains open, the build is still not reproducible, and no `v0.1.0` tag is cut.
 <!-- SECTION:NOTES:END -->

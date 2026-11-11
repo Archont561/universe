@@ -53,10 +53,16 @@ Six things are worth noticing, because they are the design:
   Not authorized`; the owner removed the occupied variant manually and reran the failed jobs,
   so attempt 2 is green. Run `43045274207` is green on attempt 1 for all three packages after
   the occupied variants were cleared a second time, and a fresh cache-busted prefix.dev
-  repodata read (publication `87457`) resolves all three by digest. Neither run proves
-  force-replacing an occupied name with the current entry. `publish --store branch` takes no
-  `--force`, because it already replaces one snapshot tree — and now does so in one command
-  naming every package.
+  repodata read (publication `87457`) resolves all three by digest. Those uploads landed on
+  cleared names and did not prove force-replacement. After the owner granted read-write-delete
+  on the Repository Access entry, run `43061441347` re-watched the corrected renderer with no
+  manual removal and is green on attempt 1: three forced uploads replaced occupied filenames
+  under changed digests with no `403`, and a fresh cache-busted repodata read (publication
+  `87896`) resolves all three by the new digests. The plain URL and publication `87577` were
+  briefly CDN-stale. Force-replacement with this entry is now proven. `publish --store branch`
+  takes no `--force`, because it already replaces one snapshot tree — and now does so in one
+  command naming every package, so the branch carries all three. The offline branch solve is
+  still unrecorded.
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.
