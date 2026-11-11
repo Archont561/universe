@@ -30,7 +30,8 @@ ordinal: 15000
 **Scope widened, recorded as a reversal.** The main-CLI amendment to `decision-132` adds
 `universe-kit` to the still-uncut `v0.1.0` publish lane as one `linux-64` Conda package. This
 task remains To Do: four-platform recipes, the full recipe matrix, and the v1 release lane are
-not completed by a single-platform pre-release. No `v0.1.0` tag is cut.
+not completed by a single-platform pre-release. The `v0.1.0` tag was cut on 2026-11-11 (see
+the correction below).
 
 
 ## Description
@@ -63,4 +64,5 @@ cut either a Conda-only `v0.1.0` or a portal-only `v0.2.0` release.
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 CI package jobs build and test each independent package; publication remains a separate credentialed lane.
+**Status note — correction (2026-11-11).** The annotated `v0.1.0` tag was cut from `1de18891bd69f8d16b4d261cfdaa53525555eabd` and pushed; its tag-triggered `release.yml` run `43073492712` is green, including `publish / verdict`. https://github.com/Archont561/universe/actions/runs/43073492712 This records the tag as evidence, not as a completion of this record's criteria: the tasks above remain To Do. The offline branch solve with network denied, a clean-container restore transcript, and the four-platform and integrated v1 lanes are still open. `UNI-59` records the tag run's digests and the remaining gaps. No further tag is cut.
 <!-- DOD:END -->

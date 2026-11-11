@@ -21,7 +21,7 @@ All notable changes to Universe are recorded here.
   records one for all three packages.
 
 - The `v0.1.0` pre-release scope is widened to declare the producer CLI and the umbrella `universe` facade
-  alongside Airlock. `decision-132` records the reversal; the `v0.1.0` tag is not cut.
+  alongside Airlock. `decision-132` records the reversal; the `v0.1.0` tag was cut afterwards, as the entry below records.
 - Run `43045274207` re-watched the widened checkpoint after the owner cleared the occupied
   prefix.dev variants again. All five jobs are green, and the build audited three packages:
   `universe-airlock` at `sha256:2e98b81d2155f5033bef5001dae2c6a3dbf5037d97e32e182f4af7e050bfab26`
@@ -50,7 +50,28 @@ All notable changes to Universe are recorded here.
   the `channel` branch at `7afdff10e32c28d368caaf07acc18a118d81ea74` (one snapshot, twelve
   files) and a fresh prefix.dev repodata read (publication `87896`) all resolve those three
   digests. The plain repodata URL and publication `87577` were briefly CDN-stale. The offline
-  branch solve and a clean-container restore transcript remain open; no `v0.1.0` tag is cut.
+  branch solve and a clean-container restore transcript remain open; the `v0.1.0` tag was cut afterwards, as the entry below records.
+- The annotated `v0.1.0` tag is cut from `1de18891bd69f8d16b4d261cfdaa53525555eabd`; its subject is
+  the first line of `docs/releases/0.1.0.md`, and `pixi run gates` passes at that commit. The
+  tag-triggered `release.yml` run `43073492712` is green, including `publish / verdict`; the
+  tag-triggered `universe` run `43073492717` is green.
+  https://github.com/Archont561/universe/actions/runs/43073492712. The tag run's build audited
+  `universe-airlock` at
+  `sha256:7153aedcc8188a044524f6bc84639188e7d62491caf74d9630a4fcbd5859a3ab` (298600 bytes),
+  `universe-kit` at
+  `sha256:314d6941c8a1776f04954a117ea6d91cca3d97971ca6203e68d1c5a11d6233b2` (3491139 bytes), and the
+  umbrella `universe` facade at
+  `sha256:c4e1fc2792135a803fb3ec9a772d2fd9e2a529d323ccb792d30f7ef1636f9cec` (195023 bytes). The
+  three GitHub Release assets, the `channel` branch at `eb532021ccc386c875c720e6b67138b4b30c1152`
+  and a fresh cache-busted prefix.dev repodata read (publication `88268`) all resolve those three
+  digests; the plain repodata URL was briefly CDN-stale. The build is still not reproducible, so
+  these tag-run bytes supersede the digests recorded above for runs `43045274207` and
+  `43061441347`. The offline branch solve with network denied is not proven: `pixi install
+  --offline` against a clone of `channel` fails on `libgcc >=16`, a run export from `stdlib('c')`
+  that the branch channel does not carry. A clean-container restore transcript is also still
+  unrecorded: no container runtime is available here, and this owner-lane manifest declares no
+  restore entrypoint. `UNI-59` stays open on those two criteria and DoD #3; the `v0.1.0` tag does
+  not complete four-platform packaging, a sealed payload, or the integrated v1 gate.
 
 ## 0.1.0
 
@@ -64,7 +85,9 @@ browsable portal, and every platform beyond `linux-64` remain out of scope.
   `universe-airlock-bootstrap` restores one into an immutable state root.
 - The publishing workflow is rendered from `universe.toml` and drift-checked rather than
   written by hand.
-- A branch channel that carries a Conda dependency edge resolves offline with Pixi.
+- A branch channel that carries a Conda dependency edge resolves offline with Pixi in the repository's
+  tests. The published `v0.1.0` branch channel does not yet resolve offline; see the Unreleased
+  entry above.
 - A repository check keeps this section, the workspace version, the recipe version, and the
   newest `v*` tag in agreement, so a later release cannot drift by memory.
 - Created the standalone Universe monorepo scaffold with `universe-core`,

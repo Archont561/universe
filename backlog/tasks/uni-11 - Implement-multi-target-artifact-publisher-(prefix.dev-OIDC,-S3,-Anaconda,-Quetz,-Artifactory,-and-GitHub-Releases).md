@@ -265,5 +265,7 @@ remained owner-side; see the note below.
   repodata URL and publication `87577` were briefly CDN-stale. `publish / branch` now runs
   one snapshot push carrying twelve files, including all three archives and receipts.
   `decision-132` records the correction and `UNI-59` records the evidence. The offline
-  branch solve remains open, the build is still not reproducible, and no `v0.1.0` tag is cut.
+  branch solve remains open, the build is still not reproducible, and the `v0.1.0` tag was cut
+  on 2026-11-11 (see the correction below).
+**Status note — correction (2026-11-11).** The annotated `v0.1.0` tag was cut from `1de18891bd69f8d16b4d261cfdaa53525555eabd` and pushed; its tag-triggered `release.yml` run `43073492712` is green, including `publish / verdict`. https://github.com/Archont561/universe/actions/runs/43073492712 This records the tag as evidence, not as a completion of this record's criteria: the tasks above remain To Do. The offline branch solve with network denied, a clean-container restore transcript, and the four-platform and integrated v1 lanes are still open. `UNI-59` records the tag run's digests and the remaining gaps. No further tag is cut.
 <!-- SECTION:NOTES:END -->
