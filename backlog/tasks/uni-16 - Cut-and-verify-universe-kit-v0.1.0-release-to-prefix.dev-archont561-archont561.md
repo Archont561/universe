@@ -25,7 +25,8 @@ ordinal: 16000
 **Scope widened, recorded as a reversal.** The main-CLI amendment to `decision-132` publishes
 `universe-kit` as part of the still-uncut `v0.1.0` pre-release. This task remains To Do: it owns
 the integrated v1 release, the release controller journal, and independent verification, none of
-which a dispatched `release.yml` run proves. No `v0.1.0` tag is cut.
+which a dispatched `release.yml` run proves. The `v0.1.0` tag was cut on 2026-11-11 (see the
+correction below).
 
 
 ## Description
@@ -60,4 +61,5 @@ portal `v0.2.0` release tasks; it does not merely rename either staged release.
 <!-- DOD:BEGIN -->
 - [ ] #1 The integrated v1 release artifacts and catalog snapshot are published and independently verifiable.
 - [ ] #2 No test report claims the full suite is offline unless every dependency/cache closure was verified with network egress denied.
+**Status note — correction (2026-11-11).** The annotated `v0.1.0` tag was cut from `1de18891bd69f8d16b4d261cfdaa53525555eabd` and pushed; its tag-triggered `release.yml` run `43073492712` is green, including `publish / verdict`. https://github.com/Archont561/universe/actions/runs/43073492712 This records the tag as evidence, not as a completion of this record's criteria: the tasks above remain To Do. The offline branch solve with network denied, a clean-container restore transcript, and the four-platform and integrated v1 lanes are still open. `UNI-59` records the tag run's digests and the remaining gaps. No further tag is cut.
 <!-- DOD:END -->

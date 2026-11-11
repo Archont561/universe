@@ -44,7 +44,21 @@ this Repository Access entry is now proven — the earlier sentence that it was 
 true statement about runs `42920755513` and `43045274207`, not about this one. The branch
 channel now carries all three packages; its offline solve is still unrecorded. The build is
 still not reproducible. `decision-132` records the correction, `UNI-59` records the evidence,
-and Invariant 3 below is unchanged for the integrated v1 lane. No `v0.1.0` tag is cut.
+and Invariant 3 below is unchanged for the integrated v1 lane. No `v0.1.0` tag was cut by that
+work.
+
+**Tag correction, recorded as a correction (2026-11-11).** The annotated `v0.1.0` tag was
+cut afterwards from `1de18891bd69f8d16b4d261cfdaa53525555eabd`. The tag-triggered
+`release.yml` run `43073492712` is green, including `publish / verdict`; the tag-triggered
+`universe` run `43073492717` is green. `pixi run gates` passes at the tagged commit. The
+three tag-run digests read back at prefix.dev (publication `88268`), the three GitHub Release
+assets and the one-snapshot `channel` branch at `eb532021ccc386c875c720e6b67138b4b30c1152`.
+Force-replacement remains proven; the build remains non-reproducible, so the tag-run bytes
+supersede those of runs `43045274207` and `43061441347`. `UNI-59` AC#2 and DoD #1 and #2 are
+satisfied; its offline branch solve with network denied, clean-container restore transcript
+and DoD #3 remain open. `decision-132` records the correction, `UNI-59` records the evidence,
+and Invariant 3 below is unchanged for the integrated v1 lane. No further tag is cut.
+https://github.com/Archont561/universe/actions/runs/43073492712
 
 ## Context
 

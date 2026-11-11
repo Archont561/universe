@@ -16,14 +16,14 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 
 > Status: pre-release `0.x`. The distribution design is settled and recorded in
 > [`backlog/decisions`](backlog/decisions); implementation is tracked in
-> [`backlog/tasks`](backlog/tasks). **Three `linux-64` Conda packages are published by
-> dispatched `release.yml` runs** — `universe-airlock`, `universe-kit` and the umbrella
-> `universe` facade — to prefix.dev, the Git branch channel, and as GitHub Release assets. Run
-> `43061441347` reads back all three by digest at all three destinations after the owner
-> granted read-write-delete on the prefix.dev Repository Access entry; its branch snapshot
-> carries all three packages. The offline branch solve is still unrecorded, so `UNI-59` stays
-> open. No `v0.1.0` tag is cut and the v1 surfaces remain absent. Every `0.Y.0` is a breaking
-> boundary until `1.0.0`.
+> [`backlog/tasks`](backlog/tasks). **Three `linux-64` Conda packages are published by the
+> `v0.1.0` tag** — `universe-airlock`, `universe-kit` and the umbrella `universe` facade — to
+> prefix.dev, the Git branch channel, and as GitHub Release assets. An earlier dispatch (run
+> `43061441347`) proved force-replacement with read-write-delete access. The annotated tag run
+> `43073492712` is green, and all three destinations read back the same three digests. The
+> offline branch solve with network denied and a clean-container restore transcript are still
+> unrecorded, so `UNI-59` stays open. One platform is not the integrated v1 release, and the v1
+> surfaces remain absent. Every `0.Y.0` is a breaking boundary until `1.0.0`.
 
 ## What it does
 

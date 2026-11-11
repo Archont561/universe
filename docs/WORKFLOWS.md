@@ -62,7 +62,13 @@ Six things are worth noticing, because they are the design:
   briefly CDN-stale. Force-replacement with this entry is now proven. `publish --store branch`
   takes no `--force`, because it already replaces one snapshot tree — and now does so in one
   command naming every package, so the branch carries all three. The offline branch solve is
-  still unrecorded.
+  still unrecorded. The tag run `43073492712` is green with a new set of three digests, read back
+  at all three destinations; the `v0.1.0` tag is cut from `1de18891`. A `pixi install --offline`
+  against a local checkout of `channel` fails on `libgcc >=16`, a run export from `stdlib('c')`
+  that the branch channel does not carry; adding conda-forge offline fails because no repodata
+  cache exists. Do not claim an offline solve until that dependency edge is resolved. A
+  clean-container restore transcript is also unrecorded: no container runtime is available here
+  and this owner-lane manifest declares no restore entrypoint. https://github.com/Archont561/universe/actions/runs/43073492712
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.

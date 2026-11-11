@@ -221,8 +221,34 @@ AC#4's "all three packages at all three destinations by digest" is verified for 
 stays open on its offline branch solve with network denied, which has not been recorded and is
 blocked by `libgcc >=16` and `__glibc >=2.17` declarations the branch channel does not carry.
 AC#2, AC#5 and every DoD box remain open. The build is still not reproducible — the same
-filename carried different bytes in runs `43045274207` and `43061441347`. No `v0.1.0` tag is
-cut. `decision-126`, `UNI-11`, `CHANGELOG.md` and the prose docs record the correction.
+filename carried different bytes in runs `43045274207` and `43061441347`. No `v0.1.0` tag was
+cut by that work. `decision-126`, `UNI-11`, `CHANGELOG.md` and the prose docs record the correction.
+
+## Amendment: the annotated tag is cut, and its tag run is green
+
+**This is an evidence correction, recorded as a correction, not a scope change.** On 2026-11-11
+the annotated `v0.1.0` tag was cut from `1de18891bd69f8d16b4d261cfdaa53525555eabd`, whose full
+gate run is green, and the tag subject is `head -1 docs/releases/0.1.0.md` verbatim. The tag
+object is `d49d8fe587f1805095b70a3935dd4e73bf0d3019`. The tag-triggered `release.yml` run
+`43073492712` is green, including `publish / verdict`; the tag-triggered `universe` run
+`43073492717` is green. https://github.com/Archont561/universe/actions/runs/43073492712 The
+tag run's build audited `universe-airlock` at
+`7153aedcc8188a044524f6bc84639188e7d62491caf74d9630a4fcbd5859a3ab`, `universe-kit` at
+`314d6941c8a1776f04954a117ea6d91cca3d97971ca6203e68d1c5a11d6233b2` and the umbrella `universe`
+facade at `c4e1fc2792135a803fb3ec9a772d2fd9e2a529d323ccb792d30f7ef1636f9cec`. All three GitHub
+Release assets, the `channel` branch at `eb532021ccc386c875c720e6b67138b4b30c1152` (one
+snapshot, twelve files) and a fresh cache-busted prefix.dev repodata read (publication `88268`)
+resolve those three digests; the plain repodata URL was briefly CDN-stale. Since the build is
+still not reproducible, these tag-run bytes supersede the digests recorded above for runs
+`43045274207` and `43061441347`; those entries describe their own runs.
+`UNI-59` AC#2 and DoD #1 and #2 are now satisfied. AC#4's offline branch solve with network
+denied is still not proven: `pixi install --offline` against a clone of `channel` fails on
+`libgcc >=16`, a run export from `stdlib('c')` that the branch channel does not carry, and
+there is no cached conda-forge repodata. AC#5's clean-container restore transcript is also
+still unrecorded: no container runtime exists here, and this owner-lane manifest declares no
+restore entrypoint. DoD #3 stays open on that transcript. `UNI-15`, `UNI-16`, `UNI-40`,
+`UNI-53` DoD #1 and the sealed-payload work of `UNI-55` remain open. `decision-126`, `UNI-11`,
+`CHANGELOG.md` and the prose docs record this correction. No further tag is cut.
 
 ## Consequences
 

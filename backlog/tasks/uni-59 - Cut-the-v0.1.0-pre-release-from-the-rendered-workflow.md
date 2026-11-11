@@ -1,10 +1,10 @@
 ---
 id: UNI-59
 title: Cut the v0.1.0 pre-release from the rendered workflow
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-01'
-updated_date: '2026-11-10'
+updated_date: '2026-11-11'
 labels:
   - release
   - airlock
@@ -49,18 +49,18 @@ a repository check rather than a release-time computation.
 ## Acceptance Criteria
 <!-- AC.BEGIN -->
 - [x] #1 The workspace version, the `universe-airlock` recipe version, and the changelog's top section agree on `0.1.0`, and the existing parity check is what proves it rather than a manual reading. — 2026-11-09: `CHANGELOG.md` has a `## 0.1.0` section whose body says pre-release and `scripts/repo_check.py::validate_release_version` compares its first versioned heading with `Cargo.toml` and the recipe; `pixi run repo-check` is green.
-- [ ] #2 The `v0.1.0` tag is cut from a commit whose full gate run is green, and the tag is annotated with the same message the release notes open with.
+- [x] #2 The `v0.1.0` tag is cut from a commit whose full gate run is green, and the tag is annotated with the same message the release notes open with. — 2026-11-11: annotated tag `v0.1.0` (object `d49d8fe587f1805095b70a3935dd4e73bf0d3019`) points at `1de18891bd69f8d16b4d261cfdaa53525555eabd`, whose `ci` and `universe` runs were green. `pixi run gates` passed at that commit before the tag was pushed, and the tag-triggered `universe` run `43073492717` is green. `git for-each-ref --format='%(contents:subject)' refs/tags/v0.1.0` equals `head -1 docs/releases/0.1.0.md` verbatim; `pixi run repo-check` and `pixi run --frozen universe -- lint --json` both pass with the tag present. The tag-triggered `release.yml` run `43073492712` has a green `publish / verdict`. https://github.com/Archont561/universe/actions/runs/43073492712
 - [x] #3 Release notes state the pre-release status and the `linux-64`-only scope, name what `universe-airlock` actually does at this tag (verify, restore, version), and claim none of `decision-119`'s six v1 surfaces. — 2026-11-10: `docs/releases/0.1.0.md` opens with the one-line annotated-tag message, states the `decision-132` checkpoint, names all three verbs with the binary that owns each, and has a `## Not a v1 release` table disclaiming all six numbered surfaces of `decision-119` as absent or single-platform. `scripts/repo_check.py::validate_release_notes` enforces the file's existence from the workspace version, the annotation's shape, the five required facts, the six surface keys, and — once a `v0.1.0` tag exists — that its `%(contents:subject)` equals the opening line. Six Python tests were red before green, and a temporary annotated tag proved the drift check both ways; the tag was deleted. AC#2 is still open: no tag has been cut.
-- [ ] #4 All three packages are verified at all three declared destinations after the run: the branch channel solves for each of `universe-airlock=0.1.0`, `universe-kit=0.1.0` and `universe=0.1.0` from a local checkout with network denied, a fresh prefix.dev read resolves each package by digest, and each GitHub Release asset resolves by digest.
-- [ ] #5 A clean container with only Git and Pixi runs the rendered restore entrypoint against the tag and prints `universe-airlock version`; the transcript is recorded in this task's notes, with the container image named.
+- [ ] #4 All three packages are verified at all three declared destinations after the run: the branch channel solves for each of `universe-airlock=0.1.0`, `universe-kit=0.1.0` and `universe=0.1.0` from a local checkout with network denied, a fresh prefix.dev read resolves each package by digest, and each GitHub Release asset resolves by digest. — 2026-11-11: the digest halves are proven by the tag run `43073492712` (see the notes below); the offline solve from a local checkout is **not** proven. A fresh `pixi install --offline` against a clone of `refs/heads/channel` fails with `libgcc >=16, for which no candidates were found`: the recipes pull run exports from `stdlib('c')` that the branch channel does not carry, and there is no cached conda-forge repodata. This is a measured failure, not a claim of success, and the criterion stays open.
+- [ ] #5 A clean container with only Git and Pixi runs the rendered restore entrypoint against the tag and prints `universe-airlock version`; the transcript is recorded in this task's notes, with the container image named. — 2026-11-11: no container runtime is available in this workspace (`docker` and `podman` are absent, `unshare -n` is refused by the sandbox). Also, no restore entrypoint is declared by this repository's `universe.toml`: `pixi run airlock-check` reports `no restore entrypoint is declared`, and the tag tree contains no `.universe-airlock/restore.sh`. `UNI-53` DoD #1 stays open on the same transcript. Do not claim a clean-container, sealed, or Pixi-managed environment.
 - [x] #6 A repository check fails if the changelog's top section and the tag disagree, so the next release cannot drift by memory. — 2026-11-09: a temporary local `v0.2.0` tag made `pixi run repo-check` exit 1 naming both values; the tag was removed and the check returned to green.
 <!-- AC.END -->
 
 ## Definition of Done
 <!-- DOD.BEGIN -->
-- [ ] #1 The rendered workflow's verdict job is green for the tag run, and its link is in the notes.
-- [ ] #2 `pixi run gates` passes on the tagged commit.
-- [ ] #3 The task records all three destination URLs and the restore transcript.
+- [x] #1 The rendered workflow's verdict job is green for the tag run, and its link is in the notes. — 2026-11-11: `publish / verdict` in run `43073492712` is green; https://github.com/Archont561/universe/actions/runs/43073492712
+- [x] #2 `pixi run gates` passes on the tagged commit. — 2026-11-11: `pixi run gates` exits 0 at `1de18891bd69f8d16b4d261cfdaa53525555eabd` with 617 Rust tests and the full Python, alint, Vale and actionlint checks green. The `ci` run `43066271239` and `universe` run `43066271086` on that commit are also green, and the tag-triggered `universe` run `43073492717` is green.
+- [ ] #3 The task records all three destination URLs and the restore transcript. — 2026-11-11: the three destination URLs are recorded below, but the clean-container restore transcript is not (see the criterion 5 note). DoD #3 stays open.
 <!-- DOD.END -->
 
 ## Notes
@@ -490,6 +490,49 @@ a repository check rather than a release-time computation.
   channel does not carry. AC#2 (the annotated `v0.1.0` tag from green gates), AC#5 (a clean
   Git+Pixi container transcript with the image named) and every DoD box remain open. The build
   is still not reproducible: the same name, version and build string carried different bytes
-  in runs `43045274207` and `43061441347`. No `v0.1.0` tag was cut. `decision-126`,
+  in runs `43045274207` and `43061441347`. No `v0.1.0` tag was cut by that work. `decision-126`,
   `decision-132`, `UNI-11`, `CHANGELOG.md` and the prose docs record the correction.
+
+- **2026-11-11 — the annotated `v0.1.0` tag is cut, and its tag run is green.** After the
+  owner granted read-write-delete on the prefix.dev Repository Access entry, the tag `v0.1.0`
+  was cut from `1de18891bd69f8d16b4d261cfdaa53525555eabd` and pushed. The annotated tag object
+  is `d49d8fe587f1805095b70a3935dd4e73bf0d3019` and its subject equals `head -1
+  docs/releases/0.1.0.md` verbatim. The push triggered two tag-triggered workflows: `universe`
+  run `43073492717` (build, validate, view, audit, verdict all green) and `release` run
+  `43073492712` (build, prefix-dev, branch, releases, verdict all green).
+  https://github.com/Archont561/universe/actions/runs/43073492712 is the link DoD #1 names.
+  `pixi run gates`, `pixi run repo-check` and `universe lint --json` pass with the tag present.
+- **The three tag-run digests, and all three destinations reading them back.** The tag run's
+  build audited `universe-airlock` at
+  `7153aedcc8188a044524f6bc84639188e7d62491caf74d9630a4fcbd5859a3ab` (298600 bytes),
+  `universe-kit` at
+  `314d6941c8a1776f04954a117ea6d91cca3d97971ca6203e68d1c5a11d6233b2` (3491139 bytes), and the
+  umbrella `universe` facade at
+  `c4e1fc2792135a803fb3ec9a772d2fd9e2a529d323ccb792d30f7ef1636f9cec` (195023 bytes). Its common
+  artifact is `sha256:b2f1706e9e9274f0c3fbb8a8be0db9a18a85f368d89aa6bda54d07111ee3a446`. The
+  three GitHub Release assets of `packages-linux-64 artifacts` read back those three digests
+  through the release API; the `channel` branch at
+  `eb532021ccc386c875c720e6b67138b4b30c1152` is one snapshot with twelve files (three archives,
+  three receipts, generated metadata) whose `linux-64/repodata.json` lists all three with those
+  digests; and a fresh cache-busted prefix.dev repodata read (publication `88268`) resolves all
+  three by digest. The plain repodata URL was briefly CDN-stale at the older publication.
+  Because the build is still not reproducible, these tag-run bytes supersede the digests
+  recorded above for runs `43045274207` and `43061441347`; those earlier entries describe their
+  own runs, not the tag's published bytes. The three destination URLs are
+  `https://prefix.dev/archont561/archont561`,
+  `https://github.com/Archont561/universe/tree/channel`, and
+  `https://github.com/Archont561/universe/releases/tag/packages-linux-64`. The
+  clean-container restore transcript is **not** recorded: no container runtime is available
+  here, and this owner-lane manifest declares no `[airlock.developer.restore]`, so
+  `pixi run airlock-check` reports `no restore entrypoint is declared` and the tag tree carries
+  no `.universe-airlock/restore.sh`. The offline branch solve from a local checkout with network
+  denied is **not** proven: `pixi install --offline` against a clone of `channel` fails with
+  `libgcc >=16, for which no candidates were found`. The recipes take run exports from
+  `stdlib('c')` that the branch channel does not carry; adding conda-forge to the consumer
+  project fails offline because there is no cached conda-forge repodata, and
+  `[system-requirements]` accepts `libc` but rejects `libgcc`. A clean-container restore
+  (`UNI-53` DoD #1), an offline solve (criterion 4), `UNI-55` sealed payloads, and the
+  four-platform work (`UNI-15`, `UNI-16`, `UNI-40`) all remain open. No `v1` surface is
+  claimed. `decision-126`, `decision-132`, `UNI-11`, `CHANGELOG.md` and the prose docs record
+  the tag as a correction, not a reversal of scope. No further tag is cut.
 <!-- SECTION:NOTES.END -->

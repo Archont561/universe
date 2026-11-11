@@ -25,7 +25,8 @@ umbrella `universe` facade to the still-uncut `v0.1.0` publish lane. Its recipe 
 `universe-kit` and `universe-airlock` as run dependencies; `package-cli` skips rattler-build's
 post-build test because those dependencies are published in the same release, while the
 workspace gates prove the facade binary. This task remains To Do: a clean-channel install and
-offline dispatcher tests are not proven by one `linux-64` dispatch. No `v0.1.0` tag is cut.
+offline dispatcher tests are not proven by one `linux-64` dispatch. The `v0.1.0` tag was cut
+on 2026-11-11 (see the correction below).
 
 
 ## Description
@@ -59,4 +60,5 @@ metadata, release versioning, clean-channel installation, and conformance behavi
 <!-- DOD:BEGIN -->
 - [ ] #1 Offline dispatcher tests pass; clean-channel package install/smoke tests pass in the connected release acceptance lane.
 - [ ] #2 No registry, catalog, or Airlock protocol implementation is added to `universe-cli`.
+**Status note — correction (2026-11-11).** The annotated `v0.1.0` tag was cut from `1de18891bd69f8d16b4d261cfdaa53525555eabd` and pushed; its tag-triggered `release.yml` run `43073492712` is green, including `publish / verdict`. https://github.com/Archont561/universe/actions/runs/43073492712 This records the tag as evidence, not as a completion of this record's criteria: the tasks above remain To Do. The offline branch solve with network denied, a clean-container restore transcript, and the four-platform and integrated v1 lanes are still open. `UNI-59` records the tag run's digests and the remaining gaps. No further tag is cut.
 <!-- DOD:END -->

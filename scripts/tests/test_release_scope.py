@@ -157,6 +157,43 @@ def test_the_force_replacement_re_watch_evidence_is_recorded() -> None:
     assert "offline" in notes, "the still-open offline solve is not recorded"
 
 
+def test_the_tag_run_evidence_is_recorded() -> None:
+    """Independent source: run 43073492712's build audit, release assets and branch tree."""
+    notes = (
+        ROOT
+        / "backlog"
+        / "tasks"
+        / "uni-59 - Cut-the-v0.1.0-pre-release-from-the-rendered-workflow.md"
+    ).read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    decision = (
+        ROOT
+        / "backlog"
+        / "decisions"
+        / "decision-132 - v0.1.0-is-a-pre-release-packaging-milestone,-not-a-v1-cut.md"
+    ).read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    workflows = (ROOT / "docs" / "WORKFLOWS.md").read_text(encoding="utf-8")
+
+    for document in (notes, changelog, decision, readme, workflows):
+        assert "43073492712" in document, "the tag run is missing"
+    for digest in (
+        "7153aedcc8188a044524f6bc84639188e7d62491caf74d9630a4fcbd5859a3ab",
+        "314d6941c8a1776f04954a117ea6d91cca3d97971ca6203e68d1c5a11d6233b2",
+        "c4e1fc2792135a803fb3ec9a772d2fd9e2a529d323ccb792d30f7ef1636f9cec",
+    ):
+        assert digest in notes, f"the tag-run digest {digest} is not recorded"
+    assert "eb532021ccc386c875c720e6b67138b4b30c1152" in notes, (
+        "the tag-run branch snapshot is not recorded"
+    )
+    assert "88268" in notes, "the tag-run fresh prefix.dev read is not recorded"
+    assert "- [x] #2" in notes, "criterion 2 is not ticked after the tag was cut"
+    assert "https://github.com/Archont561/universe/actions/runs/43073492712" in notes
+    assert "No `v0.1.0` tag is cut" not in readme, "README still claims no tag"
+    notes_doc = (ROOT / "docs" / "releases" / "0.1.0.md").read_text(encoding="utf-8")
+    assert "no restore entrypoint is committed at this tag" in notes_doc
+
+
 def test_the_release_records_name_all_three_packages() -> None:
     notes = (ROOT / "docs" / "releases" / "0.1.0.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
