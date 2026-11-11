@@ -664,17 +664,36 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         } else {
             format!("publish-artifacts --store {}", store.name)
         };
-        for package in manifest
+        let packages = manifest
             .destinations()
             .into_iter()
             .find(|destination| destination.store.name == store.name)
             .map(|destination| destination.packages)
-            .unwrap_or_default()
-        {
-            job = job.with_step(Step::Run {
-                label: format!("Publish {}", package.name),
-                command: verb(&format!("{arguments} --package {} --json", package.name)),
-            });
+            .unwrap_or_default();
+        if publish == "publish" {
+            // `publish` force-pushes one orphan snapshot tree. Three pushes of one
+            // package each leave only the last tree on the branch — the widening to
+            // three packages made run 43045274207 do exactly that. One push names
+            // every package, so the tree the branch serves holds all of them.
+            if !packages.is_empty() {
+                let filters = packages
+                    .iter()
+                    .map(|package| format!(" --package {}", package.name))
+                    .collect::<String>();
+                job = job.with_step(Step::Run {
+                    label: "Publish the channel snapshot".to_owned(),
+                    command: verb(&format!("{arguments}{filters} --json")),
+                });
+            }
+        } else {
+            // An artifact store uploads one file per call; each step is one independent
+            // upload whose digest the destination checks on its own.
+            for package in packages {
+                job = job.with_step(Step::Run {
+                    label: format!("Publish {}", package.name),
+                    command: verb(&format!("{arguments} --package {} --json", package.name)),
+                });
+            }
         }
         // A credential-free destination is verified by a separate reader; a credentialed
         // one is verified here, because a second job would present the same token.
@@ -1061,6 +1080,71 @@ verifier = "registry"
 name = "branch"
 kind = "branch"
 writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "file"
+
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "someone/example"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
+"#;
+
+    /// Three packages reaching one branch store. A snapshot push replaces the whole tree,
+    /// so three separate `publish` steps would leave only the last package on the channel —
+    /// exactly what run 43045274207 did to `refs/heads/channel`.
+    const MANY_PACKAGES: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+repository = "https://github.com/someone/example"
+
+[[packages]]
+name = "example-airlock"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-airlock --version"]
+publish = ["prefix-dev", "branch"]
+release = true
+
+[[packages]]
+name = "example-kit"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-kit --version"]
+publish = ["prefix-dev", "branch"]
+release = true
+
+[[packages]]
+name = "example-facade"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-facade --version"]
+publish = ["prefix-dev", "branch"]
+release = true
+
+[[stores]]
+name = "prefix-dev"
+kind = "prefix-dev"
+channel = "someone/channel"
+writable = true
+auth = "oidc"
+verifier = "registry"
+
+[[stores]]
+name = "branch"
+kind = "branch"
+writable = true
+needs_index = true
 auth = "token"
 secrets = ["GITHUB_TOKEN"]
 verifier = "file"
@@ -1574,6 +1658,68 @@ verifier = "registry"
             !branch.contains("--force"),
             "a branch push was given an artifact-store overwrite flag:\n{branch}"
         );
+    }
+
+    #[test]
+    fn a_snapshot_store_pushes_every_package_in_one_command() {
+        // A branch store is one orphan tree. Run 43045274207 rendered three `publish`
+        // steps, one per package; each force-push replaced the whole tree, so `channel`
+        // ended up holding only the last package (the `universe` facade). An artifact
+        // store is different: its steps upload one file each and stay per package.
+        let manifest = Manifest::from_toml(MANY_PACKAGES).expect("the manifest parses");
+        let rendered = render(&manifest, MANY_PACKAGES).expect("renders");
+        let publish = &rendered
+            .files
+            .iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+        let branch = publish
+            .split("name: publish / branch")
+            .nth(1)
+            .expect("the branch job")
+            .split("name: publish /")
+            .next()
+            .expect("the branch job's body");
+        let commands: Vec<&str> = branch
+            .lines()
+            .filter(|line| line.contains("publish --store branch"))
+            .collect();
+        assert_eq!(
+            commands.len(),
+            1,
+            "a snapshot store must push one tree, not one per package:\n{branch}"
+        );
+        for package in ["example-airlock", "example-kit", "example-facade"] {
+            assert!(
+                commands[0].contains(&format!("--package {package}")),
+                "the one snapshot omits {package}:\n{}",
+                commands[0]
+            );
+        }
+        assert!(
+            !branch.contains("--force"),
+            "a snapshot push was given an artifact-store overwrite flag:\n{branch}"
+        );
+        // The artifact stores still upload one file per package: the fix is scoped to
+        // the verb that replaces a whole tree.
+        for store in ["prefix-dev", "releases"] {
+            let body = publish
+                .split(&format!("name: publish / {store}"))
+                .nth(1)
+                .unwrap_or_else(|| panic!("no {store} job"))
+                .split("name: publish /")
+                .next()
+                .expect("a job body");
+            for package in ["example-airlock", "example-kit", "example-facade"] {
+                assert!(
+                    body.contains(&format!(
+                        "publish-artifacts --store {store} --force --package {package} --json"
+                    )),
+                    "{store} no longer uploads {package}:\n{body}"
+                );
+            }
+        }
     }
 
     #[test]

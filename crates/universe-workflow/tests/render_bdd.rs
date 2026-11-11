@@ -254,6 +254,85 @@ fn project_with_a_named_environment(project: &mut Project) {
     );
 }
 
+/// Three packages all reaching a single branch store. The rendered job must push one
+/// tree, not three: run 43045274207 pushed three orphan snapshots and the last one won.
+const THREE_PACKAGES_BRANCH: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+repository = "https://github.com/someone/example"
+
+[[packages]]
+name = "universe-airlock"
+kind = "conda"
+command = ["rattler-build", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["universe-airlock --version"]
+publish = ["channel-branch"]
+
+[[packages]]
+name = "universe-kit"
+kind = "conda"
+command = ["rattler-build", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["universe-kit --version"]
+publish = ["channel-branch"]
+
+[[packages]]
+name = "universe"
+kind = "conda"
+command = ["rattler-build", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["universe --version"]
+publish = ["channel-branch"]
+
+[[stores]]
+name = "channel-branch"
+kind = "branch"
+writable = true
+needs_index = true
+verifier = "file"
+"#;
+
+#[given("a project that publishes three packages to a branch store")]
+fn project_with_three_packages_and_a_branch(project: &mut Project) {
+    load(project, THREE_PACKAGES_BRANCH);
+    assert!(
+        project.manifest.is_some(),
+        "the three-package branch manifest is valid"
+    );
+}
+
+#[then("the branch job pushes one snapshot naming every package")]
+fn the_branch_job_pushes_one_snapshot(project: &Project) {
+    // The written file is the seam: the run that proved the bug showed three green
+    // `publish` steps and a channel holding only the last package.
+    let publish = project.workflow(PUBLISH_FILE);
+    let branch = job_block(&publish, "publish / channel-branch");
+    let commands: Vec<&str> = branch
+        .lines()
+        .filter(|line| line.contains("publish --store channel-branch"))
+        .collect();
+    assert_eq!(
+        commands.len(),
+        1,
+        "a snapshot store must push one tree, not one per package:\n{branch}"
+    );
+    for package in ["universe-airlock", "universe-kit", "universe"] {
+        assert!(
+            commands[0].contains(&format!("--package {package}")),
+            "the one snapshot omits {package}:\n{}",
+            commands[0]
+        );
+    }
+    assert!(
+        !branch.contains("--force"),
+        "a snapshot push was given an artifact-store overwrite flag:\n{branch}"
+    );
+}
+
 #[given("a project whose package is released implicitly")]
 fn project_with_an_implicit_release(project: &mut Project) {
     load(project, IMPLICIT_RELEASES);
@@ -933,6 +1012,14 @@ fn lock_adapters_add_the_airlock_file(project: Project) {
     name = "A project that verifies published destinations gets a separate reader job"
 )]
 fn a_verifiable_destination_gets_a_reader(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "features/render.feature",
+    name = "A snapshot store pushes every package in one command"
+)]
+fn a_snapshot_store_pushes_every_package(project: Project) {
     let _ = project;
 }
 
