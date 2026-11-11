@@ -19,17 +19,19 @@ All notable changes to Universe are recorded here.
   prefix.dev upload reported 298582 bytes. The public repodata still serves an older index, so
   a package API read-back remains to be recorded.
 
+- The `v0.1.0` pre-release scope is widened to declare the producer CLI and the umbrella `universe` facade
+  alongside Airlock. `decision-132` records the reversal; the `v0.1.0` tag is not cut.
+
 ## 0.1.0
 
 `decision-132` makes this tag a pre-release packaging checkpoint, not the integrated v1
 release described by `decision-119`. It is `linux-64` only. Cargo, Python wheels, npm, the
-browsable portal, the umbrella facade, and every platform beyond `linux-64` remain out of
-scope.
+browsable portal, and every platform beyond `linux-64` remain out of scope.
 
-- `universe-airlock` is published as a Conda package to prefix.dev, to a static channel on a
-  Git branch, and as a GitHub Release asset. The installed consumer reports its version and
-  verifies a closed payload; `universe-airlock-bootstrap` restores one into an immutable
-  state root.
+- Three `linux-64` Conda packages are published to prefix.dev, to a static channel on a Git
+  branch, and as GitHub Release assets: `universe-airlock`, `universe-kit`, and the umbrella `universe` facade.
+  The installed Airlock consumer reports its version and verifies a closed payload;
+  `universe-airlock-bootstrap` restores one into an immutable state root.
 - The publishing workflow is rendered from `universe.toml` and drift-checked rather than
   written by hand.
 - A branch channel that carries a Conda dependency edge resolves offline with Pixi.

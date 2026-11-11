@@ -392,4 +392,15 @@ a repository check rather than a release-time computation.
   build. `decision-126`, `decision-132`, `UNI-11`, and the prose docs record the correction.
   AC#2, AC#4 (including the offline-solve half and a fresh prefix.dev read-back), AC#5 and all
   DoD boxes remain open. No `v0.1.0` tag was cut.
+- **The owner widened the checkpoint to the main CLIs, recorded as a reversal.** After
+  PR #99, the owner asked why only Airlock was published. `decision-132`'s main-CLI amendment
+  adds `universe-kit` and the umbrella `universe` facade to the still-uncut `v0.1.0` scope;
+  `universe.toml` now declares three `linux-64` Conda packages, and `ci render` emits build
+  and publish commands for all three at `prefix-dev`, the `branch` store, and `releases`.
+  The facade declares `depends_on = ["universe-kit", "universe-airlock"]`, and `package-cli`
+  skips rattler-build's post-build test because its run dependencies are published in the same
+  release. `UNI-15`, `UNI-16`, and `UNI-40` remain To Do: one `linux-64` pre-release does not
+  complete four-platform packaging or the integrated v1 gate. AC#4 is reworded to cover all
+  three packages and stays open until a tag run proves the offline solve and a fresh prefix.dev
+  read-back for each. No `v0.1.0` tag was cut.
 <!-- SECTION:NOTES.END -->

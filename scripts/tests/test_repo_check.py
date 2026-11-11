@@ -1,6 +1,7 @@
 """Tests for the Python repository checker."""
 
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -689,3 +690,32 @@ def test_a_tag_annotation_that_differs_from_the_notes_is_reported(tmp_path: Path
     )
     assert "tag annotation drift" in errors
     assert "Universe 0.1.0 is a v1 release." in errors
+
+
+def test_manifest_build_commands_name_declared_pixi_tasks(tmp_path: Path) -> None:
+    # A package command is not prose: the rendered build job runs it. A task that was
+    # renamed or never written must fail repo-check before a release run discovers it.
+    from scripts import repo_check
+
+    validator: Callable[[Path], list[str]] | None = getattr(
+        repo_check, "validate_manifest_build_tasks", None
+    )
+    assert validator is not None
+    (tmp_path / "pixi.toml").write_text(
+        '[tasks]\npackage-kit = { cmd = "rattler-build build" }\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "universe.toml").write_text(
+        '[[packages]]\nname = "universe"\nkind = "conda"\n'
+        'command = ["pixi", "run", "-e", "packaging", "--frozen", "package-cli"]\n',
+        encoding="utf-8",
+    )
+    assert validator(tmp_path) == [
+        "universe.toml: package 'universe' names no declared Pixi task 'package-cli'"
+    ]
+
+    (tmp_path / "pixi.toml").write_text(
+        '[tasks]\npackage-cli = { cmd = "rattler-build build" }\n',
+        encoding="utf-8",
+    )
+    assert validator(tmp_path) == []

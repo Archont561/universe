@@ -28,7 +28,7 @@ A co-located `crates/universe-airlock/recipe/recipe.yaml` and platform variant f
 - [ ] #1 The recipe builds `universe-airlock` from the locked workspace for every supported native target and installs only the Airlock executable.
 - [x] #2 Conda package tests verify the version contract and representative offline-consumer behavior; runtime requirements do not add producer/build/network tooling.
 - [x] #3 Recipe version and package identity are checked against the Cargo workspace and pass repository gates. — 2026-11-09: `scripts/repo_check.py` already compared `context.version` with `[workspace.package].version`; it now also compares the recipe's `package.name` with the crate's own `Cargo.toml` `package.name`. `test_a_recipe_name_must_agree_with_its_crate_manifest` is red without the second comparison, and `pixi run repo-check` is green.
-- [ ] #4 Release CI builds, tests, and publishes the Airlock package independently from `universe-kit` and the bootstrap artifact.
+- [ ] #4 Release CI builds, tests, and publishes the Airlock package as its own recipe alongside `universe-kit` and the umbrella `universe` facade; the bootstrap artifact remains a separate build.
 <!-- AC:END -->
 
 ## Definition of Done
@@ -59,5 +59,11 @@ Cargo workspace's identity; a recipe could agree with the directory and still na
 the crate manifest does not declare. The check now reads `crates/<name>/Cargo.toml` itself.
 `crates/universe-cli` is deliberately outside that loop: its recipe names the `universe`
 facade rather than the crate, and the existing facade check already handles it. AC#1 (every
-native target) and AC#4 (independent release CI) stay open for the reasons above.
+native target) and AC#4 (the release CI shape) stay open for the reasons above.
+- **Status note — pre-release scope widened, recorded as a reversal.** The main-CLI
+  amendment to `decision-132` adds `universe-kit` and the umbrella `universe` facade to the
+  `v0.1.0` publish lane. AC#4 is reworded so it no longer claims Airlock is the only package
+  in release CI; Airlock still has its own recipe, and the bootstrap artifact is still built
+  separately. The criterion stays open: every native target and a clean consumer install with
+  network denied are not proven by one `linux-64` dispatch. No `v0.1.0` tag was cut.
 <!-- NOTES.END -->
