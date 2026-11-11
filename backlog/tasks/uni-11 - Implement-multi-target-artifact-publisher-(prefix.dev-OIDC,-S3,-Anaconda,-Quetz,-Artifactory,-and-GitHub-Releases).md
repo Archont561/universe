@@ -235,4 +235,20 @@ remained owner-side; see the note below.
   the occupied variant manually and reran the failed jobs; attempt 2 of run `42920755513` is
   green. That proves a clean channel accepts the forced upload, not force-replace permission.
   The renderer slice is complete, and the build is still not reproducible.
+- **Three packages are proven against the live channel, by digest.** After the owner cleared
+  the occupied variants a second time, run `43045274207` from `main` at `be4e7df3` finished
+  green on attempt 1. Its build audited `universe-airlock`
+  (`2e98b81d2155f5033bef5001dae2c6a3dbf5037d97e32e182f4af7e050bfab26`), `universe-kit`
+  (`763999409faee8b9972e7935d8e4f8d49599c4004e7eea8f80b5541304392c0b`) and the umbrella
+  `universe` facade
+  (`19e00dffc113f7d6d26e139b8d7cca3c72a995c20846f709b8aa4dca790f7217`). `publish / prefix-dev`
+  reported all three forced uploads; a fresh, cache-busted read of the channel's
+  `linux-64/repodata.json` (publication `87457`) resolves all three by those digests, while the
+  plain URL still serves the older CDN-cached index. The three GitHub Release assets of
+  `packages-linux-64 artifacts` read back the same digests through the release API. This still
+  does not prove force-replacing an occupied filename, because the uploads landed on cleared
+  names. `publish / branch` is green but wrong: three snapshot pushes left `channel` at
+  `1d30ef21701497dd196eeaa1599d7ec3ee24edc6` holding only the facade. `ci render` now emits
+  one command naming every package for a branch or static store; `decision-132` records the
+  correction and `UNI-59` records the evidence. The offline branch solve remains open.
 <!-- SECTION:NOTES:END -->

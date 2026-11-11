@@ -85,6 +85,15 @@ Feature: Rendering the workflow set from a project manifest
     When the workflow set is rendered
     Then the publish file holds a separate reader for the anonymous destination
 
+  Scenario: A snapshot store pushes every package in one command
+    A `publish` to a branch replaces the whole orphan tree. One push per package
+    would leave only the last package on the channel, so one rendered command
+    names every package the store receives.
+
+    Given a project that publishes three packages to a branch store
+    When the workflow set is rendered
+    Then the branch job pushes one snapshot naming every package
+
   Scenario: A released package reaches GitHub Releases without naming the store
     `releases` is the one implicit destination. A package with `release = true`
     does not list it, but the renderer still gives it a publish job that creates

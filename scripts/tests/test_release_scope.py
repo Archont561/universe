@@ -80,13 +80,47 @@ def test_the_rendered_workflow_publishes_every_package_to_every_store() -> None:
                 for line in lines
             ), f"{store} does not publish {name}: {lines}"
 
+    # A branch store is one orphan snapshot tree. Three separate pushes would each
+    # replace the whole tree, so run 43045274207 left `channel` holding only the
+    # last package. One command has to name every package.
     branch_lines = [line for line in lines if "publish --store branch" in line]
-    assert len(branch_lines) == len(EXPECTED_PACKAGES)
+    assert len(branch_lines) == 1, f"a snapshot store pushes one tree: {branch_lines}"
     for name in EXPECTED_PACKAGES:
-        assert any(f"--package {name} --json" in line for line in branch_lines), (
-            f"branch does not publish {name}: {branch_lines}"
+        assert f"--package {name}" in branch_lines[0], (
+            f"the one snapshot omits {name}: {branch_lines[0]}"
         )
-    assert all("--force" not in line for line in branch_lines)
+    assert "--force" not in branch_lines[0]
+
+
+def test_the_three_package_re_watch_evidence_is_recorded() -> None:
+    """Independent source: run 43045274207's build audit, release assets and journal."""
+    notes = (
+        ROOT
+        / "backlog"
+        / "tasks"
+        / "uni-59 - Cut-the-v0.1.0-pre-release-from-the-rendered-workflow.md"
+    ).read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    decision = (
+        ROOT
+        / "backlog"
+        / "decisions"
+        / "decision-132 - v0.1.0-is-a-pre-release-packaging-milestone,-not-a-v1-cut.md"
+    ).read_text(encoding="utf-8")
+
+    for document in (notes, changelog, decision):
+        assert "43045274207" in document, "the green three-package re-watch is missing"
+    for digest in (
+        "2e98b81d2155f5033bef5001dae2c6a3dbf5037d97e32e182f4af7e050bfab26",
+        "763999409faee8b9972e7935d8e4f8d49599c4004e7eea8f80b5541304392c0b",
+        "19e00dffc113f7d6d26e139b8d7cca3c72a995c20846f709b8aa4dca790f7217",
+    ):
+        assert digest in notes, f"the audit digest {digest} is not recorded"
+    assert "1d30ef21701497dd196eeaa1599d7ec3ee24edc6" in notes, (
+        "the one-package branch outcome is not recorded"
+    )
+    assert "87457" in notes, "the fresh prefix.dev read-back is not recorded"
+    assert "one command" in notes, "the branch snapshot fix is not recorded"
 
 
 def test_the_release_records_name_all_three_packages() -> None:

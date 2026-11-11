@@ -51,7 +51,7 @@ a repository check rather than a release-time computation.
 - [x] #1 The workspace version, the `universe-airlock` recipe version, and the changelog's top section agree on `0.1.0`, and the existing parity check is what proves it rather than a manual reading. — 2026-11-09: `CHANGELOG.md` has a `## 0.1.0` section whose body says pre-release and `scripts/repo_check.py::validate_release_version` compares its first versioned heading with `Cargo.toml` and the recipe; `pixi run repo-check` is green.
 - [ ] #2 The `v0.1.0` tag is cut from a commit whose full gate run is green, and the tag is annotated with the same message the release notes open with.
 - [x] #3 Release notes state the pre-release status and the `linux-64`-only scope, name what `universe-airlock` actually does at this tag (verify, restore, version), and claim none of `decision-119`'s six v1 surfaces. — 2026-11-10: `docs/releases/0.1.0.md` opens with the one-line annotated-tag message, states the `decision-132` checkpoint, names all three verbs with the binary that owns each, and has a `## Not a v1 release` table disclaiming all six numbered surfaces of `decision-119` as absent or single-platform. `scripts/repo_check.py::validate_release_notes` enforces the file's existence from the workspace version, the annotation's shape, the five required facts, the six surface keys, and — once a `v0.1.0` tag exists — that its `%(contents:subject)` equals the opening line. Six Python tests were red before green, and a temporary annotated tag proved the drift check both ways; the tag was deleted. AC#2 is still open: no tag has been cut.
-- [ ] #4 All three declared destinations are verified after the run: the branch channel solves for `universe-airlock=0.1.0` from a local checkout with network denied, the prefix.dev channel resolves the same artifact by digest, and the GitHub Release asset resolves the same artifact by digest.
+- [ ] #4 All three packages are verified at all three declared destinations after the run: the branch channel solves for each of `universe-airlock=0.1.0`, `universe-kit=0.1.0` and `universe=0.1.0` from a local checkout with network denied, a fresh prefix.dev read resolves each package by digest, and each GitHub Release asset resolves by digest.
 - [ ] #5 A clean container with only Git and Pixi runs the rendered restore entrypoint against the tag and prints `universe-airlock version`; the transcript is recorded in this task's notes, with the container image named.
 - [x] #6 A repository check fails if the changelog's top section and the tag disagree, so the next release cannot drift by memory. — 2026-11-09: a temporary local `v0.2.0` tag made `pixi run repo-check` exit 1 naming both values; the tag was removed and the check returned to green.
 <!-- AC.END -->
@@ -403,4 +403,51 @@ a repository check rather than a release-time computation.
   complete four-platform packaging or the integrated v1 gate. AC#4 is reworded to cover all
   three packages and stays open until a tag run proves the offline solve and a fresh prefix.dev
   read-back for each. No `v0.1.0` tag was cut.
+- **2026-11-11 — the three-package re-watch is green, and it exposed a branch-store defect.**
+  After the owner removed the occupied prefix.dev variants again, `workflow_dispatch` run
+  `43045274207` from `main` at `be4e7df3620cd71ce36344dd3706b9621d917d8a` started at
+  `2026-11-11T15:08:04Z` and finished `success` at `15:12:31Z` on attempt 1. All five jobs are
+  green: `publish / build`, `publish / prefix-dev`, `publish / branch`, `publish / releases`,
+  `publish / verdict`. Every publish job consumed the same artifact
+  (`sha256:c208a373343bd1feb0d37e45d53dff924b4ffbb4ca1b97da5b486667c71b3b4d`, 3987065 bytes).
+  `publish / build` audited three `linux-64` packages: `universe-airlock` at
+  `2e98b81d2155f5033bef5001dae2c6a3dbf5037d97e32e182f4af7e050bfab26` (298583 bytes),
+  `universe-kit` at
+  `763999409faee8b9972e7935d8e4f8d49599c4004e7eea8f80b5541304392c0b` (3489421 bytes), and the
+  umbrella `universe` facade at
+  `19e00dffc113f7d6d26e139b8d7cca3c72a995c20846f709b8aa4dca790f7217` (195020 bytes). The facade
+  declares run dependencies on the other two packages.
+- **What each destination actually holds after that run.** `publish / prefix-dev` reported
+  three forced uploads with those byte counts; a fresh, cache-busted read of
+  `https://prefix.dev/archont561/archont561/linux-64/repodata.json` (publication `87457`) reads
+  back all three filenames with exactly those three sha256 digests and sizes. The plain URL
+  still serves the older CDN-cached index from publication `82248`, so the cache-busted read is
+  the evidence here. The three GitHub Release assets of the rolling `packages-linux-64`
+  release read back the same three digests and sizes through the release API. The forced uploads
+  succeeded because the occupied variants were removed again; this is **not** a grant of
+  read-write-delete Repository Access, does not prove force-replacing an occupied name, and does
+  not fix the non-reproducible build.
+- **The branch destination is green but wrong.** `publish / branch` ran three `publish` steps,
+  one per package, at commits `e76ab96425e3496e46ec1a665c4aba74146f2cd8`,
+  `3162b194cdbf1fd1ccd412ffe36d4b58a0ea5c0b` and
+  `1d30ef21701497dd196eeaa1599d7ec3ee24edc6`. Each `publish` force-pushes one orphan snapshot
+  tree, so the last push replaced the other two: `refs/heads/channel` now holds only
+  `universe-0.1.0-h41f06ac_0.conda` with the facade's digest, and its repodata names
+  dependencies (`universe-kit`, `universe-airlock`) that the tree does not carry. An offline
+  solve from that branch cannot succeed. A green verdict is not proof that all three packages
+  reached all three destinations.
+- **Correction, recorded as a correction: one command per snapshot store.** The main-CLI
+  amendment widened the branch store to three packages without changing how `publish` pushes:
+  `ci render` now emits a single `publish --store branch --remote ... --package universe-airlock
+  --package universe-kit --package universe --json` step for a branch or static store, so one
+  tree carries every package. Artifact stores keep one `publish-artifacts` step per package;
+  their uploads are independent and `--force` still applies only to them. A Rust unit test, a
+  BDD scenario and a Python scope test were red before the renderer changed, and the workflows
+  were re-rendered with `ci-render`. `decision-132`, `decision-126`, `UNI-11`, `CHANGELOG.md`
+  and the prose docs record the correction and the evidence.
+- **What stays open.** AC#2 (an annotated `v0.1.0` tag from green gates), AC#4 (the offline
+  branch solve with network denied, for all three packages at all three destinations, after a
+  re-watch with the corrected renderer), AC#5 (a clean Git+Pixi container transcript with the
+  image name) and every DoD box remain open. The fresh prefix.dev read-back by digest for all
+  three packages is recorded above; the branch half of AC#4 is not. No `v0.1.0` tag was cut.
 <!-- SECTION:NOTES.END -->

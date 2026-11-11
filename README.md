@@ -4,7 +4,7 @@
   <a href="https://github.com/Archont561/universe/actions/workflows/ci.yml"><img src="https://github.com/Archont561/universe/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/Archont561/universe/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/status-pre--release%200.x-6e56cf" alt="Pre-release 0.x">
-  <img src="https://img.shields.io/badge/packages-1%20pre--release-6e56cf" alt="One pre-release package published">
+  <img src="https://img.shields.io/badge/packages-3%20pre--release-6e56cf" alt="Three pre-release packages published">
 </p>
 
 **One `universe.toml`. Every ecosystem. Every channel they expect — and a release that restores with the network off.**
@@ -16,11 +16,13 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 
 > Status: pre-release `0.x`. The distribution design is settled and recorded in
 > [`backlog/decisions`](backlog/decisions); implementation is tracked in
-> [`backlog/tasks`](backlog/tasks). **One `linux-64` Conda package has been published by a
-> dispatched `release.yml` run** so far: `universe-airlock`. The main-CLI amendment to
-> `decision-132` declares `universe-kit` and the umbrella `universe` facade for the same
-> checkpoint, but no `v0.1.0` tag is cut and the v1 surfaces remain absent. Every `0.Y.0` is a
-> breaking boundary until `1.0.0`.
+> [`backlog/tasks`](backlog/tasks). **Three `linux-64` Conda packages have been published by a
+> dispatched `release.yml` run** — `universe-airlock`, `universe-kit` and the umbrella
+> `universe` facade — to prefix.dev and as GitHub Release assets, each read back by digest. The
+> branch channel currently holds only the last package: three snapshot pushes replaced one
+> another, and the renderer now emits one command naming all three. A re-watch is needed before
+> the offline solve. No `v0.1.0` tag is cut and the v1 surfaces remain absent. Every `0.Y.0` is
+> a breaking boundary until `1.0.0`.
 
 ## What it does
 

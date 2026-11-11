@@ -102,15 +102,9 @@ jobs:
           pattern: universe-*
           merge-multiple: true
           path: output
-      - name: Publish universe-airlock
+      - name: Publish the channel snapshot
         run: |
-          pixi run --frozen universe -- publish --store branch --remote ${{ github.server_url }}/${{ github.repository }}.git --package universe-airlock --json
-      - name: Publish universe-kit
-        run: |
-          pixi run --frozen universe -- publish --store branch --remote ${{ github.server_url }}/${{ github.repository }}.git --package universe-kit --json
-      - name: Publish universe
-        run: |
-          pixi run --frozen universe -- publish --store branch --remote ${{ github.server_url }}/${{ github.repository }}.git --package universe --json
+          pixi run --frozen universe -- publish --store branch --remote ${{ github.server_url }}/${{ github.repository }}.git --package universe-airlock --package universe-kit --package universe --json
   releases:
     name: publish / releases
     runs-on: ubuntu-latest

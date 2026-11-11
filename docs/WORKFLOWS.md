@@ -19,8 +19,12 @@ $ universe ci render
 Six things are worth noticing, because they are the design:
 
 - **Publishing is split by destination, not by ecosystem.** Each job holds exactly one write
-  scope and one secret. Within a destination, packages publish serially — two writers racing on
-  one `repodata.json` produce an index that silently omits a package.
+  scope and one secret. Artifact stores upload one file per step, serially — two writers racing
+  on one `repodata.json` produce an index that silently omits a package. A branch or static
+  store is different: `publish` force-pushes one whole orphan snapshot tree, so `ci render`
+  emits **one command naming every package** for that store. Three pushes of one package each
+  would leave only the last tree on the branch, which is what run `43045274207` did before the
+  renderer was corrected.
 - **Jobs run in order of how reversible their destination is.** Releases, static channels and
   mirrors first, npm and PyPI next, crates.io last — because a crates.io version can only be
   yanked, never deleted, and a release that fails late has already written the earlier ones.
@@ -47,9 +51,12 @@ Six things are worth noticing, because they are the design:
   it does not make the build reproducible. prefix.dev grants force-replacing only to a
   Repository Access entry with read-write-delete. Run `42920755513` attempt 1 received `403
   Not authorized`; the owner removed the occupied variant manually and reran the failed jobs,
-  so attempt 2 is green. This does not prove force-replacing an occupied name with the current
-  entry. `publish --store branch` takes no
-  `--force`, because it already replaces one snapshot tree.
+  so attempt 2 is green. Run `43045274207` is green on attempt 1 for all three packages after
+  the occupied variants were cleared a second time, and a fresh cache-busted prefix.dev
+  repodata read (publication `87457`) resolves all three by digest. Neither run proves
+  force-replacing an occupied name with the current entry. `publish --store branch` takes no
+  `--force`, because it already replaces one snapshot tree — and now does so in one command
+  naming every package.
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.

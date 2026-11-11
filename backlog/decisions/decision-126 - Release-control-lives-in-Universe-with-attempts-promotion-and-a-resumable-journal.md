@@ -23,6 +23,17 @@ pre-release workflow is a separate lane and does not implement this record's jou
 reproducible; `UNI-59` records both attempts and the remaining acceptance criteria. Nothing
 here advances the `v0.1.0` tag.
 
+**Correction, recorded as a correction (2026-11-11).** The three-package re-watch of run
+`43045274207` is green on attempt 1 after the owner cleared the occupied prefix.dev variants a
+second time, and a fresh prefix.dev repodata read (publication `87457`) resolves all three
+packages by digest. That still does not prove this Repository Access entry can force-replace an
+occupied filename: the forced uploads succeeded on names that were free. The same run exposed
+that three separate `publish --store branch` steps leave only the last package on `channel`;
+`ci render` now emits one command naming every package for a snapshot store. `decision-132`
+records the correction, `UNI-59` records the evidence, and the offline branch solve remains
+open. Invariant 3 below is unchanged for the `universe release` controller and the integrated
+v1 lane. No `v0.1.0` tag is cut.
+
 ## Context
 
 Release control for this repository has been provided by a separate controller tool with its

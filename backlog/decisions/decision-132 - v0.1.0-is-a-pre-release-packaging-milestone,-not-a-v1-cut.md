@@ -167,6 +167,38 @@ the integrated v1 release; one `linux-64` pre-release is not their completion. `
 is reworded to cover all three packages at all three destinations and stays open until the
 tag run proves them. No `v0.1.0` tag is cut by this amendment.
 
+## Amendment: one command per snapshot store, and the three-package re-watch
+
+After this amendment merged, the owner removed the occupied prefix.dev variants again and
+re-watched. `workflow_dispatch` run `43045274207` from `main` at `be4e7df3` finished green on
+attempt 1: `publish / build`, `publish / prefix-dev`, `publish / branch`, `publish / releases`
+and `publish / verdict` all succeeded. The build audited `universe-airlock` at
+`2e98b81d2155f5033bef5001dae2c6a3dbf5037d97e32e182f4af7e050bfab26` (298583 bytes),
+`universe-kit` at
+`763999409faee8b9972e7935d8e4f8d49599c4004e7eea8f80b5541304392c0b` (3489421 bytes) and the
+umbrella `universe` facade at
+`19e00dffc113f7d6d26e139b8d7cca3c72a995c20846f709b8aa4dca790f7217` (195020 bytes). All three
+were uploaded to prefix.dev with `--force` and to the rolling GitHub Release. A fresh,
+cache-busted prefix.dev repodata read (publication `87457`) resolves all three by digest, and
+the three release assets read back the same digests; the plain repodata URL is still CDN-stale.
+The forced uploads succeeded on names the owner had cleared. That is **not** a grant of
+read-write-delete Repository Access, does not prove force-replacing an occupied filename, and
+does not fix the non-reproducible build.
+
+**This is a correction, recorded as a correction, not a scope change.** The green branch job
+still rendered three `publish` steps, one per package. Each `publish` force-pushes one orphan
+snapshot tree, so `refs/heads/channel` ended at
+`1d30ef21701497dd196eeaa1599d7ec3ee24edc6` holding only the umbrella `universe` facade, whose
+repodata names two dependencies the tree does not carry. A green verdict is not proof that all
+three packages reached all three destinations. `ci render` now emits one `publish --store
+branch --remote ... --package universe-airlock --package universe-kit --package universe
+--json` command for a branch or static store; artifact stores keep one upload step per package
+and `--force` still applies only to them. A Rust unit test, a BDD scenario and a Python scope
+test were red before the renderer changed, and the workflows were re-rendered. `UNI-59`,
+`decision-126`, `UNI-11`, `CHANGELOG.md` and the prose docs record the evidence and the
+correction. AC#2, AC#4's offline branch solve, AC#5 and every DoD box remain open; a re-watch
+with the corrected renderer is needed before AC#4 can be considered. No `v0.1.0` tag is cut.
+
 ## Consequences
 
 - The v1 gate continues to require all six surfaces; `v0.1.0` is a checkpoint on the Conda
