@@ -175,6 +175,24 @@ changelog = "CHANGELOG.md"
 name = "pre-release"
 stores = ["prefix-dev", "branch"]
 
+# The scope a disconnected host restores from, and the ref its entrypoint clones.
+#
+# `branch`/`commit` name the ref `universe airlock publish-bootstrap` writes: an executable
+# `universe-airlock-bootstrap` at its root plus a descriptor that records the digest it was
+# published under. That ref is not the channel — a Conda package is installed by a solver, while
+# this entrypoint `exec`s a file out of a checkout — and it is stable rather than per-build: the
+# publish leaves the commit alone when the binary has not changed, so the pin below only moves
+# when the bootstrapper does, and `pixi run airlock-check` fails until it is re-rendered.
+#
+# The ref is advanced *after* the artifacts it restores (`doc-103`): a bootstrap that pointed at
+# an incomplete publication would be worse than no pin at all.
+[airlock.developer]
+
+[airlock.developer.restore]
+remote = "https://github.com/Archont561/universe.git"
+branch = "bootstrap"
+commit = "991324f5dee0cb02d18ea66e35e1e12206a35b14"
+
 [workflow]
 # These gate `universe-kit`'s `verify --artifact` / `--published` / `--index` verbs, not the
 # consumer's `universe-airlock verify` (`UNI-32`). The renderer emits those commands from the

@@ -113,7 +113,18 @@ release assets and the umbrella package's runtime requirements.
   The recipe's own `tests:` block is the same command run by rattler-build in a throwaway test
   prefix at packaging time, and `package-airlock-bootstrap` passes no `--test=skip`, so a failure
   there fails the build rather than the release.
-- **What stays open here.** Criterion 5 needs the public verification key compiled into the
+- **The republished ref is a separate artifact, not a second `channel`.** 2026-11-12: the binary
+  a restore entrypoint runs is now also published as a Git ref — `bootstrap` at
+  `991324f5dee0cb02d18ea66e35e1e12206a35b14` — by `universe airlock publish-bootstrap`. It holds
+  exactly two entries: `universe-airlock-bootstrap` at mode `100755` and a `bootstrap.json`
+  descriptor naming its digest, size and version. It is **not** a package channel and not a slice
+  of the `channel` branch: there is no `repodata.json`, no lockfile and no catalogue, so nothing
+  can solve against it and nothing should try. The package channel stays the one place a solver
+  installs from; this ref is the one place the entrypoint's `exec` finds a file. The binary bytes
+  are the same released artifact (`sha256:929bd8f4…aed2`, extracted from package
+  `sha256:1fb284e5…`), so the ref introduces no second build to keep in step — only a second
+  transport for the same bytes, with the executable mode that a package archive's `bin/` already
+  has and a branch channel's tree did not. Criterion 5 needs the public verification key compiled into the
   artifact and a rotation procedure exercised on a fixture (`decision-131`); that is key material
   and signing work, not packaging, so the task stays `In Progress`. `UNI-59` criterion 5 and
   DoD #3 stay open on the clean-container transcript. No tag is cut by this change.

@@ -47,3 +47,26 @@ the state root live; a release manifest inside the ref could not name the commit
 tree. The bootstrap's `--help` and the rendered README usage block were corrected to say this.
 The initializer proper (`UNI-13`), the Pixi handover (`UNI-51`) and the sealed lane (`UNI-55`)
 remain open. This is recorded as a correction rather than a silent rewrite of dated statements.
+
+## 12 November 2026 amendment: the ref the entrypoint hands over to is published
+
+The entrypoint `exec`s `$CHECKOUT/universe-airlock-bootstrap`, and until today nothing published
+a ref that held it. The bootstrapper shipped as a Conda package (`UNI-55`), which a solver
+installs; the entrypoint does not install anything before it runs. So the loop the earlier
+entries describe had a hole exactly where the handover happens.
+
+`universe airlock publish-bootstrap` closes it. It writes one ref — `bootstrap` by default — that
+holds an executable `universe-airlock-bootstrap` and a `bootstrap.json` descriptor naming its
+digest, size and version, and it writes it with the mode the entrypoint's `[ -x ]` test reads. The
+ref is **stable rather than per-build**: republishing identical bytes leaves the commit where it
+was, so a consumer's committed pin does not move for nothing. Publication is explicit and
+producer-side, which is what `doc-103` means by advancing the bootstrap ref last; the facade
+routes it to `universe-kit` for the same reason `airlock render` goes there.
+
+`universe.toml` in this repository now declares `[airlock.developer.restore]`, so
+`pixi run airlock-check` compares real files instead of asserting that nothing stale was
+committed, and `.universe-airlock/restore.sh` is committed. Run against the real remote, that
+script clones the ref, verifies the pin, and hands over to the published binary, which stops at
+the payload it does not have yet — `[airlock.delivery]` and `UNI-52` own that half. A
+clean-container transcript is still missing (`UNI-59` criterion 5), and this amendment claims no
+sealed or Pixi-managed restore: `UNI-55` criterion 5 and `UNI-51` remain open.

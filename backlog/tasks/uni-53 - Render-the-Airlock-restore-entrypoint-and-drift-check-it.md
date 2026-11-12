@@ -79,8 +79,9 @@ new surface rather than invented defaults.
 - **Drift is a first-class verb.** `airlock render --check` exits `1` with an LCS line diff;
   `pixi run airlock-check` joins the `check` gate set. A scope deleted from the manifest leaves
   generated files behind, so they are drift too — `render` removes them, `--check` fails on
-  them. For this repository the gate is currently vacuous by design: `universe.toml` declares
-  no `[airlock]` scope, so it asserts only that nothing stale has been committed.
+  them. **2026-11-12:** this repository's gate was vacuous by design until today — `universe.toml`
+  declared no `[airlock]` scope, so it asserted only that nothing stale had been committed. A
+  scope is declared now and the gate compares real files; see the note at the end of this file.
 - **The facade exception.** `universe airlock render` reads `universe.toml` and writes committed
   files, so it routes to `universe-kit`; `airlock exec`, `verify` and `restore` stay with
   `universe-airlock`. The rendered workflow already called `airlock render`, so this also closes
@@ -133,4 +134,35 @@ manifest also cannot name the commit of the tree that contains it, so the closed
 live outside the ref. The help text, the handover test's name and comment, the rendered README
 usage block, and `UNI-33`'s DoD #1 note are corrected in place rather than left for the next
 reader to reconcile.
+
+2026-11-12 — the gate stopped being vacuous, and the entrypoint was run against the real remote.
+
+The bullet above said the gate was vacuous *by design*. The design was the problem: a check that
+can only pass is not a check. `universe.toml` now declares `[airlock.developer.restore]` —
+`remote`, `branch = "bootstrap"`, and `commit = 991324f5dee0cb02d18ea66e35e1e12206a35b14` — so
+`pixi run airlock-check` compares three committed files (`restore.sh`, `restore.ps1`, the README
+block) that were rendered from that scope. Before the render, the same task reported three
+diagnostics, which is what a gate that can fail looks like.
+
+What the scope needed first was something to pin. The generated script `exec`s
+`$CHECKOUT/universe-airlock-bootstrap`, and nothing published a ref holding that file: the
+bootstrapper ships as a Conda package, which a solver installs and a script cannot execute. So
+that ref is now published, by `universe airlock publish-bootstrap --binary <path>`, which writes
+one commit with the executable at mode `100755` and a `bootstrap.json` descriptor naming digest,
+size and version. Republishing identical bytes leaves the commit alone, so a consumer's committed
+pin does not move for nothing; that property is what makes pinning it here honest rather than a
+commit id that churns on every build.
+
+The rendered entrypoint was then run end to end against the real remote, which is stronger than
+the fixture in DoD #3: `sh .universe-airlock/restore.sh` with a fresh `UNIVERSE_AIRLOCK_HOME`
+cloned the ref, `rev-parse` matched the pin, the checkout held the binary at mode `100755` with
+`sha256:929bd8f4…aed2`, `--version` printed `universe-airlock-bootstrap 0.1.0`, and the handover
+reported `[airlock.payload.manifest] cannot read the release manifest` and exited 1 — the closed
+payload this project has not published. That last line is the honest end of the lane here:
+`[airlock.delivery]` and `UNI-52` own payload publication.
+
+**This does not close DoD #1.** A run on this host is not a clean container, and saying the
+entrypoint "restores the fixture environment" would be false until a payload exists. DoD #1 and
+`UNI-59` criterion 5 still need that transcript, and no sealed or Pixi-managed restore is claimed
+(`UNI-55` criterion 5, `UNI-51`).
 <!-- SECTION:NOTES:END -->

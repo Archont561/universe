@@ -18,16 +18,17 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The facade owns no product behavior: producer commands go to `universe-kit`,
 /// and the explicit `airlock` namespace goes to `universe-airlock`.
 ///
-/// `airlock render` is the one exception, and it is an exception by direction rather than by
-/// taste: it reads `universe.toml` and writes committed files, which is production, so it
-/// belongs to the producer. `airlock exec`, `verify` and `restore` run on a target whose only
-/// installation is the consumer, and they stay where they are.
+/// `airlock render` and `airlock publish-bootstrap` are the exceptions, and they are exceptions
+/// by direction rather than by taste: rendering reads `universe.toml` and writes committed
+/// files, and publishing pushes the ref the entrypoint clones to a remote. Both are production,
+/// so both belong to the producer. `airlock exec`, `verify` and `restore` run on a target whose
+/// only installation is the consumer, and they stay where they are.
 #[must_use]
 pub fn route(args: &[OsString]) -> (&'static str, &[OsString]) {
     match args.first().and_then(|arg| arg.to_str()) {
         Some("airlock") => {
             let verb = args.get(1).and_then(|arg| arg.to_str());
-            if verb == Some("render") {
+            if matches!(verb, Some("render" | "publish-bootstrap")) {
                 ("universe-kit", args)
             } else {
                 ("universe-airlock", &args[1..])
@@ -88,6 +89,13 @@ mod tests {
         assert_eq!(component, "universe-kit");
         // The namespace is not rewritten: `kit` reads the same two tokens it is handed.
         assert_eq!(forwarded, arguments);
+
+        // Publishing the ref the entrypoint clones is production too: it writes to a remote, and
+        // a consumer install has no business pushing anywhere.
+        let publishing = args(&["airlock", "publish-bootstrap", "--binary", "boot"]);
+        let (component, forwarded) = route(&publishing);
+        assert_eq!(component, "universe-kit");
+        assert_eq!(forwarded, publishing);
 
         // Everything else in the namespace is the consumer's.
         for verb in ["exec", "verify", "restore"] {

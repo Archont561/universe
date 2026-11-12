@@ -24,9 +24,12 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::json;
+use universe_channel::transport::{PushOutcome, Transport};
 use universe_core::diagnostic::{Diagnostic, Envelope, Severity};
 use universe_core::manifest::{AirlockRestore, DEFAULT_RESTORE_DIR, Manifest};
 use universe_core::{CommandOutput, STDOUT_SCHEMA_VERSION};
+
+use crate::git::{Entry, GitTransport};
 
 /// Default manifest file name, read from the project root.
 const MANIFEST_FILE: &str = "universe.toml";
@@ -45,6 +48,22 @@ const README_BEGIN: &str = "<!-- airlock:begin -->";
 
 /// Marker that closes it.
 const README_END: &str = "<!-- airlock:end -->";
+
+/// The bootstrapper's file name inside the published ref.
+///
+/// It is the same default `universe_core::manifest::DEFAULT_BOOTSTRAP` gives the entrypoint, so
+/// the verb that publishes the ref and the script that runs out of it name one file, once.
+const BOOTSTRAP_BINARY: &str = "universe-airlock-bootstrap";
+
+/// The descriptor published beside the binary.
+///
+/// The entrypoint does not read it — the bytes it runs are the bytes in its own checkout — so
+/// this is for the reader and for a consumer checking what a pin holds without downloading a
+/// 300 KiB executable.
+const BOOTSTRAP_DESCRIPTOR: &str = "bootstrap.json";
+
+/// The ref a publish writes when the caller names none.
+const DEFAULT_BOOTSTRAP_BRANCH: &str = "bootstrap";
 
 /// Exit code for a repository that does not match its manifest.
 const DRIFT: u8 = 1;
@@ -70,6 +89,8 @@ enum Verb {
     Render,
     /// Compare the rendered files with what is on disk.
     Check,
+    /// Publish the stable bootstrap ref the entrypoint clones.
+    PublishBootstrap,
 }
 
 /// Parsed options for one `airlock` invocation.
@@ -81,6 +102,12 @@ struct Invocation {
     output: Option<PathBuf>,
     print_stdout: bool,
     json: bool,
+    /// The built bootstrapper `publish-bootstrap` publishes.
+    binary: Option<PathBuf>,
+    /// Where to publish it, when the manifest does not already say.
+    remote: Option<String>,
+    /// Which ref to publish it to.
+    branch: Option<String>,
 }
 
 /// Why an invocation could not be interpreted.
@@ -88,7 +115,9 @@ struct Invocation {
 struct UsageError(String);
 
 const USAGE_LINE: &str = "usage: universe airlock render [--check] [--output <dir>] \
-                          [--root <dir>] [--stdout] [--json]";
+                          [--root <dir>] [--stdout] [--json]\n       \
+                          universe airlock publish-bootstrap --binary <path> [--remote <url>] \
+                          [--branch <name>] [--root <dir>] [--json]";
 
 impl Invocation {
     fn parse(args: &[String]) -> Result<Self, UsageError> {
@@ -98,6 +127,9 @@ impl Invocation {
             output: None,
             print_stdout: false,
             json: false,
+            binary: None,
+            remote: None,
+            branch: None,
         };
         let mut verb_seen = false;
         let mut rest = args.iter();
@@ -106,6 +138,28 @@ impl Invocation {
                 "render" if !verb_seen => {
                     invocation.verb = Verb::Render;
                     verb_seen = true;
+                }
+                "publish-bootstrap" if !verb_seen => {
+                    invocation.verb = Verb::PublishBootstrap;
+                    verb_seen = true;
+                }
+                "--binary" => {
+                    let value = rest.next().ok_or_else(|| {
+                        UsageError("--binary needs the built bootstrapper".to_owned())
+                    })?;
+                    invocation.binary = Some(PathBuf::from(value));
+                }
+                "--remote" => {
+                    let value = rest
+                        .next()
+                        .ok_or_else(|| UsageError("--remote needs a URL".to_owned()))?;
+                    invocation.remote = Some(value.clone());
+                }
+                "--branch" => {
+                    let value = rest
+                        .next()
+                        .ok_or_else(|| UsageError("--branch needs a name".to_owned()))?;
+                    invocation.branch = Some(value.clone());
                 }
                 "--check" => invocation.verb = Verb::Check,
                 "--output" => {
@@ -132,6 +186,27 @@ impl Invocation {
         if !verb_seen {
             return Err(UsageError(USAGE_LINE.to_owned()));
         }
+        // A flag that the chosen verb does not read is a caller who believes something happened.
+        // Publishing and rendering take disjoint options, so saying so is cheap.
+        if invocation.verb != Verb::PublishBootstrap
+            && let Some(flag) = [
+                invocation.binary.is_some().then_some("--binary"),
+                invocation.remote.is_some().then_some("--remote"),
+                invocation.branch.is_some().then_some("--branch"),
+            ]
+            .into_iter()
+            .flatten()
+            .next()
+        {
+            return Err(UsageError(format!(
+                "{flag} is only valid for publish-bootstrap\n{USAGE_LINE}"
+            )));
+        }
+        if invocation.verb == Verb::PublishBootstrap && invocation.binary.is_none() {
+            return Err(UsageError(format!(
+                "publish-bootstrap needs --binary\n{USAGE_LINE}"
+            )));
+        }
         Ok(invocation)
     }
 
@@ -156,6 +231,9 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
 }
 
 fn execute(invocation: &Invocation) -> CommandOutput {
+    if invocation.verb == Verb::PublishBootstrap {
+        return publish_bootstrap(invocation);
+    }
     let manifest_path = invocation.manifest_path();
     let Ok(text) = std::fs::read_to_string(&manifest_path) else {
         return failure(
@@ -203,7 +281,208 @@ fn execute(invocation: &Invocation) -> CommandOutput {
     match invocation.verb {
         Verb::Render => write(invocation, &manifest, &rendered, note.as_deref()),
         Verb::Check => check(invocation, &manifest, &rendered),
+        // Dispatched before the manifest is read: publishing needs no scope to exist, and the
+        // first bootstrap ref is published before the scope that pins it does.
+        Verb::PublishBootstrap => unreachable!("publish-bootstrap returns before this point"),
     }
+}
+
+/// Publish the ref a consumer's entrypoint clones.
+///
+/// This is the other half of `render`, and the reason it exists is a measurement: the
+/// bootstrapper is also published as a Conda package, but a package is installed by a solver,
+/// while the entrypoint `exec`s a file out of a checkout. Nothing in the published artifacts
+/// could satisfy `[ -x "$CHECKOUT/universe-airlock-bootstrap" ]` until a ref held it.
+///
+/// The ref is stable rather than per-build: an unchanged binary leaves the commit where it was,
+/// because a consumer's committed entrypoint names that commit and re-rendering every consumer
+/// for identical bytes is drift with no information in it.
+fn publish_bootstrap(invocation: &Invocation) -> CommandOutput {
+    let Some(binary) = &invocation.binary else {
+        // The parser refuses this, so reaching it means the two disagree.
+        return failure(
+            USAGE,
+            vec![Diagnostic::new(
+                Severity::Error,
+                "airlock.publish.binary_missing",
+                "publish-bootstrap needs --binary",
+            )],
+        );
+    };
+    let bytes = match std::fs::read(binary) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return failure(
+                USAGE,
+                vec![
+                    Diagnostic::new(
+                        Severity::Error,
+                        "airlock.publish.unreadable",
+                        format!("cannot read the bootstrapper: {error}"),
+                    )
+                    .with_path(binary.display().to_string()),
+                ],
+            );
+        }
+    };
+    if bytes.is_empty() {
+        return failure(
+            USAGE,
+            vec![
+                Diagnostic::new(
+                    Severity::Error,
+                    "airlock.publish.empty",
+                    "the built bootstrapper is empty; publishing it would publish nothing",
+                )
+                .with_path(binary.display().to_string()),
+            ],
+        );
+    }
+
+    // The manifest is a convenience here, not a precondition: an owner publishing the very first
+    // bootstrap ref has no restore scope to read yet, which is the order `doc-103` describes.
+    let manifest = std::fs::read_to_string(invocation.manifest_path())
+        .ok()
+        .and_then(|text| Manifest::from_toml(&text).ok());
+    let declared = manifest
+        .as_ref()
+        .and_then(|manifest| manifest.airlock.as_ref())
+        .and_then(|airlock| airlock.developer.as_ref())
+        .and_then(|developer| developer.restore.clone());
+    let remote = match invocation.remote.clone().or_else(|| {
+        declared
+            .as_ref()
+            .map(|restore| restore.remote.clone())
+            .filter(|remote| !remote.trim().is_empty())
+    }) {
+        Some(remote) => remote,
+        None => {
+            return failure(
+                USAGE,
+                vec![Diagnostic::new(
+                    Severity::Error,
+                    "airlock.publish.remote_missing",
+                    "publish-bootstrap needs --remote, and the manifest declares no restore remote",
+                )],
+            );
+        }
+    };
+    let branch = invocation
+        .branch
+        .clone()
+        .or_else(|| {
+            declared
+                .as_ref()
+                .map(|restore| restore.branch.clone())
+                .filter(|branch| !branch.trim().is_empty())
+        })
+        .unwrap_or_else(|| DEFAULT_BOOTSTRAP_BRANCH.to_owned());
+
+    let digest = universe_workflow::sha256::sha256_hex(&bytes);
+    let descriptor = json!({
+        "schema_version": 1,
+        "binary": BOOTSTRAP_BINARY,
+        "version": universe_core::VERSION,
+        "sha256": digest,
+        "size_bytes": bytes.len(),
+    })
+    .to_string();
+    let entries = vec![
+        Entry {
+            path: BOOTSTRAP_DESCRIPTOR.to_owned(),
+            bytes: descriptor.into_bytes(),
+            executable: false,
+        },
+        Entry {
+            path: BOOTSTRAP_BINARY.to_owned(),
+            bytes: bytes.clone(),
+            executable: true,
+        },
+    ];
+
+    let scratch = match crate::scratch::Scratch::temporary() {
+        Ok(scratch) => scratch,
+        Err(diagnostic) => return failure(USAGE, vec![diagnostic]),
+    };
+    let transport = GitTransport::new(&remote, &branch, scratch.path());
+    let outcome = transport.publish_entries(
+        &entries,
+        &format!("bootstrap: {BOOTSTRAP_BINARY} {}", universe_core::VERSION),
+    );
+    match outcome {
+        Ok(outcome) => {
+            // An unchanged publish still has a commit worth naming: it is the pin the caller
+            // pastes into the manifest, and asking git again is cheaper than making them run
+            // `git ls-remote` to find the thing the command just said it did not move.
+            let existing = match &outcome {
+                PushOutcome::Unchanged => transport
+                    .current()
+                    .ok()
+                    .flatten()
+                    .map(|identity| identity.commit),
+                PushOutcome::Published { .. } => None,
+            };
+            report_bootstrap(invocation, &branch, &digest, bytes.len(), outcome, existing)
+        }
+        Err(error) => failure(
+            USAGE,
+            vec![
+                Diagnostic::new(Severity::Error, "airlock.publish.failed", error.to_string())
+                    .with_path(branch.clone()),
+            ],
+        ),
+    }
+}
+
+/// What `publish-bootstrap` says it did.
+fn report_bootstrap(
+    invocation: &Invocation,
+    branch: &str,
+    digest: &str,
+    size: usize,
+    outcome: PushOutcome,
+    existing: Option<String>,
+) -> CommandOutput {
+    let (commit, changed) = match &outcome {
+        PushOutcome::Published { commit } => (commit.clone(), true),
+        PushOutcome::Unchanged => (existing.unwrap_or_default(), false),
+    };
+    if invocation.json {
+        let envelope: Envelope<serde_json::Value> = Envelope::new(
+            STDOUT_SCHEMA_VERSION,
+            "airlock publish-bootstrap",
+            true,
+            json!({
+                "branch": branch,
+                "commit": commit,
+                "changed": changed,
+                "sha256": digest,
+                "size_bytes": size,
+            }),
+            Vec::new(),
+            Vec::new(),
+        );
+        return CommandOutput::new(
+            format!(
+                "{}\n",
+                envelope
+                    .to_json()
+                    .expect("the airlock envelope always serializes")
+            ),
+            String::new(),
+            0,
+        );
+    }
+    let line = if changed {
+        format!(
+            "published {BOOTSTRAP_BINARY} to {branch} at {commit} (sha256:{digest}, {size} bytes)\n"
+        )
+    } else {
+        format!(
+            "{branch} already holds {BOOTSTRAP_BINARY} at {commit} (sha256:{digest}, {size} bytes)\n"
+        )
+    };
+    CommandOutput::new(line, String::new(), 0)
 }
 
 impl Invocation {
@@ -282,6 +561,7 @@ fn settled(invocation: &Invocation, manifest: &Manifest) -> CommandOutput {
         })
         .collect();
     match invocation.verb {
+        Verb::PublishBootstrap => unreachable!("publish-bootstrap returns before this point"),
         Verb::Render => {
             let mut removed = String::new();
             for file in &stale {

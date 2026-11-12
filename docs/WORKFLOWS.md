@@ -76,7 +76,8 @@ Six things are worth noticing, because they are the design:
   changes only when prefix.dev reindexes, which took more than 28 minutes on the first attempt
   and left the index naming the previous publication: read the index after the reindex, not
   after the upload. A clean-container restore transcript is still unrecorded: no container
-  runtime is available here and this owner-lane manifest declares no restore entrypoint.
+  runtime is available here. The owner-lane manifest declares a restore scope now, pinned at a
+  published `bootstrap` ref, so the entrypoint exists and runs against the real remote.
   https://github.com/Archont561/universe/actions/runs/43230051708
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
