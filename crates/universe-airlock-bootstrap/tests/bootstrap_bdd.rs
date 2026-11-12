@@ -12,13 +12,20 @@ use tempfile::TempDir;
 use universe_airlock_bootstrap::hash::sha256_hex;
 use universe_airlock_bootstrap::run;
 
+mod support;
+
 /// The commit a payload was published for, and one it was not.
 const PIN: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER: &str = "89abcdef0123456789abcdef0123456789abcdef";
 
-/// What a release actually ships, as the audit would have written it.
-const ARTIFACT: &[u8] = b"the only artifact\n";
+/// What a release actually ships, as the audit would have written it: a real archive, because a
+/// restore installs a prefix from it now.
 const ARTIFACT_NAME: &str = "universe-airlock-0.1.0.conda";
+
+/// The archive one scenario publishes.
+fn artifact() -> Vec<u8> {
+    support::conda("the only artifact")
+}
 
 /// One host: its payload, its state root, and the last command it ran.
 #[derive(Default)]
@@ -93,14 +100,15 @@ fn publish(host: &mut Host, pin: &str) {
     let root = TempDir::new().expect("a scratch host directory");
     let payload = root.path().join("payload");
     std::fs::create_dir_all(&payload).expect("create the payload directory");
-    std::fs::write(payload.join(ARTIFACT_NAME), ARTIFACT).expect("write the artifact");
+    let artifact = artifact();
+    std::fs::write(payload.join(ARTIFACT_NAME), &artifact).expect("write the artifact");
     let manifest = format!(
         r#"{{"schema":1,"version":"0.1.0","commit":"{pin}","packages":[
              {{"name":"universe-airlock","kind":"conda","version":"0.1.0","artifacts":[
                {{"filename":"{ARTIFACT_NAME}","sha256":"{}","size":{},
                  "stores":["conda-static"]}}]}}]}}"#,
-        sha256_hex(ARTIFACT),
-        ARTIFACT.len()
+        sha256_hex(&artifact),
+        artifact.len()
     );
     std::fs::write(payload.join("universe-release.json"), manifest).expect("write the manifest");
     host.root = Some(root);
@@ -219,7 +227,7 @@ fn artifact_under_current(host: &Host) {
     let environment = host.state().join(link);
     assert_eq!(
         std::fs::read(environment.join(ARTIFACT_NAME)).expect("the artifact"),
-        ARTIFACT
+        artifact()
     );
 }
 

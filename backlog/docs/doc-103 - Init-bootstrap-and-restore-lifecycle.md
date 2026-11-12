@@ -20,7 +20,9 @@ leaves the previous environment active and untouched.
 
 Two parts of the loop below are still missing, and the document should not be read as claiming
 them: installation into a **bundled Pixi** environment (the payload shape is what `UNI-51`'s
-mirror publishes) and the **sealed lane** (a signature verifier and a compiled-in key, `UNI-55`;
+mirror publishes — note that as of 2026-11-12 the bootstrap installs a prefix itself in Rust, so
+what is missing there is the Pixi-managed lane and the lock format, not installation as such) and
+the **sealed lane** (a signature verifier and a compiled-in key, `UNI-55`;
 until then `verify` refuses any signature rather than accepting one it cannot check, and sealed
 restores refuse an unsigned payload). Proposed command names still identify responsibilities
 rather than a finalized parser/API.

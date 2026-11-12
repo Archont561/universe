@@ -19,6 +19,7 @@
 pub mod diagnostics;
 pub mod hash;
 pub mod payload;
+pub mod prefix;
 pub mod signature;
 pub mod state;
 
@@ -232,6 +233,11 @@ fn run_restore(arguments: &[String]) -> CommandOutput {
         } else {
             ""
         }
+    ));
+    text.push_str(&format!("prefix: {}\n", outcome.prefix.display()));
+    text.push_str(&format!(
+        "installed: {} entries ({} bytes)\n",
+        outcome.entries, outcome.bytes
     ));
     text.push_str(&format!("signature: {}\n", report.verdict.as_str()));
     match &outcome.previous {

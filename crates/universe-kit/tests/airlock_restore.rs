@@ -28,15 +28,44 @@ use universe_core::CommandOutput;
 use universe_core::manifest::Manifest;
 use universe_workflow::sha256::sha256_hex;
 
+mod support;
+
 /// The branch the fixture publishes to, and the ref the entrypoint names.
 const BRANCH: &str = "mirror/pixi";
 
 /// The bootstrapper's file name inside a published ref.
 const BOOTSTRAP: &str = "universe-airlock-bootstrap";
 
-/// The one artifact the real bootstrapper materialises, and the bytes it must reproduce.
+/// The one artifact the real bootstrapper installs, and the executable it must produce.
 const PAYLOAD_ARTIFACT: &str = "airlock-0.1.0.conda";
-const PAYLOAD_BYTES: &[u8] = b"the fixture's one artifact\n";
+
+/// What the artifact's prefix must be able to run once the restore is done.
+const PAYLOAD_EXECUTABLE: &str = "bin/airlock";
+const PAYLOAD_SCRIPT: &[u8] = b"#!/bin/sh\nprintf 'airlock 0.1.0\\n'\n";
+
+/// A real `.conda` holding one executable, since a restore installs a prefix from it.
+///
+/// The archive is built through the shared fixture writer rather than checked in, and it is
+/// deterministic: stored members, fixed tar timestamps.
+fn payload_archive() -> Vec<u8> {
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let path = scratch.path().join(PAYLOAD_ARTIFACT);
+    let index = br#"{"name":"airlock","version":"0.1.0","build":"h1234567_0","build_number":0,"subdir":"linux-64","depends":[]}"#;
+    let paths = format!(
+        r#"{{"paths":[{{"_path":"{PAYLOAD_EXECUTABLE}","path_type":"hardlink","sha256":"{}","size_in_bytes":{}}}],"paths_version":1}}"#,
+        sha256_hex(PAYLOAD_SCRIPT),
+        PAYLOAD_SCRIPT.len()
+    );
+    support::write_conda_with_payload(
+        &path,
+        &[
+            ("info/index.json", index.as_slice()),
+            ("info/paths.json", paths.as_bytes()),
+        ],
+        &[(PAYLOAD_EXECUTABLE, PAYLOAD_SCRIPT)],
+    );
+    std::fs::read(&path).expect("read the archive")
+}
 
 /// A project, a remote, and the commit the manifest pins.
 struct Fixture {
@@ -282,10 +311,11 @@ fn cache(directory: &TempDir) -> PathBuf {
 /// not the checkout's. That is also the only place it can be: a release manifest that named the
 /// commit of the very tree containing itself could never be written. Its `commit` is the pin the
 /// entrypoint verified, which is what `restore --commit <pin>` checks against.
-fn write_payload(fixture: &Fixture) {
+fn write_payload(fixture: &Fixture) -> Vec<u8> {
     let payload = fixture.root().join(".universe-airlock").join("payload");
     std::fs::create_dir_all(&payload).expect("payload directory");
-    std::fs::write(payload.join(PAYLOAD_ARTIFACT), PAYLOAD_BYTES).expect("artifact");
+    let artifact = payload_archive();
+    std::fs::write(payload.join(PAYLOAD_ARTIFACT), &artifact).expect("artifact");
     // The digest is computed by the renderer's hasher, not by the bootstrapper's `sha2`, so a
     // mistake in either implementation fails this test instead of agreeing with itself.
     let manifest = format!(
@@ -294,10 +324,11 @@ fn write_payload(fixture: &Fixture) {
                {{"filename":"{PAYLOAD_ARTIFACT}","sha256":"{}","size":{},
                  "stores":["conda-static"]}}]}}]}}"#,
         fixture.commit,
-        sha256_hex(PAYLOAD_BYTES),
-        PAYLOAD_BYTES.len()
+        sha256_hex(&artifact),
+        artifact.len()
     );
     std::fs::write(payload.join("universe-release.json"), manifest).expect("release manifest");
+    artifact
 }
 
 #[test]
@@ -342,7 +373,7 @@ fn the_rendered_entrypoint_restores_a_payload_with_the_real_bootstrapper() {
     // payload. The stub bootstrapper the other tests use cannot do any of the second half.
     let fixture = Fixture::with_real_bootstrapper();
     assert_eq!(fixture.render().exit_code(), 0);
-    write_payload(&fixture);
+    let artifact = write_payload(&fixture);
     let cache = cache(&fixture.directory);
 
     let output = fixture.run_entrypoint(&cache);
@@ -364,9 +395,27 @@ fn the_rendered_entrypoint_restores_a_payload_with_the_real_bootstrapper() {
     // `current` points at, holding the exact bytes the manifest described.
     let state = fixture.root().join(".universe-airlock").join("state");
     let current = std::fs::read_link(state.join("current")).expect("a current link");
-    let restored = std::fs::read(state.join(current).join(PAYLOAD_ARTIFACT))
+    let environment = state.join(current);
+    let restored = std::fs::read(environment.join(PAYLOAD_ARTIFACT))
         .expect("the artifact in the active environment");
-    assert_eq!(restored, PAYLOAD_BYTES);
+    assert_eq!(restored, artifact);
+
+    // And the prefix that environment installed: the executable the archive describes, at the
+    // mode the archive recorded, which is what makes a restored prefix runnable.
+    let installed = environment.join("prefix").join(PAYLOAD_EXECUTABLE);
+    assert_eq!(
+        std::fs::read(&installed).expect("the installed executable"),
+        PAYLOAD_SCRIPT
+    );
+    let mode = {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(&installed)
+            .expect("the installed executable")
+            .permissions()
+            .mode()
+            & 0o777
+    };
+    assert_eq!(mode, 0o755, "the installed executable is {mode:o}");
 
     // The checkout this very run cloned is at the pin the payload names.
     let checkout = cache.join(&fixture.commit);

@@ -18,8 +18,17 @@ workspace = true
 # with no dependencies of its own, which is why it is the one crypto crate this binary takes.
 # The key itself lives in `src/signature.rs` as a compile-time constant.
 minisign-verify = { workspace = true }
+# Reading a `.conda` is a zip of two zstd-compressed tars. `UNI-52` records that owning the
+# extractor in Rust is an option rather than a prerequisite; this build takes the option, because
+# the alternative is bundling an installer for a payload whose every file is already digest-checked.
+# `zip` needs no compression feature: the format stores its members uncompressed.
+serde = { workspace = true }
+serde_json = { workspace = true }
 sha2 = { workspace = true }
+tar = { workspace = true }
 universe-core = { workspace = true }
+zip = { version = "9", default-features = false }
+zstd = { version = "0.14", default-features = false }
 
 [dev-dependencies]
 # Scenario harness: `features/*.feature` states the behaviour, `tests/*_bdd.rs` binds the steps.

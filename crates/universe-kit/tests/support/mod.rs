@@ -29,6 +29,14 @@ pub fn about(licence: &str, license_file: &str) -> String {
 
 /// Write a `.conda` whose info section holds `files` and whose payload is empty.
 pub fn write_conda(path: &Path, files: &[(&str, &[u8])]) {
+    write_conda_with_payload(path, files, &[]);
+}
+
+/// The same archive, with `payload` files under the prefix it installs.
+///
+/// A restore installs a prefix now, so a fixture that only carries metadata would test the
+/// refusal path rather than the behaviour under test.
+pub fn write_conda_with_payload(path: &Path, info: &[(&str, &[u8])], payload: &[(&str, &[u8])]) {
     let file = File::create(path).expect("create archive");
     let mut zip = zip::ZipWriter::new(file);
     let options =
@@ -41,12 +49,12 @@ pub fn write_conda(path: &Path, files: &[(&str, &[u8])]) {
 
     zip.start_file("info-fixture.tar.zst", options)
         .expect("info entry");
-    zip.write_all(&compress(&tar_bytes(files)))
+    zip.write_all(&compress(&tar_bytes(info)))
         .expect("info bytes");
 
     zip.start_file("pkg-fixture.tar.zst", options)
         .expect("pkg entry");
-    zip.write_all(&compress(&tar_bytes(&[])))
+    zip.write_all(&compress(&tar_bytes(payload)))
         .expect("pkg bytes");
 
     zip.finish().expect("finish archive");
@@ -61,7 +69,14 @@ fn tar_bytes(files: &[(&str, &[u8])]) -> Vec<u8> {
     for (name, contents) in files {
         let mut header = tar::Header::new_gnu();
         header.set_size(contents.len() as u64);
-        header.set_mode(0o644);
+        // A package's executables live under `bin/`, and the mode in the tar is what the
+        // installer copies: a fixture that wrote everything read-only would prove nothing about
+        // a restored prefix being runnable.
+        header.set_mode(if name.starts_with("bin/") {
+            0o755
+        } else {
+            0o644
+        });
         header.set_mtime(0);
         header.set_cksum();
         builder
