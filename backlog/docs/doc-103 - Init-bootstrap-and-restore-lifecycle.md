@@ -25,6 +25,19 @@ until then `verify` refuses any signature rather than accepting one it cannot ch
 restores refuse an unsigned payload). Proposed command names still identify responsibilities
 rather than a finalized parser/API.
 
+**2026-11-12: the payload half of "publish immutable payload data" now has a producer.**
+`universe airlock pack` writes `.universe-airlock/payload` — `universe-release.json` naming every
+released artifact with its digest, size and the stores it goes to, plus one file per artifact —
+from what the build produced and the archives' own `info/index.json`. Two choices are worth
+recording because they constrain the loop: the payload's pin is the `[airlock.developer.restore]`
+commit (the same value the entrypoint verifies, so the two cannot disagree), and the directory is
+fixed rather than derived from the entrypoint's `dir` (the bootstrapper resolves that path itself
+and the rendered script passes no `--payload`). A directory holding a file the descriptor does not
+name is refused rather than cleaned, because the consumer rejects unexpected files and a signature
+over the previous manifest would be left describing bytes that are gone. The restore that follows
+still copies artifacts into an activated environment; replaying a lock into a *prefix* remains
+`UNI-52`.
+
 ## Corrected user experience
 
 The initializer runs on the project/export side. The target user runs only a generated restore entrypoint; they do not first install Universe Airlock manually or invoke an initializer on the offline machine.

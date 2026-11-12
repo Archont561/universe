@@ -18,17 +18,17 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The facade owns no product behavior: producer commands go to `universe-kit`,
 /// and the explicit `airlock` namespace goes to `universe-airlock`.
 ///
-/// `airlock render` and `airlock publish-bootstrap` are the exceptions, and they are exceptions
-/// by direction rather than by taste: rendering reads `universe.toml` and writes committed
-/// files, and publishing pushes the ref the entrypoint clones to a remote. Both are production,
-/// so both belong to the producer. `airlock exec`, `verify` and `restore` run on a target whose
+/// Three verbs in that namespace are the exceptions, and they are exceptions by direction rather
+/// than by taste: rendering reads `universe.toml` and writes committed files, publishing pushes
+/// the ref the entrypoint clones to a remote, and packing writes the payload a restore consumes.
+/// All three are production, so all three belong to the producer. `airlock exec`, `verify` and `restore` run on a target whose
 /// only installation is the consumer, and they stay where they are.
 #[must_use]
 pub fn route(args: &[OsString]) -> (&'static str, &[OsString]) {
     match args.first().and_then(|arg| arg.to_str()) {
         Some("airlock") => {
             let verb = args.get(1).and_then(|arg| arg.to_str());
-            if matches!(verb, Some("render" | "publish-bootstrap")) {
+            if matches!(verb, Some("render" | "publish-bootstrap" | "pack")) {
                 ("universe-kit", args)
             } else {
                 ("universe-airlock", &args[1..])
@@ -96,6 +96,12 @@ mod tests {
         let (component, forwarded) = route(&publishing);
         assert_eq!(component, "universe-kit");
         assert_eq!(forwarded, publishing);
+
+        // Packing writes the payload a restore consumes, from artifacts this side built.
+        let packing = args(&["airlock", "pack"]);
+        let (component, forwarded) = route(&packing);
+        assert_eq!(component, "universe-kit");
+        assert_eq!(forwarded, packing);
 
         // Everything else in the namespace is the consumer's.
         for verb in ["exec", "verify", "restore"] {

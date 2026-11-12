@@ -24,8 +24,11 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 > `43073492712` is green, and the rebuilt channel's destinations read back the same digests. The
 > branch channel solves offline from a clone with the network denied. This repository also
 > commits a rendered restore entrypoint, `.universe-airlock/restore.sh`, pinned at a `bootstrap`
-> ref that carries the bootstrapper binary; it hands over to the published binary against the
-> real remote. A clean-container restore transcript is still unrecorded, so `UNI-59` stays open.
+> ref that carries the bootstrapper binary, and `universe airlock pack` writes the closed payload
+> that binary restores. Run against the real remote, the entrypoint clones the pin, hands over,
+> and the four published packages are materialised as one activated environment. What a restore
+> does *not* yet do is replay a lock into an installed prefix — that is `UNI-52` — and a
+> clean-container transcript is still unrecorded, so `UNI-59` stays open.
 > One platform is not the integrated v1 release, and the v1
 > surfaces remain absent. Every `0.Y.0` is a breaking boundary until `1.0.0`.
 

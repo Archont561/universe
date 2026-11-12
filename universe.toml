@@ -193,6 +193,16 @@ remote = "https://github.com/Archont561/universe.git"
 branch = "bootstrap"
 commit = "991324f5dee0cb02d18ea66e35e1e12206a35b14"
 
+# The scope that ships a payload, and the reason `universe airlock pack` has something to pack.
+#
+# Declared empty on purpose. `adapters` names the lock formats this project can *replay* on the
+# target, and nothing replays a lock yet (`UNI-51`, `UNI-52`); `catalog` names a pinned catalog
+# someone else published, which this owner lane is not consuming either. What the declaration buys
+# today is the payload: `pack` refuses a repository that declares no delivery scope, so writing
+# one is how this repository says it ships, and `pixi run airlock-check` keeps the entrypoint and
+# this scope in step.
+[airlock.delivery]
+
 [workflow]
 # These gate `universe-kit`'s `verify --artifact` / `--published` / `--index` verbs, not the
 # consumer's `universe-airlock verify` (`UNI-32`). The renderer emits those commands from the

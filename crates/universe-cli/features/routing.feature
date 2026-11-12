@@ -2,9 +2,10 @@ Feature: Which component a `universe` command line belongs to
 
   The facade is the only command a user types, so the rule it applies decides
   which executable runs. It owns no behaviour of its own: a producer verb goes to
-  the producer, the airlock namespace goes to the consumer, and the two verbs that
-  produce — rendering an entrypoint, publishing the ref it clones — stay with the
-  producer even though the namespace is the consumer's.
+  the producer, the airlock namespace goes to the consumer, and the three verbs that
+  produce — rendering an entrypoint, publishing the ref it clones, packing the payload
+  a restore consumes — stay with the producer even though the namespace is the
+  consumer's.
 
   Scenario: A command with no namespace belongs to the producer
     Given the command line "universe pages build --offline"
@@ -32,6 +33,12 @@ Feature: Which component a `universe` command line belongs to
 
   Scenario: Publishing the ref the entrypoint clones is producer work
     Given the command line "universe airlock publish-bootstrap --binary boot"
+    When it is routed
+    Then the producer runs it
+    And the arguments reach it unchanged
+
+  Scenario: Packing the payload a restore consumes is producer work
+    Given the command line "universe airlock pack --output payload"
     When it is routed
     Then the producer runs it
     And the arguments reach it unchanged

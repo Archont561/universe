@@ -19,3 +19,8 @@ output/
 dist/
 build/
 *.log
+# A payload is published data, not source: `universe airlock pack` writes it and a restore reads
+# it. Committing it would put megabytes of archives in the tree and make every release a commit.
+.universe-airlock/payload/
+# The restored environments themselves, and the symlink that selects one.
+.universe-airlock/state/
