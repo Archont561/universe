@@ -250,6 +250,39 @@ restore entrypoint. DoD #3 stays open on that transcript. `UNI-15`, `UNI-16`, `U
 `UNI-53` DoD #1 and the sealed-payload work of `UNI-55` remain open. `decision-126`, `UNI-11`,
 `CHANGELOG.md` and the prose docs record this correction. No further tag is cut.
 
+## Amendment: the rebuilt channel is republished and solves offline
+
+**This is an evidence correction, recorded as a correction, not a scope change.** On 2026-11-12
+the three publishable recipes already suppressed the C standard library's run export, but the
+artifacts published at the tag predated that fix and declared `libgcc >=16`, so an offline solve
+of the branch channel failed. Rather than cut a second tag, `release.yml` was dispatched on
+`main` at the merge `8b008573` and its `--force` reversal replaced the three package filenames at
+`prefix-dev` and `releases`; the branch store is still never forced and was replaced in one
+snapshot commit. Run `43230051708` is green on attempt 1 with all five jobs and audited
+`universe-airlock` at `359c34535c59887a94d064301ab88cdc6c651f752674b11e43d339870116c66b`
+(298826 bytes), `universe-kit` at
+`548e832c34a6cfef92e5ac6fba73af805a9095ca06cea969de3a571074ad2f14` (3493489 bytes) and the
+umbrella `universe` facade at
+`29f258fc57b820fe0db9346f11fa47709b1dcc7750c08fa7fca710b4b6131906` (195246 bytes). The three
+GitHub Release assets, the one-snapshot `channel` branch at
+`0743618978d44b3393511f8777a9dfafe513cc95` and a fresh cache-busted prefix.dev repodata read
+(publication `93323`) all resolve those three digests, and none of the three packages declares
+`libgcc`. Three Pixi projects, one per package, each ran `pixi install --offline` against a
+fresh clone of `channel` and each installed, so `UNI-59` criterion 4 is satisfied.
+https://github.com/Archont561/universe/actions/runs/43230051708
+
+The digests recorded in the two amendments above describe the runs they name and are not what
+the destinations serve now; the build remains not reproducible, so each forced republish changes
+them. A forced prefix.dev upload replaces the stored file immediately while the channel index
+changes only at reindex time: an earlier dispatch, run `43224818327`, was green and its uploads
+were accepted, yet the index kept serving the tag run's publication `88406` for more than 28
+minutes and then named the first dispatch's digests. Publishing once and reading the index after
+the reindex is the order this record now prefers. Criterion 5 and DoD #3 still need a
+clean-container restore transcript, which no container runtime here can produce and which the
+absent `[airlock.developer.restore]` scope would not enable; `UNI-55`, `UNI-15`, `UNI-16`,
+`UNI-40` and `UNI-53` DoD #1 stay open on the same scope. `UNI-59` stays `In Progress`. No
+further tag is cut, and no sealed, Pixi-managed or clean-container environment is claimed.
+
 ## Consequences
 
 - The v1 gate continues to require all six surfaces; `v0.1.0` is a checkpoint on the Conda
