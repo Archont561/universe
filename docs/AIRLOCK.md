@@ -28,6 +28,38 @@ Restore is a replay, not a solve: the lock names every artifact, Airlock verifie
 and a missing artifact fails closed rather than falling back to a channel
 (`backlog/decisions/decision-102`, `-103`).
 
+## Mirror publishes what a lock pins
+
+`universe airlock mirror --adapter <name>` is the producer half of a replay. It reads the
+project's lockfile, fetches every artifact the lock names, verifies each digest, and publishes
+the result as one tree on a branch named `<mirror prefix>/<adapter>`, which is `mirror/pixi` for
+the default prefix.
+
+The tree is content-addressed: an artifact lands at `blobs/sha256/<digest>/<file>`, so the path
+is a function of the bytes. One lock therefore produces one tree, and two runs of the same lock
+produce the same tree, which is why a republish of an unchanged lock creates no commit. A
+changed lock adds its new artifacts beside the ones already there; an artifact a newer lock
+dropped stays on the branch, because a consumer restoring an older pin still needs it.
+
+`mirror.json` in that tree records what the lock pinned and where each artifact landed, so a
+consumer can map a lock entry to a path without knowing the layout.
+
+Two flags exist for the runs that should change nothing. `--dry-run` reports how many artifacts
+the lock pins and how many the mirror is missing, without fetching or publishing. `--check`
+does the work of a real run and then compares the staged tree with the branch, reporting whether
+the destination already holds it, without pushing.
+
+Three refusals are worth stating, because each of them is a failure mode that would otherwise
+surface much later: an artifact whose bytes do not match its recorded digest, an artifact the
+destination does not have, and a lock record that names no digest at all. Each names the package
+and exits non-zero, and nothing is published.
+
+The adapters today are `pixi` (`pixi.lock`, conda archives and PyPI wheels) and `cargo`
+(`Cargo.lock`, registry crates). `bun` is a declared format whose reader has not landed, so
+`--adapter bun` is refused with the two names this build does read rather than silently doing
+nothing. A `Cargo.lock` dependency that comes from a Git revision is refused in the same way:
+no registry serves those bytes, and there is no checksum to verify them against.
+
 ## Verify reads, never writes
 
 `universe-airlock verify --payload <dir>` answers four questions about a sealed payload

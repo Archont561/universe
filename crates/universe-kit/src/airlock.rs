@@ -33,6 +33,7 @@ use universe_core::manifest::{
 use universe_core::{CommandOutput, STDOUT_SCHEMA_VERSION};
 
 use crate::git::{Entry, GitTransport};
+use crate::mirror;
 
 /// Default manifest file name, read from the project root.
 const MANIFEST_FILE: &str = "universe.toml";
@@ -99,14 +100,14 @@ struct Rendered {
 /// What the caller asked for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Verb {
-    /// Write the rendered files.
+    /// Write the rendered files, or compare them with what is on disk.
     Render,
-    /// Compare the rendered files with what is on disk.
-    Check,
     /// Publish the stable bootstrap ref the entrypoint clones.
     PublishBootstrap,
     /// Write the closed payload a bootstrapper restores from.
     Pack,
+    /// Fetch and publish what a lock pins.
+    Mirror,
 }
 
 /// Parsed options for one `airlock` invocation.
@@ -124,6 +125,18 @@ struct Invocation {
     remote: Option<String>,
     /// Which ref to publish it to.
     branch: Option<String>,
+    /// Which lock format `mirror` reads.
+    adapter: Option<String>,
+    /// The lockfile `mirror` reads, when it is not the adapter's default.
+    lock: Option<PathBuf>,
+    /// Where `mirror` keeps its bytes, when not the default directory.
+    mirror: Option<PathBuf>,
+    /// Where `mirror` fetches a crate from, when not crates.io's own layout.
+    crates: Option<String>,
+    /// Compare with the destination instead of changing it.
+    check: bool,
+    /// Report what a run would do, changing nothing.
+    dry_run: bool,
 }
 
 /// Why an invocation could not be interpreted.
@@ -134,7 +147,10 @@ const USAGE_LINE: &str = "usage: universe airlock render [--check] [--output <di
                           [--root <dir>] [--stdout] [--json]\n       \
                           universe airlock publish-bootstrap --binary <path> [--remote <url>] \
                           [--branch <name>] [--root <dir>] [--json]\n       \
-                          universe airlock pack [--output <dir>] [--root <dir>] [--json]";
+                          universe airlock pack [--output <dir>] [--root <dir>] [--json]\n       \
+                          universe airlock mirror --adapter <name> [--lock <path>] \
+                          [--mirror <dir>] [--crates <url>] [--remote <url>] \
+                          [--branch <name>] [--check] [--dry-run] [--root <dir>] [--json]";
 
 impl Invocation {
     fn parse(args: &[String]) -> Result<Self, UsageError> {
@@ -147,6 +163,12 @@ impl Invocation {
             binary: None,
             remote: None,
             branch: None,
+            adapter: None,
+            lock: None,
+            mirror: None,
+            crates: None,
+            check: false,
+            dry_run: false,
         };
         let mut verb_seen = false;
         let mut rest = args.iter();
@@ -162,6 +184,10 @@ impl Invocation {
                 }
                 "pack" if !verb_seen => {
                     invocation.verb = Verb::Pack;
+                    verb_seen = true;
+                }
+                "mirror" if !verb_seen => {
+                    invocation.verb = Verb::Mirror;
                     verb_seen = true;
                 }
                 "--binary" => {
@@ -182,7 +208,32 @@ impl Invocation {
                         .ok_or_else(|| UsageError("--branch needs a name".to_owned()))?;
                     invocation.branch = Some(value.clone());
                 }
-                "--check" => invocation.verb = Verb::Check,
+                "--check" => invocation.check = true,
+                "--dry-run" => invocation.dry_run = true,
+                "--adapter" => {
+                    let value = rest
+                        .next()
+                        .ok_or_else(|| UsageError("--adapter needs a lock format".to_owned()))?;
+                    invocation.adapter = Some(value.clone());
+                }
+                "--lock" => {
+                    let value = rest
+                        .next()
+                        .ok_or_else(|| UsageError("--lock needs a path".to_owned()))?;
+                    invocation.lock = Some(PathBuf::from(value));
+                }
+                "--mirror" => {
+                    let value = rest
+                        .next()
+                        .ok_or_else(|| UsageError("--mirror needs a directory".to_owned()))?;
+                    invocation.mirror = Some(PathBuf::from(value));
+                }
+                "--crates" => {
+                    let value = rest.next().ok_or_else(|| {
+                        UsageError("--crates needs the base URL crates are served from".to_owned())
+                    })?;
+                    invocation.crates = Some(value.clone());
+                }
                 "--output" => {
                     let value = rest
                         .next()
@@ -209,7 +260,7 @@ impl Invocation {
         }
         // A flag that the chosen verb does not read is a caller who believes something happened.
         // Publishing and rendering take disjoint options, so saying so is cheap.
-        if invocation.verb != Verb::PublishBootstrap
+        if !matches!(invocation.verb, Verb::PublishBootstrap | Verb::Mirror)
             && let Some(flag) = [
                 invocation.binary.is_some().then_some("--binary"),
                 invocation.remote.is_some().then_some("--remote"),
@@ -220,7 +271,7 @@ impl Invocation {
             .next()
         {
             return Err(UsageError(format!(
-                "{flag} is only valid for publish-bootstrap\n{USAGE_LINE}"
+                "{flag} is only valid for publish-bootstrap and mirror\n{USAGE_LINE}"
             )));
         }
         if invocation.verb == Verb::PublishBootstrap && invocation.binary.is_none() {
@@ -228,9 +279,45 @@ impl Invocation {
                 "publish-bootstrap needs --binary\n{USAGE_LINE}"
             )));
         }
-        if invocation.verb == Verb::Pack && invocation.print_stdout {
+        if invocation.print_stdout && invocation.verb != Verb::Render {
             return Err(UsageError(format!(
-                "--stdout is only valid for render; pack writes files\n{USAGE_LINE}"
+                "--stdout is only valid for render; pack and mirror write files\n{USAGE_LINE}"
+            )));
+        }
+        // The mirror reads a lock and writes a mirror, so the flags about rendered text and
+        // payload directories are somebody expecting a different verb.
+        if invocation.verb == Verb::Mirror
+            && let Some(flag) = [
+                invocation.output.is_some().then_some("--output"),
+                invocation.binary.is_some().then_some("--binary"),
+            ]
+            .into_iter()
+            .flatten()
+            .next()
+        {
+            return Err(UsageError(format!(
+                "{flag} is not valid for mirror\n{USAGE_LINE}"
+            )));
+        }
+        if invocation.verb != Verb::Mirror
+            && let Some(flag) = [
+                invocation.adapter.is_some().then_some("--adapter"),
+                invocation.lock.is_some().then_some("--lock"),
+                invocation.mirror.is_some().then_some("--mirror"),
+                invocation.crates.is_some().then_some("--crates"),
+                invocation.dry_run.then_some("--dry-run"),
+            ]
+            .into_iter()
+            .flatten()
+            .next()
+        {
+            return Err(UsageError(format!(
+                "{flag} is only valid for mirror\n{USAGE_LINE}"
+            )));
+        }
+        if invocation.verb == Verb::Mirror && invocation.adapter.is_none() {
+            return Err(UsageError(format!(
+                "mirror needs --adapter, because a project may pin more than one lock format\n                 {USAGE_LINE}"
             )));
         }
         Ok(invocation)
@@ -238,6 +325,22 @@ impl Invocation {
 
     fn manifest_path(&self) -> PathBuf {
         self.root.join(MANIFEST_FILE)
+    }
+
+    /// What `mirror` asked for, in the mirror's own vocabulary.
+    fn mirror_request(&self) -> mirror::Request {
+        mirror::Request {
+            root: self.root.clone(),
+            adapter: self.adapter.clone().unwrap_or_default(),
+            lock: self.lock.clone(),
+            mirror: self.mirror.clone(),
+            crates: self.crates.clone(),
+            remote: self.remote.clone(),
+            branch: self.branch.clone(),
+            check: self.check,
+            dry_run: self.dry_run,
+            json: self.json,
+        }
     }
 }
 
@@ -294,6 +397,12 @@ fn execute(invocation: &Invocation) -> CommandOutput {
     if invocation.verb == Verb::Pack {
         return pack_payload(invocation, &manifest);
     }
+    // Mirroring reads a lock and the manifest's branch prefix, and renders nothing: a project
+    // that pins a lock but ships no entrypoint still mirrors, which is the order `UNI-51` lands
+    // in — the mirror first, the restore entrypoint once there is something to restore.
+    if invocation.verb == Verb::Mirror {
+        return mirror::run(&invocation.mirror_request(), &manifest);
+    }
 
     let restore = manifest
         .airlock
@@ -311,12 +420,13 @@ fn execute(invocation: &Invocation) -> CommandOutput {
     let rendered = render(&manifest, &text, restore, &directory, readme.as_deref());
     let note = invocation.override_note(restore);
     match invocation.verb {
+        Verb::Render if invocation.check => check(invocation, &manifest, &rendered),
         Verb::Render => write(invocation, &manifest, &rendered, note.as_deref()),
-        Verb::Check => check(invocation, &manifest, &rendered),
         // Dispatched before the manifest is read: publishing needs no scope to exist, and the
         // first bootstrap ref is published before the scope that pins it does.
         Verb::PublishBootstrap => unreachable!("publish-bootstrap returns before this point"),
         Verb::Pack => unreachable!("pack returns before the renderer runs"),
+        Verb::Mirror => unreachable!("mirror returns before the renderer runs"),
     }
 }
 
@@ -1004,6 +1114,8 @@ fn settled(invocation: &Invocation, manifest: &Manifest) -> CommandOutput {
     match invocation.verb {
         Verb::PublishBootstrap => unreachable!("publish-bootstrap returns before this point"),
         Verb::Pack => unreachable!("pack returns before the renderer runs"),
+        Verb::Mirror => unreachable!("mirror returns before the renderer runs"),
+        Verb::Render if invocation.check => failure(DRIFT, diagnostics),
         Verb::Render => {
             let mut removed = String::new();
             for file in &stale {
@@ -1013,7 +1125,6 @@ fn settled(invocation: &Invocation, manifest: &Manifest) -> CommandOutput {
             }
             success(invocation, manifest, &[], &removed)
         }
-        Verb::Check => failure(DRIFT, diagnostics),
     }
 }
 
@@ -1422,7 +1533,7 @@ fn success(
             true,
             json!({
                 "project": manifest.project.name,
-                "check": invocation.verb == Verb::Check,
+                "check": invocation.check,
                 "files": rendered.iter().map(|file| &file.path).collect::<Vec<_>>(),
             }),
             Vec::new(),

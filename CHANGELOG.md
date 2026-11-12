@@ -4,6 +4,21 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- A lock can now be mirrored. `universe airlock mirror --adapter <pixi|cargo>` reads the
+  project's lockfile as the index of a mirror, fetches every artifact it names, verifies each
+  digest, and publishes the result as one tree on `<mirror prefix>/<adapter>`: an artifact lands
+  at `blobs/sha256/<digest>/<file>`, so the path is a function of the bytes and republishing an
+  unchanged lock creates no commit. `mirror.json` in that tree records what the lock pinned and
+  where each artifact landed. A tampered artifact, an absent one, or a lock record with no
+  digest fails the run with a diagnostic naming the package, and nothing is published. The
+  adapters are `pixi` (`pixi.lock`, conda archives and PyPI wheels) and `cargo` (`Cargo.lock`);
+  `bun` is refused by name, and so is a `Cargo.lock` dependency that comes from Git, because no
+  registry serves those bytes. Mirrored against the seven PyPI records of this repository's own
+  lock, the verb fetched 7 real wheels (21.9 MB), verified each digest, published commit
+  `267866bc` to a bare remote, and a second run fetched nothing and left the commit where it was.
+  This is the producer half of `UNI-51`; `universe.toml` does not yet declare an adapter, so no
+  workflow mirrors anything on this repository's own account.
+
 - A restore installs a prefix instead of only copying archives. `universe-airlock-bootstrap
   restore` now materialises each verified `.conda` into `<environment>/prefix`, applying
   `info/paths.json`: files at the modes the archive recorded, symlinks and hardlinks created as

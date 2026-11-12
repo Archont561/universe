@@ -22,5 +22,8 @@ build/
 # A payload is published data, not source: `universe airlock pack` writes it and a restore reads
 # it. Committing it would put megabytes of archives in the tree and make every release a commit.
 .universe-airlock/payload/
+# The mirror is a byte-for-byte copy of what a lock pins, published to a branch: it is a cache
+# on the publisher's disk, never source this repository owns.
+.universe-airlock/mirror/
 # The restored environments themselves, and the symlink that selects one.
 .universe-airlock/state/

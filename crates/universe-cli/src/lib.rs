@@ -18,17 +18,22 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The facade owns no product behavior: producer commands go to `universe-kit`,
 /// and the explicit `airlock` namespace goes to `universe-airlock`.
 ///
-/// Three verbs in that namespace are the exceptions, and they are exceptions by direction rather
+/// Four verbs in that namespace are the exceptions, and they are exceptions by direction rather
 /// than by taste: rendering reads `universe.toml` and writes committed files, publishing pushes
-/// the ref the entrypoint clones to a remote, and packing writes the payload a restore consumes.
-/// All three are production, so all three belong to the producer. `airlock exec`, `verify` and `restore` run on a target whose
-/// only installation is the consumer, and they stay where they are.
+/// the ref the entrypoint clones to a remote, packing writes the payload a restore consumes, and
+/// mirroring fetches a lock's artifacts and publishes them to a branch. All four are production,
+/// so all four belong to the producer, whose rendered workflow calls them. `airlock exec`,
+/// `verify` and `restore` run on a target whose only installation is the consumer, and they stay
+/// where they are.
 #[must_use]
 pub fn route(args: &[OsString]) -> (&'static str, &[OsString]) {
     match args.first().and_then(|arg| arg.to_str()) {
         Some("airlock") => {
             let verb = args.get(1).and_then(|arg| arg.to_str());
-            if matches!(verb, Some("render" | "publish-bootstrap" | "pack")) {
+            if matches!(
+                verb,
+                Some("render" | "publish-bootstrap" | "pack" | "mirror")
+            ) {
                 ("universe-kit", args)
             } else {
                 ("universe-airlock", &args[1..])
@@ -102,6 +107,13 @@ mod tests {
         let (component, forwarded) = route(&packing);
         assert_eq!(component, "universe-kit");
         assert_eq!(forwarded, packing);
+
+        // Mirroring fetches a lock's artifacts and publishes them: the rendered workflow calls
+        // `universe airlock mirror`, and a consumer install has no network to mirror over.
+        let mirroring = args(&["airlock", "mirror", "--adapter", "pixi", "--json"]);
+        let (component, forwarded) = route(&mirroring);
+        assert_eq!(component, "universe-kit");
+        assert_eq!(forwarded, mirroring);
 
         // Everything else in the namespace is the consumer's.
         for verb in ["exec", "verify", "restore"] {

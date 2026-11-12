@@ -4024,6 +4024,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-macros",
  "serde_json",
+ "serde_yaml",
  "tar",
  "tempfile",
  "toml_edit",
