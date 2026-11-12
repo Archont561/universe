@@ -19,6 +19,17 @@ All notable changes to Universe are recorded here.
   This is the producer half of `UNI-51`; `universe.toml` does not yet declare an adapter, so no
   workflow mirrors anything on this repository's own account.
 
+- A `noarch` package installs the way Conda installs it. `noarch: generic` lands where it is
+  recorded; `noarch: python` is a `site-packages/` tree, so it is installed under the one
+  `lib/python3.*` the prefix holds, its `python-scripts/` entries go to `bin` and are made
+  executable, and the commands it declares in `info/link.json` become generated scripts with the
+  prefix's own interpreter in the shebang — the shape Conda generates, including the `argv[0]`
+  normalisation. The refusals are the cases an archive cannot answer: a `noarch: python` package
+  in a prefix with no interpreter or with two, a payload path outside its two roots, a flavour
+  other than `python` and `generic`, and an entry point that is not `name = module:function`.
+  This closes `UNI-52` criterion 4, whose fixtures now cover native and `noarch: python` packages
+  with an entry point.
+
 - A restore installs a prefix instead of only copying archives. `universe-airlock-bootstrap
   restore` now materialises each verified `.conda` into `<environment>/prefix`, applying
   `info/paths.json`: files at the modes the archive recorded, symlinks and hardlinks created as
@@ -26,9 +37,8 @@ All notable changes to Universe are recorded here.
   `prefix_placeholder` rewritten to the prefix it was installed into (NUL-padded for binary
   files, so the linker's offsets do not move). `restore` reports `prefix:` and `installed:`. The
   archive refuses what a real installer refuses: an entry `paths.json` does not name, a name
-  `paths.json` records with no payload, a path that escapes the prefix, a link type that
-  disagrees with the archive, and a `noarch` package, which needs the interpreter it would be
-  installed for and is `UNI-52` criterion 4. Restoring the four packages of release
+  `paths.json` records with no payload, a path that escapes the prefix, and a link type that
+  disagrees with the archive. Restoring the four packages of release
   `43252390113` from this repository's own payload produces a prefix holding four executables,
   and `prefix/bin/universe-airlock --version` prints `universe-airlock 0.1.0`. This is the
   payload path, not a lock replay: `UNI-51` still owns lockfiles, and no acceptance criterion of

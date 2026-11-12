@@ -16,7 +16,7 @@ adapters = ["pixi", "bun", "cargo"]
 
 | Adapter | Reads | Mirrors | Restores |
 | :-- | :-- | :-- | :-- |
-| **pixi** | `pixi.lock` — conda archives *and* PyPI wheels | every recorded URL with its sha256 | a prefix, with build-time paths relocated |
+| **pixi** | `pixi.lock` — conda archives *and* PyPI wheels | every recorded URL with its sha256 | a prefix, with build-time paths relocated, `noarch` packages placed for the interpreter and their entry points generated |
 | **bun** | `bun.lock`, `package-lock.json` | `resolved` + `integrity` per package | `node_modules` from the mirror only |
 | **cargo** | `Cargo.lock` | crate downloads with checksums | a vendor directory and `.cargo/config.toml` |
 
