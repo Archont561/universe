@@ -35,3 +35,12 @@ Feature: What an audit learns from a Conda archive and a recipe
     Given a recipe whose url source names no digest
     When the recipe is linted
     Then the lint reports one finding for the missing digest
+
+  Scenario: A recipe that leaks the C stdlib run exports is refused
+    A package whose repodata carries `libgcc >=16` cannot be solved from a channel that
+    does not carry libgcc, so a branch channel built from it cannot restore offline. The
+    recipe decides that dependency, so the leak is refused there, by code.
+
+    Given a recipe that takes the C stdlib without suppressing its run exports
+    When the recipe is linted
+    Then the lint reports the leaked run export

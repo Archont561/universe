@@ -33,6 +33,12 @@ build:
           - copy /Y "target\\release\\universe-airlock-bootstrap.exe" "%LIBRARY_BIN%\\universe-airlock-bootstrap.exe"
 
 requirements:
+  # Same reason as the other three recipes: the C standard library's run export would write
+  # `libgcc` into `depends`, and a static channel does not carry it, so the package would not
+  # solve offline.
+  ignore_run_exports:
+    by_name:
+      - libgcc
   build:
     - rust >=1.99.0,<2
     - ${{ compiler('c') }}

@@ -233,7 +233,7 @@ remained owner-side; see the note below.
   answered `403 Not authorized` on `?force=true`. `https://prefix.dev/docs/prefix/api` says
   force-replacing requires a read-write-delete Repository Access entry. The owner then removed
   the occupied variant manually and reran the failed jobs; attempt 2 of run `42920755513` is
-  green. That proves a clean channel accepts the forced upload, not force-replace permission.
+  green. That proved a clean channel accepts the forced upload, not force-replace permission.
   The renderer slice is complete, and the build is still not reproducible.
 - **Three packages are proven against the live channel, by digest.** After the owner cleared
   the occupied variants a second time, run `43045274207` from `main` at `be4e7df3` finished
@@ -246,8 +246,8 @@ remained owner-side; see the note below.
   `linux-64/repodata.json` (publication `87457`) resolves all three by those digests, while the
   plain URL still serves the older CDN-cached index. The three GitHub Release assets of
   `packages-linux-64 artifacts` read back the same digests through the release API. This still
-  does not prove force-replacing an occupied filename, because the uploads landed on cleared
-  names. `publish / branch` is green but wrong: three snapshot pushes left `channel` at
+  did not prove force-replacing an occupied filename, because those uploads landed on
+  cleared names. `publish / branch` is green but wrong: three snapshot pushes left `channel` at
   `1d30ef21701497dd196eeaa1599d7ec3ee24edc6` holding only the facade. `ci render` now emits
   one command naming every package for a branch or static store; `decision-132` records the
   correction and `UNI-59` records the evidence. The offline branch solve remains open.

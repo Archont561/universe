@@ -86,13 +86,92 @@ pub fn lint_recipe(recipe_directory: &Path, text: &str, rules: RecipeRules) -> V
             check_output_package(mapping, index, &mut findings);
             check_build(mapping, &mut findings);
             check_about(recipe_directory, mapping, rules, &mut findings);
+            if let Some(requirements) = mapping.get(Value::String("requirements".to_owned())) {
+                check_run_exports(
+                    requirements,
+                    &format!("outputs[{index}].requirements."),
+                    &mut findings,
+                );
+            }
         }
     } else {
         check_package(root, &mut findings);
         check_build(root, &mut findings);
         check_about(recipe_directory, root, rules, &mut findings);
     }
+    if let Some(requirements) = root.get(Value::String("requirements".to_owned())) {
+        // Not run for the multi-output shape above: there, `requirements` belongs to each
+        // output and the loop already checked it.
+        if outputs.is_none() {
+            check_run_exports(requirements, "requirements.", &mut findings);
+        }
+    }
     findings
+}
+
+/// A recipe that takes the C standard library must suppress the run export it carries.
+///
+/// `${{ stdlib('c') }}` is a build dependency, but the package it names declares a run export,
+/// so rattler-build writes that dependency into the built package's `depends`. The published
+/// `v0.1.0` packages therefore carried `libgcc >=16`, and a consumer that clones the branch
+/// channel and runs `pixi install --offline` fails on a dependency the channel does not carry
+/// and cannot fetch. Nothing in the package's own binary needs it: these are Rust executables
+/// whose only undeclared runtime inputs are the C library the virtual `__glibc` package already
+/// stands for. `ignore_run_exports.by_name` is the recipe's way to say so, and a recipe that
+/// takes the stdlib without it is refused here rather than in a consumer's offline install.
+fn check_run_exports(requirements: &Value, prefix: &str, findings: &mut Vec<Diagnostic>) {
+    let Some(mapping) = requirements.as_mapping() else {
+        return;
+    };
+    if !takes_the_c_stdlib(mapping) {
+        return;
+    }
+    let suppressed = mapping
+        .get(Value::String("ignore_run_exports".to_owned()))
+        .and_then(Value::as_mapping)
+        .and_then(|ignore| ignore.get(Value::String("by_name".to_owned())))
+        .and_then(Value::as_sequence)
+        .is_some_and(|names| {
+            names
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|name| name == "libgcc")
+        });
+    if suppressed {
+        return;
+    }
+    findings.push(
+        Diagnostic::new(
+            Severity::Error,
+            "recipe.run_exports.leaked",
+            "the recipe takes the C standard library, so the built package depends on \
+             `libgcc`, which a static channel does not carry; name it under \
+             `requirements.ignore_run_exports.by_name` to keep the package solvable offline"
+                .to_owned(),
+        )
+        .with_path(format!("{prefix}ignore_run_exports.by_name")),
+    );
+}
+
+/// Whether any build or host entry is the C standard library.
+fn takes_the_c_stdlib(requirements: &Mapping) -> bool {
+    ["build", "host"].iter().any(|section| {
+        requirements
+            .get(Value::String((*section).to_owned()))
+            .and_then(Value::as_sequence)
+            .is_some_and(|entries| entries.iter().any(is_c_stdlib))
+    })
+}
+
+/// Whether one requirement literal is `${{ stdlib('c') }}` in either quote style.
+fn is_c_stdlib(entry: &Value) -> bool {
+    entry.as_str().is_some_and(|text| {
+        let compact: String = text
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        compact.contains("stdlib('c')") || compact.contains("stdlib(\"c\")")
+    })
 }
 
 /// The recipe's version: `context.version`, or a literal `package.version`.

@@ -73,6 +73,17 @@ All notable changes to Universe are recorded here.
   restore entrypoint. `UNI-59` stays open on those two criteria and DoD #3; the `v0.1.0` tag does
   not complete four-platform packaging, a sealed payload, or the integrated v1 gate.
 
+- The three publishable recipes suppress the C standard library's run export, so a package
+  built from them no longer declares `libgcc`. The published `v0.1.0` artifacts were built
+  before this change: they carry `libgcc >=16`, and a `pixi install --offline` against a clone
+  of the `channel` branch fails on it because a static channel does not carry libgcc. A copy of
+  the same tree with that one dependency removed solves and installs offline, which is what
+  isolates the cause. `universe lint` now refuses a recipe that takes `${{ stdlib('c') }}`
+  without naming the export under `requirements.ignore_run_exports.by_name`
+  (`recipe.run_exports.leaked`); a Rust unit test and a BDD scenario were red before the rule
+  existed. `UNI-59` criterion 4 stays open until a rebuilt channel is published and solved
+  offline.
+
 ## 0.1.0
 
 `decision-132` makes this tag a pre-release packaging checkpoint, not the integrated v1

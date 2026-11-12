@@ -299,3 +299,47 @@ fn a_missing_licence_file_is_refused(archive: Archive) {
 fn an_unpinned_recipe_is_refused(archive: Archive) {
     let _ = archive;
 }
+
+#[given("a recipe that takes the C stdlib without suppressing its run exports")]
+fn a_recipe_that_leaks_c_run_exports(archive: &mut Archive) {
+    const RECIPE: &str = r#"
+schema_version: 1
+context:
+  version: "1.2.3"
+package:
+  name: example
+  version: ${{ version }}
+source:
+  - path: .
+build:
+  number: 0
+requirements:
+  build:
+    - ${{ stdlib('c') }}
+about:
+  license: MIT
+  license_file: LICENSE
+"#;
+    let directory = TempDir::new().expect("a scratch directory for the recipe fixture");
+    std::fs::write(directory.path().join("LICENSE"), b"MIT License\n").expect("write the licence");
+    std::fs::write(directory.path().join("recipe.yaml"), RECIPE).expect("write the recipe");
+    archive.recipe_directory = Some(directory);
+}
+
+#[then("the lint reports the leaked run export")]
+fn lint_reports_the_leak(archive: &Archive) {
+    let codes: Vec<&str> = archive.findings.iter().map(Diagnostic::code).collect();
+    assert_eq!(codes, ["recipe.run_exports.leaked"]);
+    assert_eq!(
+        archive.findings[0].path(),
+        Some("requirements.ignore_run_exports.by_name")
+    );
+}
+
+#[scenario(
+    path = "features/conda.feature",
+    name = "A recipe that leaks the C stdlib run exports is refused"
+)]
+fn a_leaked_c_run_export_is_refused(archive: Archive) {
+    let _ = archive;
+}

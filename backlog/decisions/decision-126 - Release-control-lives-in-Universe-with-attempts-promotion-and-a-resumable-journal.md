@@ -32,7 +32,7 @@ that three separate `publish --store branch` steps leave only the last package o
 `ci render` now emits one command naming every package for a snapshot store. `decision-132`
 records the correction, `UNI-59` records the evidence, and the offline branch solve remains
 open. Invariant 3 below is unchanged for the `universe release` controller and the integrated
-v1 lane. No `v0.1.0` tag is cut.
+v1 lane. The tag was cut afterwards; the tag correction below records it.
 
 **Evidence correction, recorded as a correction (2026-11-11).** The owner then granted
 read-write-delete on the prefix.dev Repository Access entry. Run `43061441347` re-watched the

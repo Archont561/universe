@@ -176,8 +176,9 @@ There is no autodetection and no "publish everywhere" switch: a package names it
   flag so a later `v0.1.0` publish run asks to replace those bytes. prefix.dev accepts
   `?force=true` only from a Repository Access entry with read-write-delete. The first forced
   run returned `403 Not authorized`; after the owner manually removed the occupied variant,
-  the rerun is green. This does not prove force-replacing an occupied name with the current
-  entry. This is a scoped reversal of
+  the rerun is green. That rerun did not prove force-replacing an occupied name with the
+  entry as it stood then; run `43061441347` proved force-replacement after the owner granted
+  read-write-delete. This is a scoped reversal of
   `decision-126`, recorded in `decision-132`. The CLI default is unchanged, and the `publish`
   command for a branch or static channel never carries `--force`.
 
