@@ -67,6 +67,42 @@ already ran.
 
 ## Notes
 
+2026-11-13 — the first tag run deploys nothing, and the reason is a repository setting.
+
+Pages is enabled on the repository with `build_type: workflow`. The re-cut `v0.1.0` tag's run
+`43310190777` exercised the rendered jobs for the first time: `publish / pages` is green — the
+artifacts downloaded, `universe index` wrote `output/pages`, and `upload-pages-artifact` took it —
+and `publish / pages-deploy` is red with one annotation:
+
+```text
+Tag "v0.1.0" is not allowed to deploy to github-pages due to environment protection rules.
+The deployment was rejected or didn't satisfy other protection rules.
+```
+
+GitHub creates the `github-pages` environment when Pages is enabled, and its deployment policy
+is a custom rule naming the default branch:
+
+```text
+$ gh api repos/Archont561/universe/environments/github-pages/deployment-branch-policies
+{"total_count":1,"branch_policies":[{"id":66507530,"name":"main","type":"branch"}]}
+```
+
+A release is a tag, so the policy refuses it before `deploy-pages` runs. The fix is a rule, not
+code: add `v*` as a **tag** rule in that environment's deployment policy. The workflow token
+cannot write it (`403 Resource not accessible by integration` on both the branch-policy and the
+environment endpoints), and relaxing the policy instead of adding a tag rule would be a security
+change nobody asked for, so this is an owner action. It is recorded in `docs/WORKFLOWS.md` and
+`docs/MANIFEST.md` as something a consumer rendering a Pages store meets as well, because it is
+a property of GitHub rather than of this repository.
+
+The same run found one flake worth separating from the design: `publish / prefix-dev` failed
+first on `the CI provider answered 504: upstream request timeout` while minting the OIDC token,
+and passed when the job was re-run unchanged. That is GitHub's token endpoint, not the publisher.
+
+What this leaves open. Definition of done #1 still needs a deployment, so the address serves
+nothing: `gh api repos/Archont561/universe/pages` reports `status: null`. `UNI-59` criterion 5
+and DoD #3 are unaffected — they need a clean-container transcript, not a site.
+
 2026-11-13 — why a flag and not a store kind.
 
 The obvious design is a Pages destination like any other, and it is wrong three times over.
