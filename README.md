@@ -21,9 +21,12 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 > installable `universe-airlock-bootstrap` — to prefix.dev, the Git branch channel, and as
 > GitHub Release assets. An earlier dispatch (run
 > `43061441347`) proved force-replacement with read-write-delete access. The annotated tag run
-> `43073492712` is green, and all three destinations read back the same three digests. The
-> offline branch solve with network denied and a clean-container restore transcript are still
-> unrecorded, so `UNI-59` stays open. One platform is not the integrated v1 release, and the v1
+> `43073492712` is green, and the rebuilt channel's destinations read back the same digests. The
+> branch channel solves offline from a clone with the network denied. This repository also
+> commits a rendered restore entrypoint, `.universe-airlock/restore.sh`, pinned at a `bootstrap`
+> ref that carries the bootstrapper binary; it hands over to the published binary against the
+> real remote. A clean-container restore transcript is still unrecorded, so `UNI-59` stays open.
+> One platform is not the integrated v1 release, and the v1
 > surfaces remain absent. Every `0.Y.0` is a breaking boundary until `1.0.0`.
 
 ## What it does
@@ -139,3 +142,33 @@ are named by the behaviour they pin.
 ## License
 
 MIT. Nothing is vendored: the repository [`LICENSE`](LICENSE) is the only license text.
+
+<!-- airlock:begin -->
+## Restoring this project
+
+A disconnected host restores this project with git and nothing else:
+
+```sh
+sh .universe-airlock/restore.sh
+```
+
+On Windows, `pwsh .universe-airlock/restore.ps1`.
+
+The entrypoint clones the pinned branch, checks out the commit, verifies that the checkout
+really is that commit, and hands over to the bootstrapper in that ref. Set
+`UNIVERSE_AIRLOCK_HOME` to keep the checkout somewhere else; the default is
+`$XDG_CACHE_HOME/universe-airlock` (or `~/.cache/universe-airlock`).
+
+The entrypoint does not change the working directory: the closed payload the bootstrapper
+restores belongs in this project's `.universe-airlock/payload`, and the immutable environment
+it creates is `.universe-airlock/state`.
+
+| pin | value |
+| --- | --- |
+| remote | `https://github.com/Archont561/universe.git` |
+| branch | `bootstrap` |
+| commit | `991324f5dee0cb02d18ea66e35e1e12206a35b14` |
+
+The commit is the whole pin. It is a commit rather than a branch head so the entrypoint keeps
+fetching the bytes it was rendered against, and it is checked rather than trusted.
+<!-- airlock:end -->

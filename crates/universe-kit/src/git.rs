@@ -337,6 +337,83 @@ fn base64(bytes: &[u8]) -> String {
     encoded
 }
 
+/// One file a ref must hold, and the mode it must carry there.
+///
+/// The channel transport writes every file with the mode its scratch copy happens to have, and
+/// every channel file is data. The bootstrap ref is not data: a checkout whose
+/// `universe-airlock-bootstrap` is `100644` fails the entrypoint's `[ -x ]` test, so the mode is
+/// part of what is published rather than an accident of the filesystem.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Entry {
+    /// Path inside the ref.
+    pub(crate) path: String,
+    /// Bytes the path must hold.
+    pub(crate) bytes: Vec<u8>,
+    /// Whether the path must be executable.
+    pub(crate) executable: bool,
+}
+
+impl GitTransport {
+    /// Force-push a ref holding exactly `entries`, or report that it already does.
+    ///
+    /// The commit has no parent, for the same reason a channel snapshot has none: this ref is a
+    /// published artifact, not a changelog. It is also why an unchanged publish leaves the ref
+    /// alone — a consumer's committed entrypoint names this commit, so moving it for identical
+    /// bytes would rewrite a script in someone else's repository.
+    pub(crate) fn publish_entries(
+        &self,
+        entries: &[Entry],
+        message: &str,
+    ) -> Result<PushOutcome, TransportError> {
+        self.prepare()?;
+        // A stale index would carry a file from an earlier publish into this one, which is
+        // exactly the leak that makes a ref hold something nobody published.
+        self.run(&["rm", "-r", "--cached", "--quiet", "."]).ok();
+        for entry in entries {
+            let target = self.scratch.join(&entry.path);
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent).map_err(|error| TransportError::Failed {
+                    operation: format!("create {}", parent.display()),
+                    message: error.to_string(),
+                })?;
+            }
+            std::fs::write(&target, &entry.bytes).map_err(|error| TransportError::Failed {
+                operation: format!("write {}", entry.path),
+                message: error.to_string(),
+            })?;
+            // Git records `100755` for a file that is executable on disk, so the mode is set
+            // before staging rather than patched into the index afterwards.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = if entry.executable { 0o755 } else { 0o644 };
+                std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode)).map_err(
+                    |error| TransportError::Failed {
+                        operation: format!("set the mode of {}", entry.path),
+                        message: error.to_string(),
+                    },
+                )?;
+            }
+            #[cfg(not(unix))]
+            let _ = entry.executable;
+        }
+        self.run(&["add", "--all", "--force"])?;
+        let staged = self.run(&["write-tree"])?;
+        if self.remote_tree()?.as_deref() == Some(staged.as_str()) {
+            return Ok(PushOutcome::Unchanged);
+        }
+        let commit = self.run(&["commit-tree", &staged, "-m", message])?;
+        self.run(&[
+            "push",
+            "--quiet",
+            "--force",
+            &self.remote,
+            &format!("{commit}:refs/heads/{}", self.branch),
+        ])?;
+        Ok(PushOutcome::Published { commit })
+    }
+}
+
 impl Transport for GitTransport {
     /// The git tree the given snapshot produces, without pushing it.
     ///

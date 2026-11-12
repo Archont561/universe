@@ -4,6 +4,25 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- The restore entrypoint this repository commits now hands over to a published binary. The
+  generated script `exec`s `universe-airlock-bootstrap` out of the pinned checkout, and nothing
+  published a ref that held it: the bootstrapper shipped as a Conda package, which a solver
+  installs and a script cannot execute. `universe airlock publish-bootstrap` publishes a stable
+  `bootstrap` ref holding the executable and a descriptor with its digest, size and version, and
+  republishing identical bytes leaves the commit alone so a consumer's committed pin does not
+  move for nothing. The facade routes the verb to `universe-kit`, like `airlock render`, because
+  publishing is production work rather than something a consumer install performs. `universe.toml`
+  now declares `[airlock.developer.restore]` pinned at
+  `991324f5dee0cb02d18ea66e35e1e12206a35b14` on `https://github.com/Archont561/universe.git`,
+  which carries the released binary at
+  `sha256:929bd8f44fa6b1d87525f9c829af5dba62b5637d6bc0a2b5d3225fd377b3aed2` (614944 bytes,
+  extracted from package `sha256:1fb284e5…`). `.universe-airlock/restore.sh`, `.restore.ps1` and
+  the README block are rendered and drift-checked, so `pixi run airlock-check` now compares real
+  files instead of reporting that no scope was declared. Run against the real remote, the
+  entrypoint clones the ref at that commit, verifies it, and hands over to the published binary,
+  which stops at the payload this project has not published yet. `UNI-53` records the gate
+  becoming real; `UNI-59` criterion 5 still needs a clean-container transcript.
+
 - The bootstrapper is published: `release.yml` run `43252390113` (head `412412f8`) is green on
   attempt 1 with all five jobs, and it is the first run whose channel carries four packages. The
   build audited `universe-airlock-bootstrap` at

@@ -99,3 +99,11 @@ fn the_airlock_namespace_is_consumer_work(facade: Facade) {
 fn rendering_is_producer_work(facade: Facade) {
     let _ = facade;
 }
+
+#[scenario(
+    path = "features/routing.feature",
+    name = "Publishing the ref the entrypoint clones is producer work"
+)]
+fn publishing_the_bootstrap_ref_is_producer_work(facade: Facade) {
+    let _ = facade;
+}
