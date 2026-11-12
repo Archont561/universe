@@ -22,10 +22,16 @@
 //! declares the commands it ships. Those commands are generated at install time, against this
 //! prefix's own interpreter, because the package cannot know which prefix it will land in.
 //!
-//! What this module does *not* do, stated so the gap is visible: it is a replay of one archive at
-//! a time — ordering, dependency closure and the lock format are the caller's business, which
-//! includes the one ordering a `noarch: python` package depends on: the package carrying the
-//! interpreter has to be installed before it.
+//! A prefix is more than one archive, so [`replay`] installs a whole set: it checks every
+//! artifact against the digest the index recorded *before* it writes anything, then installs
+//! them in the order `info/index.json` says they depend on each other. That order is not a
+//! convenience — a `noarch: python` package installs into an interpreter the prefix has to
+//! already hold — and it is not a solve either: a dependency with no artifact in the set is
+//! refused rather than fetched, because a replay has no channel to fall back to.
+//!
+//! What this module does *not* do: read a lock. A lock has formats; [`replay`] takes what a
+//! mirror index already reduced it to — a path and a digest per artifact — and `replay_mirror`
+//! reads that index (`airlock.mirror`).
 
 use std::collections::BTreeSet;
 use std::io::Read;
@@ -43,6 +49,38 @@ pub struct Installed {
     pub entries: u64,
     /// Bytes written for regular files.
     pub bytes: u64,
+}
+
+/// One archive a replay installs, as the index describing a lock records it.
+///
+/// Path and digest and nothing else: the archive's own `info/index.json` is the authority on what
+/// the package is called, and asking a mirror index to repeat that would be a second place to be
+/// wrong about it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Pinned {
+    /// Path of the archive, relative to the directory being replayed.
+    pub path: String,
+    /// Lowercase hex SHA-256 the archive's bytes must have.
+    pub sha256: String,
+    /// Size in bytes the archive must have, when the index records one.
+    pub size: Option<u64>,
+}
+
+/// What a replay installed.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Replayed {
+    /// Artifacts installed.
+    pub artifacts: usize,
+    /// Artifacts the index named that a Conda prefix cannot hold.
+    pub skipped: usize,
+    /// Files, symlinks and directories the artifacts created.
+    pub entries: u64,
+    /// Bytes written for regular files.
+    pub bytes: u64,
+    /// Package names, in the order they were installed.
+    pub order: Vec<String>,
+    /// What the replay had to say that did not stop it.
+    pub notes: Vec<Finding>,
 }
 
 /// One entry of `info/paths.json`.
@@ -99,12 +137,33 @@ struct LinkNoarch {
 /// The part of `info/index.json` this module acts on.
 #[derive(Clone, Debug, Deserialize)]
 struct IndexFile {
+    /// Package name, as the archive declares it.
+    #[serde(default)]
+    name: String,
+    /// Package version, as the archive declares it.
+    #[serde(default)]
+    version: String,
     /// `noarch` flavour, when the package is one.
     #[serde(default)]
     noarch: Option<String>,
     /// Subdirectory the package belongs to.
     #[serde(default)]
     subdir: String,
+    /// What this package needs installed beside it, as `name constraints build`.
+    ///
+    /// Only the name is read: a replay orders a set that is already solved, and the constraints
+    /// were the solver's business.
+    #[serde(default)]
+    depends: Vec<String>,
+}
+
+impl IndexFile {
+    /// The name of this package's dependency named first in `spec`, or `None` for an empty one.
+    fn dependency_name(spec: &str) -> Option<&str> {
+        spec.split_whitespace()
+            .next()
+            .filter(|name| !name.is_empty())
+    }
 }
 
 /// Install one `.conda` archive into `prefix`.
@@ -157,40 +216,11 @@ pub fn materialise(archive: &Path, prefix: &Path) -> Result<Installed, Finding> 
         })?;
         names.push(name.into_owned());
     }
-    let info_member = single(&names, "info-", archive)?;
     let payload_member = single(&names, "pkg-", archive)?;
 
     // The info section is small and is read once, in full, before anything is written: a
     // package whose metadata cannot be read must not have placed a single file.
-    let info = {
-        let mut entry = zip.by_name(&info_member).map_err(|error| {
-            Finding::error(
-                "airlock.prefix.archive",
-                format!(
-                    "cannot open {info_member} in {}: {error}",
-                    archive.display()
-                ),
-            )
-        })?;
-        let mut bytes = Vec::new();
-        zstd::stream::read::Decoder::new(&mut entry)
-            .and_then(|mut decoder| decoder.read_to_end(&mut bytes))
-            .map_err(|error| {
-                Finding::error(
-                    "airlock.prefix.archive",
-                    format!("cannot decompress {info_member}: {error}"),
-                )
-            })?;
-        bytes
-    };
-    let index = read_member(&info, "info/index.json")
-        .and_then(|bytes| serde_json::from_slice::<IndexFile>(&bytes).ok())
-        .ok_or_else(|| {
-            Finding::error(
-                "airlock.prefix.manifest",
-                format!("{} carries no readable info/index.json", archive.display()),
-            )
-        })?;
+    let (index, info) = info_section(&mut zip, archive)?;
     // Where this archive's recorded paths land. A native or `noarch: generic` package is
     // prefix-relative as recorded; a `noarch: python` one is a site-packages tree that has to be
     // put under the interpreter the prefix already holds, and whose commands have to be written.
@@ -394,6 +424,364 @@ pub fn materialise(archive: &Path, prefix: &Path) -> Result<Installed, Finding> 
     installed.entries += written.0;
     installed.bytes += written.1;
     Ok(installed)
+}
+
+/// Install a set of archives into `prefix`, dependencies first.
+///
+/// Two passes, in this order and for different reasons. The first checks every artifact against
+/// the digest and size the index recorded and reads its `info/index.json`, so a set that is
+/// damaged, incomplete or ambiguous fails before a single file is written. The second installs
+/// them in dependency order, because `noarch: python` packages install into an interpreter the
+/// prefix has to hold already.
+///
+/// # Errors
+///
+/// Returns a finding when the set is empty, an artifact is absent, the wrong size or the wrong
+/// digest, two artifacts are one package, a package depends on something the set does not hold,
+/// or [`materialise`] refuses one of the archives.
+pub fn replay(pinned: &[Pinned], root: &Path, prefix: &Path) -> Result<Replayed, Finding> {
+    if pinned.is_empty() {
+        return Err(Finding::error(
+            "airlock.replay.empty",
+            "there is nothing to replay: the index names no artifact",
+        ));
+    }
+
+    let mut packages: Vec<Package> = Vec::with_capacity(pinned.len());
+    for pin in pinned {
+        let path = root.join(&pin.path);
+        check_artifact(&path, pin)?;
+        let file = std::fs::File::open(&path).map_err(|error| {
+            Finding::error(
+                "airlock.replay.missing",
+                format!("cannot open {}: {error}", path.display()),
+            )
+        })?;
+        let mut zip = zip::ZipArchive::new(file).map_err(|error| {
+            Finding::error(
+                "airlock.prefix.archive",
+                format!(
+                    "{} is not a readable .conda archive: {error}",
+                    path.display()
+                ),
+            )
+        })?;
+        let (index, _) = info_section(&mut zip, &path)?;
+        if index.name.is_empty() {
+            return Err(Finding::error(
+                "airlock.replay.identity",
+                format!(
+                    "{} carries no package name in info/index.json, so there is nothing to order \
+                     it by",
+                    path.display()
+                ),
+            ));
+        }
+        if let Some(existing) = packages.iter().find(|package| package.name == index.name) {
+            return Err(Finding::error(
+                "airlock.replay.duplicate",
+                format!(
+                    "{} and {} are both `{}` ({} and {}); a prefix holds one build of a package, \
+                     and a set that names two is not one environment",
+                    existing.archive.display(),
+                    path.display(),
+                    index.name,
+                    existing.version,
+                    index.version
+                ),
+            ));
+        }
+        packages.push(Package {
+            name: index.name,
+            version: index.version,
+            depends: index.depends,
+            archive: path,
+        });
+    }
+
+    let (positions, notes) = order(&packages)?;
+    std::fs::create_dir_all(prefix).map_err(|error| {
+        Finding::error(
+            "airlock.replay.prefix",
+            format!("cannot create {}: {error}", prefix.display()),
+        )
+    })?;
+    let mut replayed = Replayed {
+        artifacts: packages.len(),
+        notes,
+        ..Replayed::default()
+    };
+    for position in positions {
+        let package = &packages[position];
+        let installed = materialise(&package.archive, prefix)?;
+        replayed.entries += installed.entries;
+        replayed.bytes += installed.bytes;
+        replayed.order.push(package.name.clone());
+    }
+    Ok(replayed)
+}
+
+/// Replay the artifacts a mirror index names.
+///
+/// The mirror index is where a lock's format stops mattering: `airlock.mirror` reduced every
+/// pinned artifact to a path and a digest, and this reads that reduction. Artifacts whose `kind`
+/// is not `conda` are counted, named in a note, and left out — a Conda prefix holds Conda
+/// packages, and installing a wheel is not something this build does.
+///
+/// # Errors
+///
+/// Returns a finding when the index is absent or unreadable, declares a schema this build does
+/// not read, names no Conda artifact, or when [`replay`] refuses the set.
+pub fn replay_mirror(root: &Path, prefix: &Path) -> Result<Replayed, Finding> {
+    let index_path = root.join(MIRROR_INDEX);
+    let text = std::fs::read_to_string(&index_path).map_err(|error| {
+        Finding::error(
+            "airlock.replay.index",
+            format!(
+                "cannot read {}: {error}; a replay installs what a mirror published, and this \
+                 is where it says so",
+                index_path.display()
+            ),
+        )
+    })?;
+    let index: MirrorIndex = serde_json::from_str(&text).map_err(|error| {
+        Finding::error(
+            "airlock.replay.index",
+            format!(
+                "{} is not the index this build reads: {error}",
+                index_path.display()
+            ),
+        )
+    })?;
+    if index.schema != MIRROR_SCHEMA {
+        return Err(Finding::error(
+            "airlock.replay.schema",
+            format!(
+                "{} declares mirror index schema {}, and this build reads {MIRROR_SCHEMA}",
+                index_path.display(),
+                index.schema
+            ),
+        ));
+    }
+    let mut pinned: Vec<Pinned> = Vec::with_capacity(index.artifacts.len());
+    let mut skipped: Vec<String> = Vec::new();
+    for artifact in &index.artifacts {
+        if artifact.kind == "conda" {
+            pinned.push(Pinned {
+                path: artifact.path.clone(),
+                sha256: artifact.sha256.clone(),
+                size: artifact.size,
+            });
+        } else {
+            skipped.push(format!(
+                "{} {} ({})",
+                artifact.name, artifact.version, artifact.kind
+            ));
+        }
+    }
+    if pinned.is_empty() {
+        return Err(Finding::error(
+            "airlock.replay.empty",
+            format!(
+                "{} names {} artifact(s) and none of them is a Conda package, so there is \
+                 nothing a prefix could hold",
+                index_path.display(),
+                index.artifacts.len()
+            ),
+        ));
+    }
+    let mut replayed = replay(&pinned, root, prefix)?;
+    replayed.skipped = skipped.len();
+    if !skipped.is_empty() {
+        replayed.notes.push(Finding::warning(
+            "airlock.replay.skipped",
+            format!(
+                "{} artifact(s) a Conda prefix cannot hold were left out: {}",
+                skipped.len(),
+                skipped.join(", ")
+            ),
+        ));
+    }
+    Ok(replayed)
+}
+
+/// The index a mirror publishes, as much of it as a replay reads.
+#[derive(Clone, Debug, Deserialize)]
+struct MirrorIndex {
+    /// Shape version of the index.
+    schema: u32,
+    /// Artifacts the mirror holds.
+    artifacts: Vec<MirrorArtifact>,
+}
+
+/// One artifact of that index.
+#[derive(Clone, Debug, Deserialize)]
+struct MirrorArtifact {
+    /// Package name.
+    name: String,
+    /// Package version.
+    version: String,
+    /// `conda`, `wheel` or `crate`.
+    kind: String,
+    /// Path inside the mirror.
+    path: String,
+    /// Lowercase hex SHA-256 of the artifact.
+    sha256: String,
+    /// Size in bytes, when the index records one.
+    #[serde(default)]
+    size: Option<u64>,
+}
+
+/// The index's own file name, as `airlock.mirror` writes it.
+const MIRROR_INDEX: &str = "mirror.json";
+
+/// Shape version of that index this build reads.
+const MIRROR_SCHEMA: u32 = 1;
+
+/// One package a replay is about to install.
+struct Package {
+    /// Name as the archive declares it, which is what dependencies name.
+    name: String,
+    /// Version as the archive declares it, for the message about a duplicate.
+    version: String,
+    /// What it depends on, as recorded.
+    depends: Vec<String>,
+    /// Where the archive is.
+    archive: PathBuf,
+}
+
+/// Check an artifact against what the index recorded, before anything is installed.
+fn check_artifact(path: &Path, pin: &Pinned) -> Result<(), Finding> {
+    let missing = || {
+        Finding::error(
+            "airlock.replay.missing",
+            format!(
+                "{} is not in the mirror; a replay installs only what the index pins, and it has \
+                 no channel to fall back to",
+                path.display()
+            ),
+        )
+    };
+    let size = std::fs::metadata(path).map_err(|_| missing())?.len();
+    if let Some(expected) = pin.size
+        && size != expected
+    {
+        return Err(Finding::error(
+            "airlock.replay.size",
+            format!(
+                "{} is {size} bytes and the index recorded {expected}",
+                path.display()
+            ),
+        ));
+    }
+    let (digest, _) = crate::hash::hash_file(path).map_err(|error| {
+        Finding::error(
+            "airlock.replay.digest",
+            format!("cannot read {}: {error}", path.display()),
+        )
+    })?;
+    if !digest.eq_ignore_ascii_case(&pin.sha256) {
+        return Err(Finding::error(
+            "airlock.replay.digest",
+            format!(
+                "{} hashes to {digest} and the index recorded {}",
+                path.display(),
+                pin.sha256
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Which packages install before which: dependencies first, ties and cycles by name.
+///
+/// Deterministic on purpose. Two replays of one set have to install the same files in the same
+/// order, or a run that failed once may succeed the second time for no reason anyone can name.
+///
+/// # Errors
+///
+/// Returns a finding naming the package and the dependency when the set depends on something it
+/// does not hold. A virtual package (`__glibc`, `__unix`) is provided by the host, so it is not
+/// a dependency the set has to hold.
+fn order(packages: &[Package]) -> Result<(Vec<usize>, Vec<Finding>), Finding> {
+    let positions: std::collections::BTreeMap<&str, usize> = packages
+        .iter()
+        .enumerate()
+        .map(|(position, package)| (package.name.as_str(), position))
+        .collect();
+    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); packages.len()];
+    let mut waiting: Vec<usize> = vec![0; packages.len()];
+    for (position, package) in packages.iter().enumerate() {
+        for spec in &package.depends {
+            let Some(name) = IndexFile::dependency_name(spec) else {
+                continue;
+            };
+            if name.starts_with("__") {
+                continue;
+            }
+            let Some(&dependency) = positions.get(name) else {
+                return Err(Finding::error(
+                    "airlock.replay.dependency",
+                    format!(
+                        "{} {} depends on `{name}`, which this set does not hold; a replay \
+                         installs what the lock pinned and never fetches the rest",
+                        package.name, package.version
+                    ),
+                ));
+            };
+            dependents[dependency].push(position);
+            waiting[position] += 1;
+        }
+    }
+
+    let mut ready: BTreeSet<(&str, usize)> = packages
+        .iter()
+        .enumerate()
+        .filter(|(position, _)| waiting[*position] == 0)
+        .map(|(position, package)| (package.name.as_str(), position))
+        .collect();
+    let mut placed = vec![false; packages.len()];
+    let mut positions_in_order: Vec<usize> = Vec::with_capacity(packages.len());
+    let mut notes: Vec<Finding> = Vec::new();
+    while positions_in_order.len() < packages.len() {
+        let next = match ready.iter().next().copied() {
+            Some((name, position)) => {
+                ready.remove(&(name, position));
+                position
+            }
+            None => {
+                // Everything left waits on something left, which is a cycle. Conda permits
+                // those, so the set is installable; only its order is undetermined, and this
+                // picks one and says so.
+                let position = (0..packages.len())
+                    .filter(|position| !placed[*position])
+                    .min_by(|left, right| packages[*left].name.cmp(&packages[*right].name))
+                    .expect("something is left while the order is incomplete");
+                notes.push(Finding::warning(
+                    "airlock.replay.order",
+                    format!(
+                        "the packages left to install form a cycle, and one of them has to come \
+                         first: `{}` was installed there rather than after everything it depends \
+                         on",
+                        packages[position].name
+                    ),
+                ));
+                position
+            }
+        };
+        placed[next] = true;
+        positions_in_order.push(next);
+        for dependent in &dependents[next] {
+            if placed[*dependent] {
+                continue;
+            }
+            waiting[*dependent] -= 1;
+            if waiting[*dependent] == 0 {
+                ready.insert((packages[*dependent].name.as_str(), *dependent));
+            }
+        }
+    }
+    Ok((positions_in_order, notes))
 }
 
 /// Where one archive's recorded paths land in the prefix.
@@ -684,6 +1072,69 @@ impl EntryPoint {
             self.function
         )
     }
+}
+
+/// An archive's metadata: its `info-*.tar.zst`, decompressed, and the index it carries.
+///
+/// Both a replay and an install need it before anything is written, and both need the same
+/// refusals: a member list that names two info sections, or an index this build cannot read.
+fn info_section(
+    zip: &mut zip::ZipArchive<std::fs::File>,
+    archive: &Path,
+) -> Result<(IndexFile, Vec<u8>), Finding> {
+    let mut names: Vec<String> = Vec::with_capacity(zip.len());
+    for index in 0..zip.len() {
+        let member = zip.by_index(index).map_err(|error| {
+            Finding::error(
+                "airlock.prefix.archive",
+                format!(
+                    "cannot read member {index} of {}: {error}",
+                    archive.display()
+                ),
+            )
+        })?;
+        let name = member.name().map_err(|error| {
+            Finding::error(
+                "airlock.prefix.archive",
+                format!(
+                    "member {index} of {} has no readable name: {error}",
+                    archive.display()
+                ),
+            )
+        })?;
+        names.push(name.into_owned());
+    }
+    let info_member = single(&names, "info-", archive)?;
+    let info = {
+        let mut entry = zip.by_name(&info_member).map_err(|error| {
+            Finding::error(
+                "airlock.prefix.archive",
+                format!(
+                    "cannot open {info_member} in {}: {error}",
+                    archive.display()
+                ),
+            )
+        })?;
+        let mut bytes = Vec::new();
+        zstd::stream::read::Decoder::new(&mut entry)
+            .and_then(|mut decoder| decoder.read_to_end(&mut bytes))
+            .map_err(|error| {
+                Finding::error(
+                    "airlock.prefix.archive",
+                    format!("cannot decompress {info_member}: {error}"),
+                )
+            })?;
+        bytes
+    };
+    let index = read_member(&info, "info/index.json")
+        .and_then(|bytes| serde_json::from_slice::<IndexFile>(&bytes).ok())
+        .ok_or_else(|| {
+            Finding::error(
+                "airlock.prefix.manifest",
+                format!("{} carries no readable info/index.json", archive.display()),
+            )
+        })?;
+    Ok((index, info))
 }
 
 /// The one archive member whose name starts with `prefix`.

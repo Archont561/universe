@@ -60,6 +60,24 @@ The adapters today are `pixi` (`pixi.lock`, conda archives and PyPI wheels) and 
 nothing. A `Cargo.lock` dependency that comes from a Git revision is refused in the same way:
 no registry serves those bytes, and there is no checksum to verify them against.
 
+## Replay installs a mirrored lock
+
+`universe-airlock-bootstrap replay --mirror <dir> [--prefix <dir>]` is the consumer half. It
+reads the `mirror.json` that tree carries rather than a lock, because that index is what a lock's
+format was reduced to: a path and a digest per artifact. The binary links no HTTP client, so the
+run cannot reach a channel even by accident.
+
+It works in two passes. The first checks every artifact against the digest and the size the index
+recorded and reads its `info/index.json`; a set that is damaged, absent, or names two builds of
+one package fails there, before a single file is written. The second installs in dependency order
+— dependencies first, ties and cycles by name — because a `noarch: python` package installs into
+an interpreter the prefix has to hold already. A dependency with no artifact in the set is a
+refusal naming the package, never a fetch.
+
+The prefix it produces is the environment: `prefix/bin` is what a caller puts on `PATH`. A lock
+that also pins wheels replays what a prefix can hold and names what it left out, since a Conda
+prefix holds Conda packages.
+
 ## Verify reads, never writes
 
 `universe-airlock verify --payload <dir>` answers four questions about a sealed payload

@@ -67,6 +67,53 @@ impl Scenario {
         }
     }
 
+    /// Publish a mirror holding one Conda artifact per `(name, bytes)`, shaped the way
+    /// `universe airlock mirror` publishes one: blobs at content-addressed paths, and the
+    /// index that names them.
+    fn mirror(&self, artifacts: &[(&str, Vec<u8>)], skipped: &[(&str, &str, &str)]) -> PathBuf {
+        let root = self.root.join("mirror");
+        let mut named: Vec<serde_json::Value> = Vec::new();
+        for (name, bytes) in artifacts {
+            let digest = digest(bytes);
+            let filename = format!("{name}-0.1.0-h1234567_0.conda");
+            let path = format!("blobs/sha256/{}/{digest}/{filename}", &digest[..2]);
+            let blob = root.join(&path);
+            std::fs::create_dir_all(blob.parent().expect("blob parent")).expect("blob directory");
+            std::fs::write(&blob, bytes).expect("write the blob");
+            named.push(serde_json::json!({
+                "name": name,
+                "version": "0.1.0",
+                "kind": "conda",
+                "subdir": "linux-64",
+                "url": format!("https://example.invalid/linux-64/{filename}"),
+                "sha256": digest,
+                "size": bytes.len(),
+                "path": path,
+            }));
+        }
+        for (name, version, kind) in skipped {
+            named.push(serde_json::json!({
+                "name": name,
+                "version": version,
+                "kind": kind,
+                "subdir": "any",
+                "url": format!("https://example.invalid/{name}-{version}"),
+                "sha256": "0".repeat(64),
+                "size": 1,
+                "path": format!("blobs/sha256/00/{}", "0".repeat(64)),
+            }));
+        }
+        let index = serde_json::json!({
+            "schema": 1,
+            "adapter": "pixi",
+            "branch": "mirror/pixi",
+            "lock_sha256": "0".repeat(64),
+            "artifacts": named,
+        });
+        std::fs::write(root.join("mirror.json"), format!("{index}\n")).expect("write the index");
+        root
+    }
+
     /// `restore --commit <pin>` against this scenario's payload and state root.
     fn restore(&self, commit: &str) -> Output {
         self.run(&[
@@ -366,4 +413,103 @@ fn restore_without_a_pin_is_a_usage_error() {
 
     assert_eq!(output.code, 2);
     assert!(output.stderr.contains("restore needs --commit"));
+}
+
+#[test]
+fn replay_installs_a_mirrored_lock_into_a_prefix_that_runs() {
+    // `UNI-52` criterion 1 through the binary a host runs: a pinned set of artifacts goes in,
+    // and what comes out runs.
+    let scenario = Scenario::new("replay");
+    let mirror = scenario.mirror(&[("fixture", support::conda("replayed"))], &[]);
+    let prefix = scenario.root.join("prefix");
+
+    let output = scenario.run(&[
+        "replay",
+        "--mirror",
+        &mirror.display().to_string(),
+        "--prefix",
+        &prefix.display().to_string(),
+    ]);
+
+    assert_eq!(output.code, 0, "{}", output.stderr);
+    assert!(output.stdout.contains("artifacts: 1"), "{}", output.stdout);
+    assert!(
+        output.stdout.contains("order: fixture"),
+        "{}",
+        output.stdout
+    );
+    let run = Command::new(prefix.join("bin/fixture"))
+        .output()
+        .expect("run the installed client");
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "replayed\n");
+}
+
+#[test]
+fn replay_without_a_mirror_is_a_refusal_rather_than_a_usage_error() {
+    // An absent mirror is a state of the world, not a mistyped command: the exit code says the
+    // run could not be completed and the diagnostic names what is missing.
+    let scenario = Scenario::new("replay-absent");
+
+    let output = scenario.run(&["replay"]);
+
+    assert_eq!(output.code, 1);
+    assert!(output.stdout.is_empty());
+    assert!(
+        output.stderr.contains("airlock.replay.index"),
+        "{}",
+        output.stderr
+    );
+}
+
+#[test]
+fn replay_rejects_an_argument_it_does_not_take() {
+    let scenario = Scenario::new("replay-usage");
+
+    let missing = scenario.run(&["replay", "--mirror"]);
+    assert_eq!(missing.code, 2);
+    assert!(
+        missing.stderr.contains("--mirror needs a value"),
+        "{}",
+        missing.stderr
+    );
+
+    let unknown = scenario.run(&["replay", "--into", "somewhere"]);
+    assert_eq!(unknown.code, 2);
+    assert!(
+        unknown.stderr.contains("unknown argument: --into"),
+        "{}",
+        unknown.stderr
+    );
+}
+
+#[test]
+fn replay_says_what_a_prefix_could_not_hold() {
+    // A lock almost always pins wheels beside its Conda packages. Replaying what a prefix can
+    // hold and naming the rest is the difference between a partial restore and a silent one.
+    let scenario = Scenario::new("replay-skipped");
+    let mirror = scenario.mirror(
+        &[("fixture", support::conda("replayed"))],
+        &[("requests", "2.32.3", "wheel")],
+    );
+    let prefix = scenario.root.join("prefix");
+
+    let output = scenario.run(&[
+        "replay",
+        "--mirror",
+        &mirror.display().to_string(),
+        "--prefix",
+        &prefix.display().to_string(),
+    ]);
+
+    assert_eq!(output.code, 0, "{}", output.stderr);
+    assert!(
+        output.stdout.contains("artifacts: 1 (1 left out)"),
+        "{}",
+        output.stdout
+    );
+    assert!(
+        output.stderr.contains("airlock.replay.skipped") && output.stderr.contains("requests"),
+        "the note does not name what was left out: {}",
+        output.stderr
+    );
 }

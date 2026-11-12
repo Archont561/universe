@@ -307,12 +307,20 @@ pub fn activate(layout: &Layout, payload_root: &Path, report: &Report) -> Result
                 format!("cannot create {}: {error}", prefix_dir.display()),
             )
         })?;
-        for artifact in &artifacts {
-            let installed =
-                prefix::materialise(&staging.path.join(&artifact.filename), &prefix_dir)?;
-            installed_entries += installed.entries;
-            installed_bytes += installed.bytes;
-        }
+        // Installed as one set rather than one archive at a time: the order a payload's
+        // artifacts install in is a dependency order, and a `noarch: python` package installs
+        // into an interpreter that has to be in the prefix already.
+        let pinned: Vec<prefix::Pinned> = artifacts
+            .iter()
+            .map(|artifact| prefix::Pinned {
+                path: artifact.filename.clone(),
+                sha256: artifact.sha256.clone(),
+                size: Some(artifact.size),
+            })
+            .collect();
+        let replayed = prefix::replay(&pinned, &staging.path, &prefix_dir)?;
+        installed_entries = replayed.entries;
+        installed_bytes = replayed.bytes;
         let receipt = Receipt {
             version: report.manifest.version.clone(),
             commit: report.manifest.commit.clone(),
