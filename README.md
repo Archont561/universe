@@ -28,9 +28,10 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 > index on GitHub Pages at <https://archont561.github.io/universe>: the release workflow
 > regenerates the tree from the release's own fragments and deploys it with
 > `actions/deploy-pages`, so no generated tree is committed. Pages is enabled for actions builds
-> and the tag run's `publish / pages` job uploaded the tree, but its deployment was refused:
-> GitHub's `github-pages` environment allows the default branch, and a release is a tag, so the
-> environment needs a `v*` deployment tag rule before the address serves anything. This
+> and the tag run deployed it: the address serves a `repodata.json` naming all four packages with
+> the same digests the branch channel serves. A release is a tag, and GitHub's `github-pages`
+> environment allows the default branch unless a `v*` tag rule is added to it, so the deployment
+> is refused until that one setting exists — the first tag run hit exactly that. This
 > repository also
 > commits a rendered restore entrypoint, `.universe-airlock/restore.sh`, pinned at a
 > `universe/bootstrap` ref that carries the bootstrapper binary, and `universe airlock pack` writes the closed payload

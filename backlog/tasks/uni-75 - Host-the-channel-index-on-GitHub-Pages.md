@@ -61,7 +61,7 @@ already ran.
 
 ## Definition of Done
 <!-- DOD.BEGIN -->
-- [ ] #1 A tag run deploys the site, and the deployed address serves a `repodata.json` that resolves the published packages by digest. — Not yet: GitHub Pages is not enabled on the repository (`gh api repos/Archont561/universe/pages` answers 404), so no deployment has run and the address serves nothing.
+- [x] #1 A tag run deploys the site, and the deployed address serves a `repodata.json` that resolves the published packages by digest. — 2026-11-13: the re-cut tag's `release.yml` run `43310190777` uploaded the tree but was refused by the `github-pages` environment policy; once the `v*` tag rule existed, run `43321675310` is green on every job including `publish / pages-deploy`. `https://archont561.github.io/universe/linux-64/repodata.json` serves four `packages.conda` records — `universe` `553744a3…` at 195337 bytes, `universe-airlock` `007a5ed5…` at 568371, `universe-airlock-bootstrap` `2ffdd991…` at 535107, `universe-kit` `5788df48…` at 3561765 — with `info.base_url` set to the declared address, and a fresh `git clone --depth 1 --branch universe/conda-channel` of the branch channel reports the same four digests and sizes. Two independent read paths, one release.
 - [x] #2 `pixi run gates` passes and no test requires network egress. — 2026-11-13: the renderer and manifest tests are fixtures; the release-scope test reads files in the repository.
 <!-- DOD.END -->
 
