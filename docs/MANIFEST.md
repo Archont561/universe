@@ -183,7 +183,10 @@ There is no autodetection and no "publish everywhere" switch: a package names it
   has no upload, an index-less one would deploy an empty directory over the site, and a site
   whose address is derived from repository naming is wrong for any layout but a project page.
   Nothing is committed: the tree exists only inside one release run, so it cannot describe a
-  channel the release did not publish.
+  channel the release did not publish. GitHub is not asked to trust a tag by default — the
+  `github-pages` environment it creates allows the default branch — so add the release tag
+  pattern (`v*`) as a deployment tag rule in that environment once, or the deployment is refused
+  after the artifact uploads.
 - **A trusted publisher can name a GitHub environment.** Declare it with `environment` on the
   store, for example `environment = "prefix"`. The renderer puts that name on the one publish
   job for that store, so its OIDC token carries the matching `environment` claim. An empty name

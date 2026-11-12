@@ -48,7 +48,12 @@ Eight things are worth noticing, because they are the design:
   `environment` (default `github-pages`), and runs `actions/deploy-pages` alone. Splitting them
   is what lets the deployment job carry the two OIDC permissions and nothing else. The tree is
   rebuilt from each release's own fragments, so a page can only ever describe bytes the run
-  published, and no generated file enters the repository.
+  published, and no generated file enters the repository. One setting is outside the renderer:
+  GitHub creates the `github-pages` environment with a deployment policy that names a branch,
+  and a release is a tag, so the environment needs a tag rule for the pattern the release uses
+  (`v*`) before a tag run can deploy. Without it the upload succeeds and the deployment is
+  refused with `Tag "v0.1.0" is not allowed to deploy to github-pages due to environment
+  protection rules`.
 - **GitHub Releases is implicit.** A declared `releases`-kind store receives every package
   with `release = true` without the package naming it; `release = false` opts out. The job
   holds `contents: write` and exports the store's `GITHUB_TOKEN`, and the rolling release is

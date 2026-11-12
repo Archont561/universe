@@ -15,8 +15,11 @@ All notable changes to Universe are recorded here.
   writable `static` store has no upload to render, an index-less one would deploy an empty
   directory over the site, and an address derived from repository naming is right only for a
   project page. `universe.toml` declares that store for this repository's own channel, at
-  `https://archont561.github.io/universe`; GitHub Pages is not enabled on this repository yet,
-  so the deployment job has not run and nothing is served from that address.
+  `https://archont561.github.io/universe`. One setting is out of the renderer's hands: the
+  `github-pages` environment GitHub creates allows the default branch, so a tag release needs a
+  `v*` deployment tag rule added to it once. Until that rule exists the artifact uploads and the
+  deployment is refused with `Tag "v0.1.0" is not allowed to deploy to github-pages due to
+  environment protection rules`.
 
 - A built package can be tried in a sandbox. `universe-airlock sandbox --package <file.conda> …
   -- <command>` installs the set into a prefix and runs the command inside it; `--mirror <dir>`
