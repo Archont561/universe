@@ -71,7 +71,8 @@ bytes — a partial release is not a release.
 | `universe publish` | fan out to every declared destination, verifying each |
 | `universe release plan\|prepare\|cut\|promote` | attempts, evidence, promotion, journal |
 | `universe ci render\|check` | generate the workflow set; fail on drift |
-| `universe airlock restore\|verify` | replay a pinned lockfile with the network off |
+| `universe airlock mirror` | fetch, verify, and publish what a lock pins, as a branch of content-addressed blobs |
+| `universe-airlock restore\|verify` | replay a pinned payload with the network off |
 
 ### Try it today
 

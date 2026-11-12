@@ -12,6 +12,8 @@ mod ci;
 mod git;
 mod index;
 mod lint;
+mod lock;
+mod mirror;
 mod options;
 mod output;
 mod paths;

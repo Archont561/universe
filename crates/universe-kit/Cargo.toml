@@ -15,6 +15,10 @@ workspace = true
 
 [dependencies]
 serde_json = { workspace = true }
+# `pixi.lock` is YAML and `Cargo.lock` is TOML; the lock adapters own both readings, so both
+# parsers sit next to them. Neither one resolves anything: a parser reads text, and the mirror
+# verb fetches exactly what the text pinned.
+serde_yaml = { workspace = true }
 toml_edit = { workspace = true }
 universe-conda = { workspace = true }
 universe-channel = { workspace = true }
