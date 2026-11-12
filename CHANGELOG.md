@@ -4,6 +4,18 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- A mirrored lock can now be installed. `universe-airlock-bootstrap replay --mirror <dir>
+  [--prefix <dir>]` reads the `mirror.json` a mirror publishes, checks every artifact against the
+  digest and size the index recorded **before** it writes anything, and installs them into one
+  prefix in dependency order, taken from each archive's own `info/index.json`. The order is not a
+  convenience: a `noarch: python` package installs into an interpreter the prefix has to hold
+  already. A dependency the set does not hold is refused rather than fetched — a replay has no
+  channel to fall back to — and a cycle is broken by name and reported, because conda-forge ships
+  packages that depend on each other. Artifacts whose kind is not `conda` are counted and named in
+  a note: a prefix holds Conda packages, and a wheel is not one. `restore` now installs its
+  payload through the same path, so a release payload gets the same pre-flight check and the same
+  ordering. This is the lock half of `UNI-52`.
+
 - A lock can now be mirrored. `universe airlock mirror --adapter <pixi|cargo>` reads the
   project's lockfile as the index of a mirror, fetches every artifact it names, verifies each
   digest, and publishes the result as one tree on `<mirror prefix>/<adapter>`: an artifact lands

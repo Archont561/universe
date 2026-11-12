@@ -16,7 +16,9 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
-use universe_airlock_bootstrap::prefix::{Installed, materialise};
+use universe_airlock_bootstrap::prefix::{
+    Installed, Pinned, Replayed, materialise, replay, replay_mirror,
+};
 
 /// The build-time prefix a relocatable fixture carries.
 const BUILD_PREFIX: &str = "/opt/conda/conda-bld/universe_1234/_h_env_placehold";
@@ -72,6 +74,13 @@ struct Deviation {
     /// Write `info/link.json` with this text, which is where a noarch package states its
     /// flavour and its entry points.
     link: Option<String>,
+    /// The package's own name, when the default `fixture` is not what the case needs.
+    name: Option<&'static str>,
+    /// The package's own version, when it is not `0.1.0`.
+    version: Option<&'static str>,
+    /// What `info/index.json` records as this package's dependencies, which is what decides
+    /// the order a replay installs in.
+    depends: Vec<&'static str>,
 }
 
 /// A `.conda` written under a temporary directory, with a prefix to install into.
@@ -160,127 +169,12 @@ impl Fixture {
         noarch: Option<&str>,
         deviation: Deviation,
     ) -> Self {
-        let package = directory.path().join("fixture-0.1.0-h1234567_0.conda");
-
-        let mut index = serde_json::json!({
-            "name": "fixture",
-            "version": "0.1.0",
-            "build": "h1234567_0",
-            "build_number": 0,
-            "subdir": "linux-64",
-            "depends": [],
-        });
-        if let Some(flavour) = noarch {
-            index["noarch"] = serde_json::json!(flavour);
-            index["subdir"] = serde_json::json!("noarch");
-        }
-
-        let mut records: Vec<serde_json::Value> = Vec::new();
-        for entry in &entries {
-            match entry {
-                Entry::File {
-                    path,
-                    bytes,
-                    placeholder,
-                    file_mode,
-                    ..
-                } => {
-                    let (sha256, size) = match &deviation.record {
-                        Some((recorded, recorded_digest, size)) if recorded == path => {
-                            (recorded_digest.clone(), *size)
-                        }
-                        _ => (digest(bytes), bytes.len() as u64),
-                    };
-                    let mut record = serde_json::json!({
-                        "_path": path,
-                        "path_type": "hardlink",
-                        "sha256": sha256,
-                        "size_in_bytes": size,
-                    });
-                    if let Some(placeholder) = placeholder {
-                        record["prefix_placeholder"] = serde_json::json!(placeholder);
-                    }
-                    if let Some(file_mode) = file_mode {
-                        record["file_mode"] = serde_json::json!(file_mode);
-                    }
-                    records.push(record);
-                }
-                Entry::Symlink { path, .. } => records.push(serde_json::json!({
-                    "_path": path,
-                    "path_type": "softlink",
-                })),
-                Entry::Hardlink { path, .. } => records.push(serde_json::json!({
-                    "_path": path,
-                    "path_type": "hardlink",
-                })),
-                Entry::Dir { path } => records.push(serde_json::json!({
-                    "_path": path,
-                    "path_type": "directory",
-                })),
-                Entry::Fifo { path } => records.push(serde_json::json!({
-                    "_path": path,
-                    "path_type": "hardlink",
-                })),
-            }
-        }
-        // A phantom is named and not carried; an extra is carried and not named. Neither is
-        // added to the other side, which is the whole point of the two deviations.
-        if let Some(path) = &deviation.phantom {
-            records.push(serde_json::json!({
-                "_path": path,
-                "path_type": "hardlink",
-                "sha256": digest(b"never shipped"),
-                "size_in_bytes": 13,
-            }));
-        }
-
-        let mut carried = payload_entries(&entries);
-        if let Some((path, bytes)) = &deviation.extra {
-            carried.push(((*path).to_owned(), bytes.clone(), 0o644));
-        }
-
-        if let Some((path, kind)) = &deviation.record_type {
-            for record in &mut records {
-                if record["_path"] == serde_json::json!(path) {
-                    record["path_type"] = serde_json::json!(kind);
-                }
-            }
-        }
-        if let Some(raw) = &deviation.raw {
-            std::fs::write(&package, raw).expect("write the raw archive");
-            return Self { directory, package };
-        }
-
-        let mut info: Vec<(&str, Vec<u8>)> = Vec::new();
-        if deviation.omit_info != Some("info/index.json") {
-            info.push(("info/index.json", index.to_string().into_bytes()));
-        }
-        if let Some(link) = &deviation.link {
-            info.push(("info/link.json", link.clone().into_bytes()));
-        }
-        if deviation.omit_info != Some("info/paths.json") {
-            let paths = if deviation.bad_paths {
-                "{this is not the record}".to_owned()
-            } else {
-                serde_json::json!({"paths": records, "paths_version": 1}).to_string()
-            };
-            info.push(("info/paths.json", paths.into_bytes()));
-        }
-        let info = tar_of(&info);
-        if deviation.corrupt_payload || deviation.duplicate_member {
-            write_archive_raw(
-                &package,
-                &info,
-                if deviation.corrupt_payload {
-                    b"not zstd at all".to_vec()
-                } else {
-                    compress(&payload_tar(&carried, &entries))
-                },
-                deviation.duplicate_member,
-            );
-        } else {
-            write_archive(&package, &info, &payload_tar(&carried, &entries));
-        }
+        let name = deviation.name.unwrap_or("fixture");
+        let version = deviation.version.unwrap_or("0.1.0");
+        let package = directory
+            .path()
+            .join(format!("{name}-{version}-h1234567_0.conda"));
+        build(&package, entries, noarch, deviation);
 
         Self { directory, package }
     }
@@ -295,6 +189,131 @@ impl Fixture {
     fn install(&self) -> Result<Installed, String> {
         let prefix = self.prefix();
         materialise(&self.package, &prefix).map_err(|finding| format!("{finding:?}"))
+    }
+}
+
+/// Write one archive at `package`.
+fn build(package: &Path, entries: Vec<Entry>, noarch: Option<&str>, deviation: Deviation) {
+    let name = deviation.name.unwrap_or("fixture");
+    let version = deviation.version.unwrap_or("0.1.0");
+    let mut index = serde_json::json!({
+        "name": name,
+        "version": version,
+        "build": "h1234567_0",
+        "build_number": 0,
+        "subdir": "linux-64",
+        "depends": deviation.depends,
+    });
+    if let Some(flavour) = noarch {
+        index["noarch"] = serde_json::json!(flavour);
+        index["subdir"] = serde_json::json!("noarch");
+    }
+
+    let mut records: Vec<serde_json::Value> = Vec::new();
+    for entry in &entries {
+        match entry {
+            Entry::File {
+                path,
+                bytes,
+                placeholder,
+                file_mode,
+                ..
+            } => {
+                let (sha256, size) = match &deviation.record {
+                    Some((recorded, recorded_digest, size)) if recorded == path => {
+                        (recorded_digest.clone(), *size)
+                    }
+                    _ => (digest(bytes), bytes.len() as u64),
+                };
+                let mut record = serde_json::json!({
+                    "_path": path,
+                    "path_type": "hardlink",
+                    "sha256": sha256,
+                    "size_in_bytes": size,
+                });
+                if let Some(placeholder) = placeholder {
+                    record["prefix_placeholder"] = serde_json::json!(placeholder);
+                }
+                if let Some(file_mode) = file_mode {
+                    record["file_mode"] = serde_json::json!(file_mode);
+                }
+                records.push(record);
+            }
+            Entry::Symlink { path, .. } => records.push(serde_json::json!({
+                "_path": path,
+                "path_type": "softlink",
+            })),
+            Entry::Hardlink { path, .. } => records.push(serde_json::json!({
+                "_path": path,
+                "path_type": "hardlink",
+            })),
+            Entry::Dir { path } => records.push(serde_json::json!({
+                "_path": path,
+                "path_type": "directory",
+            })),
+            Entry::Fifo { path } => records.push(serde_json::json!({
+                "_path": path,
+                "path_type": "hardlink",
+            })),
+        }
+    }
+    // A phantom is named and not carried; an extra is carried and not named. Neither is
+    // added to the other side, which is the whole point of the two deviations.
+    if let Some(path) = &deviation.phantom {
+        records.push(serde_json::json!({
+            "_path": path,
+            "path_type": "hardlink",
+            "sha256": digest(b"never shipped"),
+            "size_in_bytes": 13,
+        }));
+    }
+
+    let mut carried = payload_entries(&entries);
+    if let Some((path, bytes)) = &deviation.extra {
+        carried.push(((*path).to_owned(), bytes.clone(), 0o644));
+    }
+
+    if let Some((path, kind)) = &deviation.record_type {
+        for record in &mut records {
+            if record["_path"] == serde_json::json!(path) {
+                record["path_type"] = serde_json::json!(kind);
+            }
+        }
+    }
+    if let Some(raw) = &deviation.raw {
+        std::fs::write(package, raw).expect("write the raw archive");
+        return;
+    }
+
+    let mut info: Vec<(&str, Vec<u8>)> = Vec::new();
+    if deviation.omit_info != Some("info/index.json") {
+        info.push(("info/index.json", index.to_string().into_bytes()));
+    }
+    if let Some(link) = &deviation.link {
+        info.push(("info/link.json", link.clone().into_bytes()));
+    }
+    if deviation.omit_info != Some("info/paths.json") {
+        let paths = if deviation.bad_paths {
+            "{this is not the record}".to_owned()
+        } else {
+            serde_json::json!({"paths": records, "paths_version": 1}).to_string()
+        };
+        info.push(("info/paths.json", paths.into_bytes()));
+    }
+    let info = tar_of(&info);
+    if deviation.corrupt_payload || deviation.duplicate_member {
+        write_archive_raw(
+            package,
+            &info,
+            if deviation.corrupt_payload {
+                b"not zstd at all".to_vec()
+            } else {
+                compress(&payload_tar(&carried, &entries))
+            },
+            deviation.duplicate_member,
+        );
+    } else {
+        write_archive(package, &info, &payload_tar(&carried, &entries));
     }
 }
 
@@ -1181,4 +1200,580 @@ fn a_python_script_entry_is_installed_into_bin_and_made_executable() {
         .permissions()
         .mode();
     assert_eq!(mode & 0o111, 0o111, "a declared script is not executable");
+}
+
+// ---------------------------------------------------------------------------------------------
+// A replay: what a lock pinned, installed into one prefix, in the order the packages depend on
+// each other. `UNI-52` criteria 1, 2 and 5.
+// ---------------------------------------------------------------------------------------------
+
+/// A directory shaped like the mirror `universe airlock mirror` publishes: one blob per artifact
+/// at a content-addressed path, and the list of what the lock pinned.
+///
+/// The archives are built here and placed under the paths the mirror layout uses, so a replay is
+/// exercised against the same relative paths a real mirror hands it.
+struct Mirror {
+    directory: TempDir,
+    pinned: Vec<Pinned>,
+}
+
+impl Mirror {
+    fn new() -> Self {
+        Self {
+            directory: tempfile::tempdir().expect("temp dir"),
+            pinned: Vec::new(),
+        }
+    }
+
+    /// Publish one archive, and record it in the order the caller publishes it — which is the
+    /// lock's order, and deliberately not necessarily an install order.
+    fn publish(
+        &mut self,
+        name: &'static str,
+        version: &'static str,
+        depends: &[&'static str],
+        noarch: Option<&'static str>,
+        entries: Vec<Entry>,
+        entry_points: &[&'static str],
+    ) -> &mut Self {
+        let link = noarch.map(|_| {
+            serde_json::json!({
+                "noarch": { "type": "python", "entry_points": entry_points },
+                "package_metadata_version": 1,
+            })
+            .to_string()
+        });
+        let deviation = Deviation {
+            name: Some(name),
+            version: Some(version),
+            depends: depends.to_vec(),
+            link,
+            ..Deviation::default()
+        };
+        let scratch = tempfile::tempdir().expect("scratch");
+        let filename = format!("{name}-{version}-h1234567_0.conda");
+        let built = scratch.path().join(&filename);
+        build(&built, entries, noarch, deviation);
+
+        let bytes = std::fs::read(&built).expect("read the archive");
+        let sha256 = digest(&bytes);
+        let path = format!("blobs/sha256/{}/{sha256}/{filename}", &sha256[..2]);
+        let blob = self.directory.path().join(&path);
+        std::fs::create_dir_all(blob.parent().expect("blob parent")).expect("blob directory");
+        std::fs::write(&blob, &bytes).expect("write the blob");
+        self.pinned.push(Pinned {
+            path,
+            sha256,
+            size: Some(bytes.len() as u64),
+        });
+        self
+    }
+
+    /// Write the index a mirror publishes beside its blobs, naming `skipped` artifacts a replay
+    /// cannot install.
+    fn write_index(&self, skipped: &[(&str, &str, &str)]) -> PathBuf {
+        let mut artifacts: Vec<serde_json::Value> = self
+            .pinned
+            .iter()
+            .map(|pin| {
+                let filename = pin.path.rsplit('/').next().expect("a file name");
+                let name = filename.split('-').next().expect("a package name");
+                serde_json::json!({
+                    "name": name,
+                    "version": "0.1.0",
+                    "kind": "conda",
+                    "subdir": "linux-64",
+                    "url": format!("https://example.invalid/linux-64/{filename}"),
+                    "sha256": pin.sha256,
+                    "size": pin.size,
+                    "path": pin.path,
+                })
+            })
+            .collect();
+        for (name, version, kind) in skipped {
+            artifacts.push(serde_json::json!({
+                "name": name,
+                "version": version,
+                "kind": kind,
+                "subdir": "any",
+                "url": format!("https://example.invalid/{name}"),
+                "sha256": "0".repeat(64),
+                "size": 1,
+                "path": format!("blobs/sha256/00/{}", "0".repeat(64)),
+            }));
+        }
+        let index = serde_json::json!({
+            "schema": 1,
+            "adapter": "pixi",
+            "branch": "mirror/pixi",
+            "lock_sha256": "1".repeat(64),
+            "artifacts": artifacts,
+        });
+        let path = self.directory.path().join("mirror.json");
+        std::fs::write(&path, format!("{index}\n")).expect("write the index");
+        path
+    }
+
+    /// Where an archive landed, so a test can damage it.
+    fn blob(&self, index: usize) -> PathBuf {
+        self.directory.path().join(&self.pinned[index].path)
+    }
+
+    fn prefix(&self) -> PathBuf {
+        self.directory.path().join("prefix")
+    }
+
+    fn replay(&self) -> Result<Replayed, String> {
+        let prefix = self.prefix();
+        std::fs::create_dir_all(&prefix).expect("prefix");
+        replay(&self.pinned, self.directory.path(), &prefix)
+            .map_err(|finding| format!("{finding:?}"))
+    }
+}
+
+#[test]
+fn a_replay_installs_a_noarch_package_after_the_interpreter_it_declares() {
+    // The lock's order is not an install order: this one lists the pure-Python package before
+    // the interpreter it needs. Installing it in the lock's order would refuse it, which is what
+    // the ordering exists to prevent.
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "setuptools",
+        "0.1.0",
+        &["python >=3.9"],
+        Some("python"),
+        vec![python_file(
+            "site-packages/setuptools/__init__.py",
+            b"VALUE = 1\n",
+        )],
+        &["setuptools = setuptools:main"],
+    );
+    mirror.publish(
+        "python",
+        "0.1.0",
+        &["__glibc >=2.17"],
+        None,
+        vec![
+            python_file("lib/python3.12/site-packages/keep.txt", b"keep\n"),
+            Entry::File {
+                path: "bin/python",
+                bytes: b"#!/bin/sh\nexit 0\n".to_vec(),
+                mode: 0o755,
+                placeholder: None,
+                file_mode: None,
+            },
+        ],
+        &[],
+    );
+
+    let replayed = mirror.replay().expect("replay");
+
+    assert_eq!(
+        replayed.order,
+        vec!["python".to_owned(), "setuptools".to_owned()],
+        "the interpreter was not installed before the package that needs it"
+    );
+    assert_eq!(replayed.artifacts, 2);
+    assert!(replayed.notes.is_empty(), "{:?}", replayed.notes);
+
+    // The package's command exists and runs out of this prefix's interpreter, which is the
+    // reason a `noarch: python` package cannot be installed before one is there.
+    let prefix = mirror.prefix();
+    let command = prefix.join("bin/setuptools");
+    let script = std::fs::read_to_string(&command).expect("the generated command");
+    assert!(
+        script.starts_with(&format!("#!{}/bin/python\n", prefix.display())),
+        "the command does not name this prefix's interpreter: {script}"
+    );
+    assert!(
+        command.metadata().expect("metadata").permissions().mode() & 0o111 == 0o111,
+        "a generated command is not executable"
+    );
+}
+
+#[test]
+fn a_replay_checks_every_artifact_before_it_installs_any() {
+    // Criterion 2: a damaged or absent artifact aborts before a single file lands, so a target's
+    // previous state is what it was.
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "alpha",
+        "0.1.0",
+        &[],
+        None,
+        vec![python_file("share/alpha/data.txt", b"alpha\n")],
+        &[],
+    );
+    mirror.publish(
+        "beta",
+        "0.1.0",
+        &[],
+        None,
+        vec![python_file("share/beta/data.txt", b"beta\n")],
+        &[],
+    );
+    // One flipped byte, at the same size: the digest is the only check that catches this, and a
+    // truncated download is what the size check beside it is for.
+    let blob = mirror.blob(1);
+    let mut bytes = std::fs::read(&blob).expect("read the blob");
+    let middle = bytes.len() / 2;
+    bytes[middle] ^= 0xff;
+    std::fs::write(&blob, &bytes).expect("damage the blob");
+
+    let message = mirror
+        .replay()
+        .expect_err("a digest that disagrees is refused");
+
+    assert!(
+        message.contains("airlock.replay.digest"),
+        "the refusal is not about the digest: {message}"
+    );
+    assert_eq!(
+        std::fs::read_dir(mirror.prefix()).expect("prefix").count(),
+        0,
+        "a refusal left files in the prefix"
+    );
+}
+
+#[test]
+fn a_replay_refuses_a_quoted_artifact_that_is_not_in_the_mirror() {
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "alpha",
+        "0.1.0",
+        &[],
+        None,
+        vec![python_file("share/alpha/data.txt", b"alpha\n")],
+        &[],
+    );
+    std::fs::remove_file(mirror.blob(0)).expect("remove the archive");
+
+    let message = mirror
+        .replay()
+        .expect_err("an absent artifact is not a replay");
+
+    assert!(
+        message.contains("airlock.replay.missing"),
+        "the refusal is not about the missing artifact: {message}"
+    );
+    // Criterion 5's second half: a replay has no channel to fall back to, so it says so.
+    assert!(
+        message.contains("no channel"),
+        "the refusal does not say a replay never falls back: {message}"
+    );
+}
+
+#[test]
+fn a_replay_refuses_a_dependency_the_mirror_does_not_hold() {
+    // A dependency the lock does not pin is a package this replay would have to fetch, and a
+    // replay that fetched would be a resolver.
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "setuptools",
+        "0.1.0",
+        &["python >=3.9"],
+        Some("python"),
+        vec![python_file(
+            "site-packages/setuptools/__init__.py",
+            b"VALUE = 1\n",
+        )],
+        &[],
+    );
+
+    let message = mirror
+        .replay()
+        .expect_err("a dependency with no artifact is refused");
+
+    assert!(
+        message.contains("airlock.replay.dependency"),
+        "the refusal is not about the dependency: {message}"
+    );
+    assert!(
+        message.contains("python"),
+        "the refusal does not name the dependency: {message}"
+    );
+}
+
+#[test]
+fn a_replay_ignores_virtual_packages_and_breaks_a_cycle_by_name() {
+    // `__glibc` is provided by the host, not by an artifact. A cycle is not a mistake a replay
+    // may refuse: conda-forge ships packages that depend on each other, so the order has to be
+    // chosen and said out loud rather than left to chance.
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "beta",
+        "0.1.0",
+        &["alpha"],
+        None,
+        vec![python_file("share/beta/data.txt", b"beta\n")],
+        &[],
+    );
+    mirror.publish(
+        "alpha",
+        "0.1.0",
+        &["__glibc >=2.17", "beta"],
+        None,
+        vec![python_file("share/alpha/data.txt", b"alpha\n")],
+        &[],
+    );
+
+    let replayed = mirror.replay().expect("replay");
+
+    assert_eq!(replayed.order, vec!["alpha".to_owned(), "beta".to_owned()]);
+    assert_eq!(replayed.artifacts, 2);
+    assert_eq!(replayed.notes.len(), 1, "{:?}", replayed.notes);
+    assert!(
+        replayed.notes[0].message().contains("cycle"),
+        "the note does not say what was broken: {:?}",
+        replayed.notes[0]
+    );
+}
+
+#[test]
+fn a_replay_refuses_two_builds_of_one_package() {
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "alpha",
+        "0.1.0",
+        &[],
+        None,
+        vec![python_file("share/alpha/data.txt", b"alpha\n")],
+        &[],
+    );
+    mirror.publish(
+        "alpha",
+        "0.2.0",
+        &[],
+        None,
+        vec![python_file("share/alpha/other.txt", b"alpha again\n")],
+        &[],
+    );
+
+    let message = mirror
+        .replay()
+        .expect_err("two versions of one package is not a prefix");
+
+    assert!(
+        message.contains("airlock.replay.duplicate"),
+        "the refusal is not about the duplicate: {message}"
+    );
+}
+
+#[test]
+fn a_replay_reads_the_mirror_index_and_says_what_it_cannot_install() {
+    // The seam a lock crosses: a lock has formats, a mirror index has paths and digests. A
+    // Conda prefix holds Conda packages, so a lock that also pins wheels replays what it can and
+    // says what it left out rather than pretending the environment is complete.
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "alpha",
+        "0.1.0",
+        &[],
+        None,
+        vec![python_file("share/alpha/data.txt", b"alpha\n")],
+        &[],
+    );
+    mirror.write_index(&[("requests", "2.32.3", "wheel")]);
+
+    let prefix = mirror.prefix();
+    std::fs::create_dir_all(&prefix).expect("prefix");
+    let replayed = replay_mirror(mirror.directory.path(), &prefix)
+        .map_err(|finding| format!("{finding:?}"))
+        .expect("replay");
+
+    assert_eq!(replayed.artifacts, 1);
+    assert_eq!(replayed.skipped, 1);
+    assert!(
+        replayed
+            .notes
+            .iter()
+            .any(|note| note.message().contains("requests")),
+        "the note does not name what was left out: {:?}",
+        replayed.notes
+    );
+    assert!(prefix.join("share/alpha/data.txt").is_file());
+}
+
+#[test]
+fn a_mirror_carrying_nothing_a_prefix_can_hold_is_refused() {
+    let mirror = Mirror::new();
+    mirror.write_index(&[("requests", "2.32.3", "wheel")]);
+
+    let prefix = mirror.prefix();
+    std::fs::create_dir_all(&prefix).expect("prefix");
+    let message = replay_mirror(mirror.directory.path(), &prefix)
+        .map_err(|finding| format!("{finding:?}"))
+        .expect_err("a mirror with no Conda artifact restores nothing");
+
+    assert!(
+        message.contains("airlock.replay.empty"),
+        "the refusal is not about the empty mirror: {message}"
+    );
+}
+
+#[test]
+fn a_replay_refuses_an_artifact_whose_size_disagrees() {
+    // Size and digest are separate refusals because they mean different things: a truncated
+    // download and a replaced file. The message has to say which one happened.
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "alpha",
+        "0.1.0",
+        &[],
+        None,
+        vec![python_file("share/alpha/data.txt", b"alpha\n")],
+        &[],
+    );
+    let blob = mirror.blob(0);
+    let bytes = std::fs::read(&blob).expect("read the blob");
+    std::fs::write(&blob, &bytes[..bytes.len() - 1]).expect("truncate the blob");
+
+    let message = mirror
+        .replay()
+        .expect_err("a truncated artifact is refused");
+
+    assert!(
+        message.contains("airlock.replay.size"),
+        "the refusal is not about the size: {message}"
+    );
+}
+
+#[test]
+fn a_replay_installs_a_chain_of_dependencies_in_transitive_order() {
+    // Three packages, published in the order that makes the chain hardest: the set has to be
+    // walked, not sorted by name.
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "charlie",
+        "0.1.0",
+        &["bravo >=1"],
+        None,
+        vec![python_file("share/charlie/data.txt", b"charlie\n")],
+        &[],
+    );
+    mirror.publish(
+        "bravo",
+        "0.1.0",
+        &["alpha >=1"],
+        None,
+        vec![python_file("share/bravo/data.txt", b"bravo\n")],
+        &[],
+    );
+    mirror.publish(
+        "alpha",
+        "0.1.0",
+        &[],
+        None,
+        vec![python_file("share/alpha/data.txt", b"alpha\n")],
+        &[],
+    );
+
+    let replayed = mirror.replay().expect("replay");
+
+    assert_eq!(
+        replayed.order,
+        vec!["alpha".to_owned(), "bravo".to_owned(), "charlie".to_owned()]
+    );
+}
+
+#[test]
+fn a_replay_refuses_an_archive_that_does_not_say_what_it_is() {
+    // The name is the key the order is computed from; an archive without one is not a package
+    // a set can be ordered by.
+    let mut mirror = Mirror::new();
+    mirror.publish(
+        "",
+        "0.1.0",
+        &[],
+        None,
+        vec![python_file("share/x", b"x\n")],
+        &[],
+    );
+
+    let message = mirror
+        .replay()
+        .expect_err("an anonymous archive is refused");
+
+    assert!(
+        message.contains("airlock.replay.identity"),
+        "the refusal is not about the identity: {message}"
+    );
+}
+
+#[test]
+fn a_mirror_index_of_another_schema_is_refused_by_name() {
+    let mirror = Mirror::new();
+    let path = mirror.write_index(&[]);
+    let text = std::fs::read_to_string(&path).expect("read the index");
+    std::fs::write(&path, text.replace("\"schema\":1", "\"schema\":2")).expect("rewrite");
+
+    let prefix = mirror.prefix();
+    std::fs::create_dir_all(&prefix).expect("prefix");
+    let message = replay_mirror(mirror.directory.path(), &prefix)
+        .map_err(|finding| format!("{finding:?}"))
+        .expect_err("a schema this build does not read is refused");
+
+    assert!(
+        message.contains("airlock.replay.schema"),
+        "the refusal is not about the schema: {message}"
+    );
+}
+
+#[test]
+fn something_that_is_not_a_mirror_index_is_refused_as_such() {
+    let mirror = Mirror::new();
+    std::fs::write(
+        mirror.directory.path().join("mirror.json"),
+        "{not an index}",
+    )
+    .expect("write the broken index");
+
+    let prefix = mirror.prefix();
+    std::fs::create_dir_all(&prefix).expect("prefix");
+    let message = replay_mirror(mirror.directory.path(), &prefix)
+        .map_err(|finding| format!("{finding:?}"))
+        .expect_err("text that is not an index is refused");
+
+    assert!(
+        message.contains("airlock.replay.index"),
+        "the refusal is not about the index: {message}"
+    );
+}
+
+#[test]
+fn an_artifact_path_that_cannot_be_read_is_refused_rather_than_skipped() {
+    // The index is a file a machine wrote. A path in it that is not a file has to fail the run,
+    // because the alternative is installing a set with a hole in it. No size is recorded here,
+    // so the read is what has to notice.
+    let mirror = Mirror::new();
+    let directory = mirror.directory.path();
+    let path = format!("blobs/sha256/00/{}", "0".repeat(64));
+    std::fs::create_dir_all(directory.join(&path)).expect("a directory where an archive should be");
+    let index = serde_json::json!({
+        "schema": 1,
+        "adapter": "pixi",
+        "branch": "mirror/pixi",
+        "lock_sha256": "1".repeat(64),
+        "artifacts": [{
+            "name": "alpha",
+            "version": "0.1.0",
+            "kind": "conda",
+            "subdir": "linux-64",
+            "url": "https://example.invalid/linux-64/alpha-0.1.0-h1234567_0.conda",
+            "sha256": "0".repeat(64),
+            "path": path,
+        }],
+    });
+    std::fs::write(directory.join("mirror.json"), format!("{index}\n")).expect("write the index");
+
+    let prefix = mirror.prefix();
+    std::fs::create_dir_all(&prefix).expect("prefix");
+    let message = replay_mirror(directory, &prefix)
+        .map_err(|finding| format!("{finding:?}"))
+        .expect_err("a path that is not an archive is refused");
+
+    assert!(
+        message.contains("airlock.replay.digest"),
+        "the refusal is not about the artifact: {message}"
+    );
 }

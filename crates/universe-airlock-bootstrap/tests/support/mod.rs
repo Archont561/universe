@@ -48,8 +48,14 @@ pub fn conda(marker: &str) -> Vec<u8> {
 
     let mut buffer = std::io::Cursor::new(Vec::new());
     let mut zip = zip::ZipWriter::new(&mut buffer);
-    let options =
-        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    // One fixed timestamp, because a `.conda` here stands for a published artifact: two calls
+    // with the same marker have to be the same bytes, or a test that compares a restored file
+    // with the fixture it was published from fails whenever the two land in different seconds.
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored)
+        .last_modified_time(
+            zip::DateTime::from_date_and_time(1980, 1, 1, 0, 0, 0).expect("a DOS timestamp"),
+        );
     zip.start_file("metadata.json", options).expect("metadata");
     zip.write_all(br#"{"conda_pkg_format_version": 2}"#)
         .expect("metadata bytes");

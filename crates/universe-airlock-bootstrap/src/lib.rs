@@ -5,12 +5,14 @@
 //! `restore --commit <pin>`. Everything it needs must already be present — no language
 //! ecosystem, no registry, no network (`doc-103`).
 //!
-//! Four verbs, and nothing else:
+//! Five verbs, and nothing else:
 //!
 //! - `version` — the release train this binary belongs to.
 //! - `verify`  — read-only: manifest, artifacts, and authenticity, before anything is written.
 //! - `restore` — verify, then materialise the payload into a new environment and make it
 //!   current in one step. A failure changes nothing (`state`).
+//! - `replay`  — install what a mirrored lock pinned into one prefix, in dependency order. This
+//!   is the lock path rather than the payload path: no manifest, no commit, no activation.
 //! - `doctor`  — read-only: describe what the state root holds and what is inconsistent.
 //!
 //! What is deliberately absent: adapters, prompts, a TUI, an HTTP server, and anything that
@@ -54,12 +56,15 @@ commands:
   version [--json]
   verify  [--payload <dir>] [--lane developer|sealed] [--commit <sha>]
   restore --commit <sha> [--payload <dir>] [--state <dir>] [--lane developer|sealed]
+  replay  [--mirror <dir>] [--prefix <dir>]
   doctor  [--payload <dir>] [--state <dir>]
 
 The payload defaults to .universe-airlock/payload and the state root to
 .universe-airlock/state, both under the working directory; the restore
 entrypoint does not change it, so put the payload in the project you run the
-script from. UNIVERSE_AIRLOCK_STATE overrides the state root.
+script from. `replay` reads a mirror from .universe-airlock/mirror and installs
+into .universe-airlock/prefix when it is not told otherwise.
+UNIVERSE_AIRLOCK_STATE overrides the state root.
 
 --lane developer (the default until a signed release exists) allows an unsigned
 payload and says so; --lane sealed refuses anything this binary cannot verify.";
@@ -86,6 +91,7 @@ where
         "--help" | "-h" | "help" => CommandOutput::new(format!("{USAGE}\n"), String::new(), 0),
         "verify" => run_verify(&arguments[1..]),
         "restore" => run_restore(&arguments[1..]),
+        "replay" => run_replay(&arguments[1..]),
         "doctor" => run_doctor(&arguments[1..]),
         other => usage_error(&format!("unknown command: {other}")),
     }
@@ -245,6 +251,69 @@ fn run_restore(arguments: &[String]) -> CommandOutput {
         None => text.push_str("previous: none\n"),
     }
     CommandOutput::new(text, render_all(&report.notes), 0)
+}
+
+/// `replay`: install a mirrored lock into one prefix, with no manifest and no activation.
+///
+/// The payload path answers "is this release authentic"; this one answers "does this lock's
+/// environment exist on this host", which is why it reads a mirror index and writes a prefix
+/// rather than a state root. Both go through the same installer, so both get the same digest
+/// checks and the same dependency order.
+fn run_replay(arguments: &[String]) -> CommandOutput {
+    let working_directory = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let (mirror, prefix) = match replay_options(arguments) {
+        Ok((mirror, prefix)) => (
+            mirror.unwrap_or_else(|| working_directory.join(".universe-airlock/mirror")),
+            prefix.unwrap_or_else(|| working_directory.join(".universe-airlock/prefix")),
+        ),
+        Err(output) => return output,
+    };
+
+    let replayed = match prefix::replay_mirror(&mirror, &prefix) {
+        Ok(replayed) => replayed,
+        Err(finding) => return refused(&[finding]),
+    };
+
+    let mut text = String::new();
+    text.push_str(&format!("mirror: {}\n", mirror.display()));
+    text.push_str(&format!(
+        "artifacts: {}{}\n",
+        replayed.artifacts,
+        if replayed.skipped == 0 {
+            String::new()
+        } else {
+            format!(" ({} left out)", replayed.skipped)
+        }
+    ));
+    text.push_str(&format!("order: {}\n", replayed.order.join(", ")));
+    text.push_str(&format!(
+        "installed: {} entries ({} bytes)\n",
+        replayed.entries, replayed.bytes
+    ));
+    text.push_str(&format!("prefix: {}\n", prefix.display()));
+    CommandOutput::new(text, render_all(&replayed.notes), 0)
+}
+
+/// The two paths `replay` accepts, each defaulting to the directory it is conventionally in.
+fn replay_options(
+    arguments: &[String],
+) -> Result<(Option<PathBuf>, Option<PathBuf>), CommandOutput> {
+    let mut mirror: Option<PathBuf> = None;
+    let mut prefix: Option<PathBuf> = None;
+    let mut rest = arguments.iter();
+    while let Some(argument) = rest.next() {
+        let mut value = |name: &str| -> Result<String, CommandOutput> {
+            rest.next()
+                .cloned()
+                .ok_or_else(|| usage_error(&format!("{name} needs a value")))
+        };
+        match argument.as_str() {
+            "--mirror" => mirror = Some(PathBuf::from(value("--mirror")?)),
+            "--prefix" => prefix = Some(PathBuf::from(value("--prefix")?)),
+            other => return Err(usage_error(&format!("unknown argument: {other}"))),
+        }
+    }
+    Ok((mirror, prefix))
 }
 
 fn run_doctor(arguments: &[String]) -> CommandOutput {
