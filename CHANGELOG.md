@@ -4,6 +4,21 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- The published refs are namespaced. `channel` became `universe/conda-channel` and `bootstrap`
+  became `universe/bootstrap`, and both are now declared in `universe.toml` rather than left to
+  the tool's defaults: `[[stores]]` gained `branch` for a `branch` or `static` store, so the
+  renderer emits `--branch <ref>` from the manifest and a project keeps the name it chose. A bare
+  `channel` and a bare `bootstrap` claimed the top level of one repository's namespace, where
+  they read as if the first project to push owned the name; the defaults moved with them, so a
+  hand-run `universe publish` or `universe airlock publish-bootstrap` no longer creates either
+  old name. `branch` on a store that has no ref — a registry — is an error rather than a no-op,
+  and an empty one is an error too. The renames are recorded as reversals: the old refs were
+  moved to their new names at the same commits and then deleted, and the entrypoint was
+  re-published with the real verb, to `universe/bootstrap` at `7c402a80`, from a stripped release
+  build of the bootstrapper. Run against the real remote, the re-rendered entrypoint cloned
+  `universe/bootstrap`, matched that commit, and executed the binary out of it, stopping at the
+  absent payload manifest as a restore of a payload with nothing packed is meant to.
+
 - The channel has a hosted index. A `static` store that declares `pages = true` (and must also be
   `writable = false`, `needs_index = true`, and name its `url`) makes `release.yml` render two
   more jobs: `<store>` downloads the release's own build artifacts, runs `universe index

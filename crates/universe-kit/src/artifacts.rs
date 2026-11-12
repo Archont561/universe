@@ -597,6 +597,7 @@ mod tests {
             environment: None,
             channel: Some("acme/acme".to_owned()),
             url: Some("http://127.0.0.1:8080".to_owned()),
+            branch: None,
             budgets: universe_core::manifest::StoreBudgets::default(),
             tag_prefix: None,
             max_builds_per_version: None,

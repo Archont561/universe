@@ -148,14 +148,19 @@ format = "cargo fmt --check"
     }
 }
 
-/// Whether the bare remote's channel branch exists.
+/// The ref the tool pushes to when the store names none, and the only place the default is
+/// observable from outside: the fixture's manifest declares a branch store and no `branch`, so
+/// what lands on the remote is the default rather than a declaration this test made.
+const DEFAULT_REF: &str = "refs/heads/universe/conda-channel";
+
+/// Whether the bare remote holds the snapshot at the default ref.
 fn channel_branch_exists(remote: &Path) -> bool {
     let output = Command::new("git")
         .args(["ls-remote", "--heads"])
         .arg(remote)
         .output()
         .expect("git is installed");
-    String::from_utf8_lossy(&output.stdout).contains("refs/heads/channel")
+    String::from_utf8_lossy(&output.stdout).contains(DEFAULT_REF)
 }
 
 #[test]

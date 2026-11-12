@@ -382,3 +382,35 @@ def test_the_hosted_index_is_declared_and_deployed() -> None:
     workflows_doc = (ROOT / "docs" / "WORKFLOWS.md").read_text(encoding="utf-8")
     for name in ("upload-pages-artifact", "deploy-pages", "output/pages"):
         assert name in workflows_doc, f"the rendered jobs do not explain {name}"
+
+
+def test_the_published_refs_are_namespaced_and_say_so() -> None:
+    """Independent source: the manifest, the rendered workflow, and the committed entrypoint.
+
+    The two refs a consumer meets are `universe/conda-channel` and `universe/bootstrap`. A bare
+    `channel` and a bare `bootstrap` claimed the top level of one repository's namespace, which
+    reads as if it belonged to whoever pushed first. Four places have to agree, because the ref a
+    release writes is only real if the rendered command and the entrypoint name it too.
+    """
+    manifest = _manifest()
+    stores = {store["name"]: store for store in manifest["stores"]}
+    assert stores["branch"]["branch"] == "universe/conda-channel"
+    assert stores["branch"]["kind"] == "branch"
+
+    restore = manifest["airlock"]["developer"]["restore"]
+    assert restore["branch"] == "universe/bootstrap", (
+        "the entrypoint clones the ref this declares, so a bare name here is the old layout"
+    )
+
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "--branch universe/conda-channel" in workflow, (
+        "the rendered snapshot push does not name the namespaced ref"
+    )
+
+    entrypoint = (ROOT / ".universe-airlock" / "restore.sh").read_text(encoding="utf-8")
+    assert "PIN_BRANCH='universe/bootstrap'" in entrypoint
+    assert f"PIN_COMMIT='{restore['commit']}'" in entrypoint, (
+        "the entrypoint is pinned at a different commit than the manifest declares"
+    )
+    powershell = (ROOT / ".universe-airlock" / "restore.ps1").read_text(encoding="utf-8")
+    assert "'universe/bootstrap'" in powershell

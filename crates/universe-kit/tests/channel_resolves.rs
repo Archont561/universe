@@ -287,6 +287,12 @@ fn publish(root: &Path, remote: &Path) -> CommandOutput {
     ])
 }
 
+/// The ref a publish writes when the fixture's store names none, and therefore the ref a
+/// consumer clones. It is the tool's default rather than a declaration: the fixture's manifest
+/// declares a branch store and no `branch`, so what these tests clone is the name a project gets
+/// without saying anything.
+const DEFAULT_REF: &str = "universe/conda-channel";
+
 /// `git clone` the branch, which is how a consumer with nothing but Git obtains the channel.
 fn clone_branch(remote: &Path, into: &Path) {
     // A `file://` URL rather than a bare path: a path is a local optimisation that ignores
@@ -297,7 +303,7 @@ fn clone_branch(remote: &Path, into: &Path) {
             "clone",
             "--quiet",
             "--branch",
-            "channel",
+            DEFAULT_REF,
             "--depth",
             "1",
             &url,

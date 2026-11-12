@@ -24,7 +24,9 @@ Eight things are worth noticing, because they are the design:
   store is different: `publish` force-pushes one whole orphan snapshot tree, so `ci render`
   emits **one command naming every package** for that store. Three pushes of one package each
   would leave only the last tree on the branch, which is what run `43045274207` did before the
-  renderer was corrected.
+  renderer was corrected. The command also carries `--branch <ref>` when the store declares
+  `branch`, so the ref a release writes is the one the manifest names rather than whatever the
+  tool's default happens to be that week.
 - **Jobs run in order of how reversible their destination is.** Releases, static channels and
   mirrors first, npm and PyPI next, crates.io last — because a crates.io version can only be
   yanked, never deleted, and a release that fails late has already written the earlier ones.

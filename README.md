@@ -23,7 +23,8 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 > `43061441347`) proved force-replacement with read-write-delete access, and the earlier annotated
 > tag's run `43073492712` was green; that tag was deleted and `v0.1.0` is cut again from this
 > work, whose notes are [`docs/releases/0.1.0.md`](docs/releases/0.1.0.md). The branch channel
-> solves offline from a clone with the network denied. The same channel is served as a static
+> solves offline from a clone with the network denied; the ref is `universe/conda-channel` and the
+> entrypoint below is pinned at `universe/bootstrap`. The same channel is served as a static
 > index on GitHub Pages at <https://archont561.github.io/universe>: the release workflow
 > regenerates the tree from the release's own fragments and deploys it with
 > `actions/deploy-pages`, so no generated tree is committed. Pages is enabled for actions builds
@@ -31,8 +32,8 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 > GitHub's `github-pages` environment allows the default branch, and a release is a tag, so the
 > environment needs a `v*` deployment tag rule before the address serves anything. This
 > repository also
-> commits a rendered restore entrypoint, `.universe-airlock/restore.sh`, pinned at a `bootstrap`
-> ref that carries the bootstrapper binary, and `universe airlock pack` writes the closed payload
+> commits a rendered restore entrypoint, `.universe-airlock/restore.sh`, pinned at a
+> `universe/bootstrap` ref that carries the bootstrapper binary, and `universe airlock pack` writes the closed payload
 > that binary restores. Run against the real remote, the entrypoint clones the pin, hands over,
 > and the four published packages are installed into a prefix that runs
 > `universe-airlock --version`. Replaying a *lock* rather than a payload manifest is still
@@ -180,8 +181,8 @@ it creates is `.universe-airlock/state`.
 | pin | value |
 | --- | --- |
 | remote | `https://github.com/Archont561/universe.git` |
-| branch | `bootstrap` |
-| commit | `991324f5dee0cb02d18ea66e35e1e12206a35b14` |
+| branch | `universe/bootstrap` |
+| commit | `7c402a800b9d33aa6aec1e8445a4e985658e97cc` |
 
 The commit is the whole pin. It is a commit rather than a branch head so the entrypoint keeps
 fetching the bytes it was rendered against, and it is checked rather than trusted.
