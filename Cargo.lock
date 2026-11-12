@@ -3920,8 +3920,14 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-macros",
  "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tempfile",
  "universe-airlock-bootstrap",
  "universe-core",
+ "zip",
+ "zstd",
 ]
 
 [[package]]

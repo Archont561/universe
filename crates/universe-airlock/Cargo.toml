@@ -15,6 +15,15 @@ description = "Finite offline snapshot consumer CLI for Universe"
 rstest = { workspace = true }
 rstest-bdd = { workspace = true }
 rstest-bdd-macros = { workspace = true }
+# A sandbox test has to hand the binary a real `.conda`, and writing one is a zip of two zstd
+# tars. These are the crates the bootstrap already links for the same format, taken here as test
+# dependencies rather than reimplemented, so a fixture is the format the reader has to satisfy.
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tar = { workspace = true }
+tempfile = { workspace = true }
+zip = { version = "9", default-features = false }
+zstd = { version = "0.14", default-features = false }
 
 [lints]
 workspace = true
