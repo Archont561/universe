@@ -60,6 +60,21 @@ and DoD #3 remain open. `decision-132` records the correction, `UNI-59` records 
 and Invariant 3 below is unchanged for the integrated v1 lane. No further tag is cut.
 https://github.com/Archont561/universe/actions/runs/43073492712
 
+**Republish correction, recorded as a correction (2026-11-12).** The artifacts published at the
+`v0.1.0` tag predated the recipe fix that suppresses the C standard library's run export, so an
+offline solve of the branch channel failed on `libgcc >=16`. Without cutting a new tag,
+`release.yml` run `43230051708` force-replaced the three package filenames at `prefix-dev` and
+`releases` and pushed one `channel` snapshot at
+`0743618978d44b3393511f8777a9dfafe513cc95`; the three GitHub Release assets, that branch and a
+fresh cache-busted prefix.dev read (publication `93323`) agree on three digests, and three Pixi
+projects installed from a fresh clone of the branch with `pixi install --offline`. The
+`--force` reversal is unchanged and still applies only to the artifact stores; the branch store
+is replaced by one snapshot commit and never forced. The index lag that a forced upload leaves
+behind, and the digests it supersedes, are recorded in `decision-132` and `UNI-59`. `UNI-59`
+criterion 4 is satisfied; criterion 5, DoD #3 and `UNI-53` DoD #1 still need a clean-container
+restore transcript. No further tag is cut.
+https://github.com/Archont561/universe/actions/runs/43230051708
+
 ## Context
 
 Release control for this repository has been provided by a separate controller tool with its

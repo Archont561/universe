@@ -211,3 +211,37 @@ def test_the_release_records_name_all_three_packages() -> None:
 
     assert "## Amendment: the main CLI packages are in scope" in decision
     assert "recorded as a reversal" in decision
+
+
+def test_the_rebuilt_channel_is_published_and_solves_offline() -> None:
+    """Independent source: run 43230051708's publish jobs and the prefix.dev read-back."""
+    notes = (
+        ROOT
+        / "backlog"
+        / "tasks"
+        / "uni-59 - Cut-the-v0.1.0-pre-release-from-the-rendered-workflow.md"
+    ).read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    decision = (
+        ROOT
+        / "backlog"
+        / "decisions"
+        / "decision-132 - v0.1.0-is-a-pre-release-packaging-milestone,-not-a-v1-cut.md"
+    ).read_text(encoding="utf-8")
+    workflows = (ROOT / "docs" / "WORKFLOWS.md").read_text(encoding="utf-8")
+    notes_doc = (ROOT / "docs" / "releases" / "0.1.0.md").read_text(encoding="utf-8")
+
+    for document in (notes, changelog, decision, workflows, notes_doc):
+        assert "43230051708" in document, "the republish run is missing"
+        assert "93323" in document, "the fresh prefix.dev read after the rebuild is missing"
+    for digest in (
+        "359c34535c59887a94d064301ab88cdc6c651f752674b11e43d339870116c66b",
+        "548e832c34a6cfef92e5ac6fba73af805a9095ca06cea969de3a571074ad2f14",
+        "29f258fc57b820fe0db9346f11fa47709b1dcc7750c08fa7fca710b4b6131906",
+    ):
+        assert digest in notes, f"the rebuilt digest {digest} is not recorded"
+    assert "- [x] #4" in notes, "criterion 4 is not ticked after the rebuild published"
+    assert "The default environment has been installed." in notes, (
+        "the offline solve transcript lines are not recorded"
+    )
+    assert "transcript" in notes_doc

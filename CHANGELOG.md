@@ -70,19 +70,42 @@ All notable changes to Universe are recorded here.
   --offline` against a clone of `channel` fails on `libgcc >=16`, a run export from `stdlib('c')`
   that the branch channel does not carry. A clean-container restore transcript is also still
   unrecorded: no container runtime is available here, and this owner-lane manifest declares no
-  restore entrypoint. `UNI-59` stays open on those two criteria and DoD #3; the `v0.1.0` tag does
-  not complete four-platform packaging, a sealed payload, or the integrated v1 gate.
+  restore entrypoint. `UNI-59` stayed open on criterion 4 and DoD #3 after that tag run. The
+  destinations those sentences name were force-replaced by the rebuild recorded below, so they
+  describe what the tag run published rather than what the channel serves now. The `v0.1.0` tag
+  does not complete four-platform packaging, a sealed payload, or the integrated v1 gate.
 
 - The three publishable recipes suppress the C standard library's run export, so a package
-  built from them no longer declares `libgcc`. The published `v0.1.0` artifacts were built
-  before this change: they carry `libgcc >=16`, and a `pixi install --offline` against a clone
-  of the `channel` branch fails on it because a static channel does not carry libgcc. A copy of
-  the same tree with that one dependency removed solves and installs offline, which is what
-  isolates the cause. `universe lint` now refuses a recipe that takes `${{ stdlib('c') }}`
+  built from them no longer declares `libgcc`. The `v0.1.0` artifacts published at the tag were
+  built before this change: they carried `libgcc >=16`, and a `pixi install --offline` against a
+  clone of the `channel` branch failed on it because a static channel does not carry libgcc. A
+  copy of the same tree with that one dependency removed solved and installed offline, which is
+  what isolated the cause. `universe lint` now refuses a recipe that takes `${{ stdlib('c') }}`
   without naming the export under `requirements.ignore_run_exports.by_name`
   (`recipe.run_exports.leaked`); a Rust unit test and a BDD scenario were red before the rule
-  existed. `UNI-59` criterion 4 stays open until a rebuilt channel is published and solved
-  offline.
+  existed. `UNI-59` criterion 4 stayed open until a rebuilt channel was published and solved
+  offline, which the entry below records.
+- The channel is rebuilt from that fix and force-republished without cutting a tag, and the
+  branch clone now solves offline. `release.yml` run `43230051708` is green on attempt 1 with
+  all five jobs; its build audited `universe-airlock` at
+  `sha256:359c34535c59887a94d064301ab88cdc6c651f752674b11e43d339870116c66b` (298826 bytes),
+  `universe-kit` at
+  `sha256:548e832c34a6cfef92e5ac6fba73af805a9095ca06cea969de3a571074ad2f14` (3493489 bytes), and
+  the umbrella `universe` facade at
+  `sha256:29f258fc57b820fe0db9346f11fa47709b1dcc7750c08fa7fca710b4b6131906` (195246 bytes). The
+  three GitHub Release assets, the one-snapshot `channel` branch at
+  `0743618978d44b3393511f8777a9dfafe513cc95`, and a fresh cache-busted prefix.dev repodata read
+  (publication `93323`) all resolve those three digests, and none of the three packages declares
+  `libgcc`. Three Pixi projects, one per package, each asked a fresh `git clone --branch
+  channel` for `0.1.0` and ran `pixi install --offline`; each printed `The default environment
+  has been installed.` and the installed `universe-airlock` printed `universe-airlock 0.1.0`.
+  A forced prefix.dev upload changes storage at once and the channel index only when prefix.dev
+  reindexes: an earlier dispatch, run `43224818327`, was green and its uploads were accepted,
+  yet the index kept serving the tag run's publication `88406` for more than 28 minutes and
+  then named the first dispatch's digests. Publishing once and reading after the reindex is the
+  order that avoids that window. `UNI-59` criterion 4 is now satisfied; criterion 5 and DoD #3
+  still need the clean-container transcript, which no container runtime here can produce.
+  https://github.com/Archont561/universe/actions/runs/43230051708
 
 ## 0.1.0
 

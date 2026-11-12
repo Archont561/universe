@@ -63,12 +63,21 @@ Six things are worth noticing, because they are the design:
   takes no `--force`, because it already replaces one snapshot tree — and now does so in one
   command naming every package, so the branch carries all three. The offline branch solve is
   still unrecorded. The tag run `43073492712` is green with a new set of three digests, read back
-  at all three destinations; the `v0.1.0` tag is cut from `1de18891`. A `pixi install --offline`
-  against a local checkout of `channel` fails on `libgcc >=16`, a run export from `stdlib('c')`
-  that the branch channel does not carry; adding conda-forge offline fails because no repodata
-  cache exists. Do not claim an offline solve until that dependency edge is resolved. A
-  clean-container restore transcript is also unrecorded: no container runtime is available here
-  and this owner-lane manifest declares no restore entrypoint. https://github.com/Archont561/universe/actions/runs/43073492712
+  at all three destinations; the `v0.1.0` tag is cut from `1de18891`. That run's artifacts were
+  built before the recipe fix, so a `pixi install --offline` against a clone of `channel` failed
+  on `libgcc >=16`, a run export from `stdlib('c')` that a static channel does not carry. The
+  channel was rebuilt from the fix and force-republished without cutting a tag: run
+  `43230051708` is green on attempt 1, and its three packages, the three GitHub Release assets,
+  the one-snapshot `channel` branch at `0743618978d44b3393511f8777a9dfafe513cc95` and a fresh
+  cache-busted prefix.dev read (publication `93323`) agree on three digests that declare no
+  `libgcc`. Three Pixi projects, one per package, each ran `pixi install --offline` against a
+  fresh clone of `channel` and each installed, so the offline solve is recorded rather than
+  assumed. A forced artifact upload replaces the stored file at once while the channel index
+  changes only when prefix.dev reindexes, which took more than 28 minutes on the first attempt
+  and left the index naming the previous publication: read the index after the reindex, not
+  after the upload. A clean-container restore transcript is still unrecorded: no container
+  runtime is available here and this owner-lane manifest declares no restore entrypoint.
+  https://github.com/Archont561/universe/actions/runs/43230051708
 
 The manifest declares capabilities; the renderer writes the YAML. No hand-editing, no
 `--sync-workflows` flag buried on another command.

@@ -4,7 +4,7 @@ title: Cut the v0.1.0 pre-release from the rendered workflow
 status: In Progress
 assignee: []
 created_date: '2026-11-01'
-updated_date: '2026-11-11'
+updated_date: '2026-11-12'
 labels:
   - release
   - airlock
@@ -51,7 +51,7 @@ a repository check rather than a release-time computation.
 - [x] #1 The workspace version, the `universe-airlock` recipe version, and the changelog's top section agree on `0.1.0`, and the existing parity check is what proves it rather than a manual reading. — 2026-11-09: `CHANGELOG.md` has a `## 0.1.0` section whose body says pre-release and `scripts/repo_check.py::validate_release_version` compares its first versioned heading with `Cargo.toml` and the recipe; `pixi run repo-check` is green.
 - [x] #2 The `v0.1.0` tag is cut from a commit whose full gate run is green, and the tag is annotated with the same message the release notes open with. — 2026-11-11: annotated tag `v0.1.0` (object `d49d8fe587f1805095b70a3935dd4e73bf0d3019`) points at `1de18891bd69f8d16b4d261cfdaa53525555eabd`, whose `ci` and `universe` runs were green. `pixi run gates` passed at that commit before the tag was pushed, and the tag-triggered `universe` run `43073492717` is green. `git for-each-ref --format='%(contents:subject)' refs/tags/v0.1.0` equals `head -1 docs/releases/0.1.0.md` verbatim; `pixi run repo-check` and `pixi run --frozen universe -- lint --json` both pass with the tag present. The tag-triggered `release.yml` run `43073492712` has a green `publish / verdict`. https://github.com/Archont561/universe/actions/runs/43073492712
 - [x] #3 Release notes state the pre-release status and the `linux-64`-only scope, name what `universe-airlock` actually does at this tag (verify, restore, version), and claim none of `decision-119`'s six v1 surfaces. — 2026-11-10: `docs/releases/0.1.0.md` opens with the one-line annotated-tag message, states the `decision-132` checkpoint, names all three verbs with the binary that owns each, and has a `## Not a v1 release` table disclaiming all six numbered surfaces of `decision-119` as absent or single-platform. `scripts/repo_check.py::validate_release_notes` enforces the file's existence from the workspace version, the annotation's shape, the five required facts, the six surface keys, and — once a `v0.1.0` tag exists — that its `%(contents:subject)` equals the opening line. Six Python tests were red before green, and a temporary annotated tag proved the drift check both ways; that tag was deleted. The real tag was cut afterwards, which is criterion 2's evidence above.
-- [ ] #4 All three packages are verified at all three declared destinations after the run: the branch channel solves for each of `universe-airlock=0.1.0`, `universe-kit=0.1.0` and `universe=0.1.0` from a local checkout with network denied, a fresh prefix.dev read resolves each package by digest, and each GitHub Release asset resolves by digest. — 2026-11-11: the digest halves are proven by the tag run `43073492712` (see the notes below); the offline solve from a local checkout is **not** proven. A fresh `pixi install --offline` against a clone of `refs/heads/channel` fails with `libgcc >=16, for which no candidates were found`: the recipes pulled the C standard library's run export and the branch channel does not carry libgcc. The recipes now suppress it (`ignore_run_exports.by_name: [libgcc]`) and `universe lint` refuses a recipe that takes `stdlib('c')` without that suppression, but the **published** `v0.1.0` artifacts still carry `libgcc >=16`; the criterion closes when a rebuilt channel is published and solved offline. This is a measured failure, not a claim of success, and the criterion stays open.
+- [x] #4 All three packages are verified at all three declared destinations after the run: the branch channel solves for each of `universe-airlock=0.1.0`, `universe-kit=0.1.0` and `universe=0.1.0` from a local checkout with network denied, a fresh prefix.dev read resolves each package by digest, and each GitHub Release asset resolves by digest. — 2026-11-12: the channel was rebuilt from the fix merge `8b008573` and force-republished without cutting a tag. `release.yml` run `43230051708` is green on attempt 1 with all five jobs; its build audited `universe-airlock` at `359c34535c59887a94d064301ab88cdc6c651f752674b11e43d339870116c66b` (298826 bytes), `universe-kit` at `548e832c34a6cfef92e5ac6fba73af805a9095ca06cea969de3a571074ad2f14` (3493489 bytes) and the umbrella `universe` facade at `29f258fc57b820fe0db9346f11fa47709b1dcc7750c08fa7fca710b4b6131906` (195246 bytes). The three GitHub Release assets of `packages-linux-64` report those digests; the `channel` branch at `0743618978d44b3393511f8777a9dfafe513cc95` is one snapshot whose `linux-64/repodata.json` lists all three with them; and a fresh cache-busted prefix.dev read (publication `93323`) resolves all three by digest. From a fresh `git clone --depth 1 --branch channel`, three separate Pixi projects — one each asking only for `universe-airlock`, `universe-kit` and `universe` at `0.1.0` — each ran `pixi install --offline` against that `file://` clone and each printed `The default environment has been installed.` The installed `universe-airlock` and `universe-kit` printed their own version; the facade forwards `--version` to its kit component, so it printed `universe-kit 0.1.0`. Every installed `conda-meta` record declares only `__glibc >=2.17,<3.0.a0`, and none of the three packages carries `libgcc` in `depends`. The commands and the two measurements behind the fix are in the notes below.
 - [ ] #5 A clean container with only Git and Pixi runs the rendered restore entrypoint against the tag and prints `universe-airlock version`; the transcript is recorded in this task's notes, with the container image named. — 2026-11-11: no container runtime is available in this workspace (`docker` and `podman` are absent, `unshare -n` is refused by the sandbox). Also, no restore entrypoint is declared by this repository's `universe.toml`: `pixi run airlock-check` reports `no restore entrypoint is declared`, and the tag tree contains no `.universe-airlock/restore.sh`. `UNI-53` DoD #1 stays open on the same transcript. Do not claim a clean-container, sealed, or Pixi-managed environment.
 - [x] #6 A repository check fails if the changelog's top section and the tag disagree, so the next release cannot drift by memory. — 2026-11-09: a temporary local `v0.2.0` tag made `pixi run repo-check` exit 1 naming both values; the tag was removed and the check returned to green.
 <!-- AC.END -->
@@ -562,4 +562,72 @@ a repository check rather than a release-time computation.
   Closing criterion 4 needs a rebuilt, republished channel — a new build of the same version,
   which under the recorded `--force` reversal replaces the artifacts in place and changes their
   digests again. That is a release action, not a lint fix, and it is not taken here.
+- **2026-11-12 — the rebuilt channel is force-published, and the branch clone solves offline.**
+  The recipe fix landed in `8b008573`, but the bytes published at the tag predate it, so
+  criterion 4 needed a new build of the same version rather than a new tag. `release.yml` was
+  dispatched on `main` (`decision-132` keeps the `--force` reversal for `prefix-dev` and
+  `releases`; the branch store needs none and never gets one). Run `43230051708` is the one the
+  criterion is recorded against: green on attempt 1, all five jobs, and it replaced all three
+  package filenames at both artifact destinations. Its build audited `universe-airlock` at
+  `359c34535c59887a94d064301ab88cdc6c651f752674b11e43d339870116c66b` (298826 bytes),
+  `universe-kit` at `548e832c34a6cfef92e5ac6fba73af805a9095ca06cea969de3a571074ad2f14`
+  (3493489 bytes), and the umbrella `universe` facade at
+  `29f258fc57b820fe0db9346f11fa47709b1dcc7750c08fa7fca710b4b6131906` (195246 bytes). The
+  `channel` branch at `0743618978d44b3393511f8777a9dfafe513cc95` is one snapshot whose
+  `linux-64/repodata.json` lists all three with those digests and no `libgcc` in any of them;
+  the three GitHub Release assets of `packages-linux-64` report the same three digests through
+  the release API; and the cache-busted prefix.dev repodata read resolves them at publication
+  `93323`.
+  https://github.com/Archont561/universe/actions/runs/43230051708
+- **The prefix.dev index lags its storage, and publishing twice while it lags is what to avoid.**
+  Run `43224818327`, dispatched first, was also green and also replaced the three filenames —
+  prefix.dev answered `200` to each forced upload, and the job's JSON reported each path as
+  `uploaded` at 298819, 3493455 and 195243 bytes. Yet the channel repodata kept resolving to
+  publication `88406`, the tag run's index, for more than 28 minutes afterwards; the reindex that
+  made those uploads visible arrived later, as publication `93213`. A forced upload replaces
+  the stored object at once and updates the channel index only when prefix.dev reindexes, so a
+  read taken in that window reports the bytes of the previous build. That is the part worth
+  remembering: a green publish job is not a read-back, and neither is a repodata fetch taken
+  before the reindex. Because the second dispatch replaced the same filenames with a fresh,
+  different set of bytes — this build is still not reproducible — the index named the first
+  dispatch's digests while storage held the second's for the minutes until `93323` appeared.
+  Publishing once and waiting for the reindex is the cheaper order; publishing twice inside one
+  reindex window is what creates that disagreement. `93323` resolves the second dispatch's
+  digests, which are the ones all three destinations now agree on.
+- **The offline solve, as run.** The three projects were built from one fresh clone, and nothing
+  in them can reach a network: the channel URL is a local path and `pixi` is told `--offline`.
+
+  ```
+  git clone --depth 1 --branch channel https://github.com/Archont561/universe.git channel
+  ```
+
+  Each project's manifest named the branch clone and asked for exactly one package:
+
+  ```
+  [workspace]
+  name = "solve-universe-airlock"
+  channels = ["file:///tmp/uni59b/channel"]
+  platforms = ["linux-64"]
+
+  [dependencies]
+  universe-airlock = "0.1.0"
+  ```
+
+  `pixi install --offline` in each of the three printed `The default environment has been
+  installed.` and exited 0. The reverse order matters as much: `pixi install --offline` against
+  a clone of the tag's `channel` snapshot failed with `libgcc >=16, for which no candidates were
+  found`, which is the measurement the recipe fix answers. In the installed environments,
+  `.pixi/envs/default/bin/universe-airlock --version` and `universe-kit --version` print their own
+  names and versions, and `universe --version` prints `universe-kit 0.1.0` because the facade
+  forwards the flag to its kit component. Every `conda-meta/*.json` in those environments
+  declares only `__glibc >=2.17,<3.0.a0` — the `libgcc` edge is gone from the published bytes,
+  not just from the recipes.
+- **What the republish does not close.** Criterion 5 and DoD #3 still need the clean-container
+  transcript, and nothing here supplies one: no container runtime exists in this workspace, and
+  this owner-lane manifest still declares no `[airlock.developer.restore]`, so
+  `pixi run airlock-check` reports `no restore entrypoint is declared` and neither the tag tree
+  nor the rebuilt channel carries `.universe-airlock/restore.sh`. `UNI-55` sealed payloads, the
+  four-platform work of `UNI-15` and `UNI-16`, and `UNI-53` DoD #1 stay open on the same
+  transcript and the same scope. No further tag is cut, and no Pixi-managed, sealed or
+  clean-container environment is claimed.
 <!-- SECTION:NOTES.END -->
