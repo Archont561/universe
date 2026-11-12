@@ -314,6 +314,32 @@ digests describe run `43230051708`; a republish that adds an artifact replaces t
 snapshot again, so the run that supersedes them is recorded in `UNI-55` and `UNI-59` rather than
 assumed here.
 
+## Amendment: the tag moves, and the checkpoint gains a hosted index
+
+**Recorded as a reversal of the tag's placement, not of its scope.** The owner deleted the
+`v0.1.0` tag cut on 2026-11-11 and asked for it to be moved onto the work that followed it. The
+checkpoint's definition is unchanged — same version, same four packages, same three byte
+destinations, same exclusions — but the tag now points at a commit that also carries the
+`universe-airlock sandbox` verb, a committed restore entrypoint, and a fourth read of the
+channel served from GitHub Pages (`UNI-74`, `UNI-75`).
+
+Two things about that are worth stating rather than leaving to the tag's date:
+
+- **A hosted index is not a fourth byte destination.** Pages serves a tree the release generates
+  from its own fragments; nothing is uploaded to it and nothing is committed. The manifest
+  declares it as a non-writable `static` store with `pages = true`, and the renderer emits the
+  generate and deploy jobs from that one line. The three destinations whose digests a release is
+  verified against are unchanged.
+- **`decision-140` is not superseded.** It described a browsable portal built from pinned catalog
+  snapshots with a Fumadocs UI, and remains `proposed` for that. What `v0.1.0` ships is the
+  simpler thing the owner asked for: a static channel index at an address, with no build step
+  beyond the one the release already ran.
+
+The release notes are rewritten with the move, because the old notes described a tree whose
+entrypoint story and package count were both out of date. Run `43073492712` is cited in the
+Backlog as history: it belonged to the deleted tag, and the re-cut tag's own run is the one that
+speaks for this version.
+
 ## Consequences
 
 - The v1 gate continues to require all six surfaces; `v0.1.0` is a checkpoint on the Conda

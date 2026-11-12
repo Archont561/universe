@@ -255,15 +255,20 @@ All notable changes to Universe are recorded here.
 release described by `decision-119`. It is `linux-64` only. Cargo, Python wheels, npm, the
 browsable portal, and every platform beyond `linux-64` remain out of scope.
 
-- Three `linux-64` Conda packages are published to prefix.dev, to a static channel on a Git
-  branch, and as GitHub Release assets: `universe-airlock`, `universe-kit`, and the umbrella `universe` facade.
-  The installed Airlock consumer reports its version and verifies a closed payload;
-  `universe-airlock-bootstrap` restores one into an immutable state root.
+- Four `linux-64` Conda packages are published to prefix.dev, to a static channel on a Git
+  branch, and as GitHub Release assets: `universe-airlock`, `universe-kit`, the umbrella
+  `universe` facade, and the separately installable `universe-airlock-bootstrap`. The installed
+  Airlock consumer reports its version, verifies a closed payload, and runs a built package set
+  in an environment sandbox; the bootstrapper restores a payload into an immutable state root.
+- The channel index is also served from GitHub Pages, generated inside the release run from that
+  run's own fragments and deployed by its own job. Nothing generated is committed.
+- A rendered restore entrypoint, `.universe-airlock/restore.sh` with its PowerShell twin, is
+  committed and drift-checked against the scope in `universe.toml`.
 - The publishing workflow is rendered from `universe.toml` and drift-checked rather than
   written by hand.
-- A branch channel that carries a Conda dependency edge resolves offline with Pixi in the repository's
-  tests. The published `v0.1.0` branch channel does not yet resolve offline; see the Unreleased
-  entry above.
+- The published branch channel resolves offline: three Pixi projects, one per package, each ran
+  `pixi install --offline` against a fresh clone of `channel` and installed. The build is not
+  reproducible, so a later build replaces these filenames rather than reproducing them.
 - A repository check keeps this section, the workspace version, the recipe version, and the
   newest `v*` tag in agreement, so a later release cannot drift by memory.
 - Created the standalone Universe monorepo scaffold with `universe-core`,

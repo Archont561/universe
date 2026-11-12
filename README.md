@@ -20,13 +20,14 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 > `universe-airlock`, `universe-kit`, the umbrella `universe` facade, and the separately
 > installable `universe-airlock-bootstrap` — to prefix.dev, the Git branch channel, and as
 > GitHub Release assets. An earlier dispatch (run
-> `43061441347`) proved force-replacement with read-write-delete access. The annotated tag run
-> `43073492712` is green, and the rebuilt channel's destinations read back the same digests. The
-> branch channel solves offline from a clone with the network denied. The same channel is served as
-> a static index on GitHub Pages at <https://archont561.github.io/universe>: the release workflow
+> `43061441347`) proved force-replacement with read-write-delete access, and the earlier annotated
+> tag's run `43073492712` was green; that tag was deleted and `v0.1.0` is cut again from this
+> work, whose notes are [`docs/releases/0.1.0.md`](docs/releases/0.1.0.md). The branch channel
+> solves offline from a clone with the network denied. The same channel is served as a static
+> index on GitHub Pages at <https://archont561.github.io/universe>: the release workflow
 > regenerates the tree from the release's own fragments and deploys it with
-> `actions/deploy-pages`, so no generated tree is committed. GitHub Pages is not enabled on this
-> repository yet, so that job has not run and the address serves nothing. This repository also
+> `actions/deploy-pages`, so no generated tree is committed. Pages is enabled for actions builds,
+> so that deployment is the release's own job rather than a manual step. This repository also
 > commits a rendered restore entrypoint, `.universe-airlock/restore.sh`, pinned at a `bootstrap`
 > ref that carries the bootstrapper binary, and `universe airlock pack` writes the closed payload
 > that binary restores. Run against the real remote, the entrypoint clones the pin, hands over,

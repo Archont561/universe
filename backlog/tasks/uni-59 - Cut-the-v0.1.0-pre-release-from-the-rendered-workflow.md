@@ -65,6 +65,25 @@ a repository check rather than a release-time computation.
 
 ## Notes
 <!-- SECTION:NOTES.BEGIN -->
+- **2026-11-13 — the tag was deleted and re-cut, so criterion 2's evidence is superseded.** The
+  owner deleted the annotated `v0.1.0` tag and asked for it to be moved onto the work that
+  followed it: the `sandbox` verb (`UNI-74`), the committed restore entrypoint, and the hosted
+  index (`UNI-75`). The re-cut tag lives in this repository now, and the notes for it are
+  `docs/releases/0.1.0.md` rewritten rather than patched — the previous tree said no restore
+  entrypoint was committed and named three packages, and the tag now carries four and does
+  commit one.
+
+  What this changes in the record. Criterion 2 is re-earned rather than carried over: the tag
+  subject is again `head -1 docs/releases/0.1.0.md`, and the tag-triggered run is the evidence,
+  not run `43073492712`. That run belonged to the deleted tag and stays in the Backlog as
+  history. Criterion 4's digests describe the rebuild `43230051708` and are unchanged as a
+  description of that run; the re-cut tag's build supersedes their bytes, and the property they
+  establish — a branch clone solving offline with no `libgcc` edge — is what carries forward.
+
+  What does not change. Criterion 5 and DoD #3 still need a clean-container transcript, and no
+  container runtime exists here. `UNI-53` DoD #1 stays open for the same reason. Nothing in the
+  move ticks a box that a run has not earned.
+
 - **2026-11-08 — the publish path can be rehearsed without a tag, and how far that goes.**
   `crates/universe-kit/tests/publish_mock.rs` runs the real `publish-artifacts` verb against a
   destination the test owns: the manifest is parsed, the fragment is read, the artifact's
