@@ -34,7 +34,8 @@ All notable changes to Universe are recorded here.
   `github-pages` environment GitHub creates allows the default branch, so a tag release needs a
   `v*` deployment tag rule added to it once. Until that rule exists the artifact uploads and the
   deployment is refused with `Tag "v0.1.0" is not allowed to deploy to github-pages due to
-  environment protection rules`.
+  environment protection rules`. That is what the first tag run hit; once the rule was added,
+  the next tag run's `publish / pages-deploy` went green and the address serves the channel.
 
 - A built package can be tried in a sandbox. `universe-airlock sandbox --package <file.conda> …
   -- <command>` installs the set into a prefix and runs the command inside it; `--mirror <dir>`

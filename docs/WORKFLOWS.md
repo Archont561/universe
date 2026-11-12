@@ -55,7 +55,7 @@ Eight things are worth noticing, because they are the design:
   and a release is a tag, so the environment needs a tag rule for the pattern the release uses
   (`v*`) before a tag run can deploy. Without it the upload succeeds and the deployment is
   refused with `Tag "v0.1.0" is not allowed to deploy to github-pages due to environment
-  protection rules`.
+  protection rules`. This repository added that rule, and the next tag run deployed.
 - **GitHub Releases is implicit.** A declared `releases`-kind store receives every package
   with `release = true` without the package naming it; `release = false` opts out. The job
   holds `contents: write` and exports the store's `GITHUB_TOKEN`, and the rolling release is
