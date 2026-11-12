@@ -202,8 +202,18 @@ def test_the_tag_run_evidence_is_recorded() -> None:
     assert "- [x] #2" in notes, "criterion 2 is not ticked after the tag was cut"
     assert "https://github.com/Archont561/universe/actions/runs/43073492712" in notes
     assert "No `v0.1.0` tag is cut" not in readme, "README still claims no tag"
+    # Corrected 2026-11-13: the tag was deleted and re-cut, and by then `universe.toml` declared a
+    # restore scope, so the notes no longer say no entrypoint is committed. They say the opposite,
+    # and the entrypoint's own files have to be in the tree for that to be true.
     notes_doc = (ROOT / "docs" / "releases" / "0.1.0.md").read_text(encoding="utf-8")
-    assert "no restore entrypoint is committed at this tag" in notes_doc
+    assert "no restore entrypoint" not in notes_doc, (
+        "the notes still say no entrypoint is committed, which the tag no longer makes true"
+    )
+    assert "committed at this tag" in notes_doc
+    for entrypoint in ("restore.sh", "restore.ps1"):
+        assert (ROOT / ".universe-airlock" / entrypoint).is_file(), (
+            f"the notes claim a committed entrypoint and {entrypoint} is absent"
+        )
 
 
 def test_the_release_records_name_all_three_packages() -> None:
