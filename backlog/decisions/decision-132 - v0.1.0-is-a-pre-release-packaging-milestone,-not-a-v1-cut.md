@@ -101,7 +101,7 @@ with `release = true` without the package naming it. `decision-127` records the 
 to how its implicit rule is implemented. The v1 gate in `decision-119` is still not
 superseded: this adds a package destination, not a product surface. `UNI-59` AC#4 and DoD #3
 are reworded to cover all three destinations and stay open until each is verified after the
-tag run. No `v0.1.0` tag is cut by this amendment.
+tag run. The tag was cut afterwards; the amendment on the annotated tag records it.
 
 The first re-watch after the amendment created the rolling GitHub Release
 `packages-linux-64 artifacts` with the `universe-airlock` asset, but its verdict was red:
@@ -128,7 +128,7 @@ unchanged; it replaces one snapshot tree and takes no overwrite flag. This does 
 `universe release` journal semantics, does not fix the non-reproducible-artifact defect, and
 does not supersede the v1 gate in `decision-119`. A green verdict proves that one run's three
 destinations agree on one digest; it does not prove that every rebuild produces those bytes.
-No `v0.1.0` tag is cut by this amendment.
+The tag was cut afterwards; the amendment on the annotated tag records it.
 
 The first re-watch after this change moved the failure rather than closing it. Run
 `42920755513` from `main` at `f86617cf` had green `publish / build`, `publish / releases` and
@@ -143,7 +143,7 @@ with `publish / prefix-dev` and `publish / verdict` successful. This proves that
 prefix.dev channel accepts the forced upload; it does not prove that the current Repository
 Access entry can force-replace an occupied filename, and it does not make the build
 reproducible. `UNI-59` records both attempts, the common artifact and digests, and the
-still-open acceptance criteria. No `v0.1.0` tag is cut.
+still-open acceptance criteria. The tag was cut afterwards; the amendment on the annotated tag records it.
 
 ## Amendment: the main CLI packages are in scope
 
@@ -165,7 +165,7 @@ This does not supersede `decision-119`, does not close `UNI-15`, `UNI-16`, or `U
 does not make the artifacts reproducible. Those tasks still own four-platform packaging and
 the integrated v1 release; one `linux-64` pre-release is not their completion. `UNI-59` AC#4
 is reworded to cover all three packages at all three destinations and stays open until the
-tag run proves them. No `v0.1.0` tag is cut by this amendment.
+tag run proves them. The tag was cut afterwards; the amendment on the annotated tag records it.
 
 ## Amendment: one command per snapshot store, and the three-package re-watch
 
@@ -196,7 +196,7 @@ branch --remote ... --package universe-airlock --package universe-kit --package 
 and `--force` still applies only to them. A Rust unit test, a BDD scenario and a Python scope
 test were red before the renderer changed, and the workflows were re-rendered. `UNI-59`,
 `decision-126`, `UNI-11`, `CHANGELOG.md` and the prose docs record the evidence and the
-correction. No `v0.1.0` tag is cut.
+correction. The tag was cut afterwards; the amendment on the annotated tag records it.
 
 ## Amendment: the corrected re-watch, and force-replacement proven
 

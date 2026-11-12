@@ -103,3 +103,26 @@ fn a_recipe_with_no_about_section_is_refused() {
     let findings = lint_recipe(&fixtures(), text, RecipeRules::default());
     assert!(codes(&findings).contains(&"recipe.about.missing"));
 }
+
+// The published `v0.1.0` packages carried `libgcc >=16` in their repodata because the recipe
+// took `${{ stdlib('c') }}` and rattler-build added the C standard library's run export.
+// A consumer that clones the branch channel and runs `pixi install --offline` then fails on
+// `libgcc >=16`, which the channel does not carry and cannot fetch. The recipe is where that
+// dependency is decided, so the recipe is where it is refused.
+#[test]
+fn a_recipe_that_leaks_the_c_stdlib_run_exports_is_refused() {
+    let findings = lint("leaked-c-run-exports.yaml", RecipeRules::default());
+    assert_eq!(codes(&findings), ["recipe.run_exports.leaked"]);
+    assert_eq!(
+        findings[0].path(),
+        Some("requirements.ignore_run_exports.by_name")
+    );
+}
+
+#[test]
+fn a_recipe_that_suppresses_the_c_stdlib_run_exports_passes() {
+    assert_eq!(
+        lint("suppressed-c-run-exports.yaml", RecipeRules::default()),
+        Vec::new()
+    );
+}

@@ -28,6 +28,14 @@ build:
           - copy /Y "target\\release\\universe-kit.exe" "%LIBRARY_BIN%\\universe-kit.exe"
 
 requirements:
+  # The C standard library is a build dependency here; every symbol these binaries need at
+  # run time comes from the C library that the virtual `__glibc` package already stands for.
+  # Accepting its run export would write `libgcc` into `depends`, and a static channel does
+  # not carry libgcc, so a consumer restoring that channel offline cannot solve the package.
+  # `recipe.run_exports.leaked` refuses a recipe that takes the stdlib without saying this.
+  ignore_run_exports:
+    by_name:
+      - libgcc
   build:
     - rust >=1.99.0,<2
     - ${{ compiler('c') }}

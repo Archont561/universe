@@ -1,0 +1,28 @@
+schema_version: 1
+
+context:
+  version: "1.2.3"
+
+package:
+  name: example
+  version: ${{ version }}
+
+source:
+  - path: .
+
+build:
+  number: 0
+  script:
+    - echo "built"
+
+requirements:
+  ignore_run_exports:
+    by_name:
+      - libgcc
+  build:
+    - ${{ stdlib('c') }}
+
+about:
+  license: MIT
+  license_file: LICENSE
+  summary: a recipe that suppresses the C standard library's run exports
