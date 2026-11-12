@@ -107,3 +107,10 @@ fn rendering_is_producer_work(facade: Facade) {
 fn publishing_the_bootstrap_ref_is_producer_work(facade: Facade) {
     let _ = facade;
 }
+#[scenario(
+    path = "features/routing.feature",
+    name = "Packing the payload a restore consumes is producer work"
+)]
+fn packing_the_payload_is_producer_work(facade: Facade) {
+    let _ = facade;
+}

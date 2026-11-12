@@ -161,8 +161,26 @@ reported `[airlock.payload.manifest] cannot read the release manifest` and exite
 payload this project has not published. That last line is the honest end of the lane here:
 `[airlock.delivery]` and `UNI-52` own payload publication.
 
-**This does not close DoD #1.** A run on this host is not a clean container, and saying the
-entrypoint "restores the fixture environment" would be false until a payload exists. DoD #1 and
+**Later the same day, the payload exists.** `universe airlock pack` writes the closed payload
+the bootstrapper reads (`UNI-52`'s notes describe what it does and does not do), and this
+repository's own scope now declares `[airlock.delivery]`. With a payload packed from the four
+packages of release `43252390113`, the same entrypoint ran to completion against the real remote
+and printed:
+
+```text
+restored: 0.1.0
+commit: 991324f5dee0cb02d18ea66e35e1e12206a35b14
+environment: .universe-airlock/state/envs/0.1.0-9ad2990272994a06
+artifacts: 4 (4286054 bytes)
+signature: unsigned
+previous: none
+```
+
+The entrypoint's half of DoD #1 is therefore exercised end to end rather than up to a handover.
+The criterion itself still does not move, and neither does DoD #3's clean-container reading.
+
+**This does not close DoD #1.** A run on this host is not a clean container, and the environment
+above holds the four package files rather than an installed prefix (`UNI-52`). DoD #1 and
 `UNI-59` criterion 5 still need that transcript, and no sealed or Pixi-managed restore is claimed
 (`UNI-55` criterion 5, `UNI-51`).
 <!-- SECTION:NOTES:END -->

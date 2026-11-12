@@ -4,6 +4,24 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- A restore now ends somewhere. `universe airlock pack` writes the closed payload the
+  bootstrapper reads — `universe-release.json` naming every released artifact with its digest,
+  size and destination stores, plus one file per artifact — from what `universe build` produced
+  and from each archive's own `info/index.json`, so the descriptor's identity is the archive's
+  rather than the directory name's. The payload's pin is the `[airlock.developer.restore]`
+  commit, which is the value the entrypoint verifies, so the two cannot disagree; the directory
+  is fixed at `.universe-airlock/payload` because the bootstrapper resolves that path itself.
+  Packing refuses a repository that declares no `[airlock.delivery]` scope, an output the build
+  did not produce, an archive whose index contradicts its file name, and a payload directory
+  holding a file the descriptor does not name — a payload is a closed directory, and the
+  consumer rejects unexpected files. `universe.toml` declares `[airlock.delivery]` now, and the
+  facade routes `airlock pack` to `universe-kit` like the other two producer verbs. Run against
+  this repository's own `bootstrap` pin and the four packages of release `43252390113`, the
+  rendered entrypoint cloned the pin, handed over to the published bootstrapper, verified the
+  payload as `artifacts: 4 (4286054 bytes)` and printed `restored: 0.1.0` for environment
+  `0.1.0-9ad2990272994a06`. That environment holds the four package files; extracting a lock
+  into an installed prefix is still `UNI-52`, so no acceptance criterion of it moves.
+
 - The restore entrypoint this repository commits now hands over to a published binary. The
   generated script `exec`s `universe-airlock-bootstrap` out of the pinned checkout, and nothing
   published a ref that held it: the bootstrapper shipped as a Conda package, which a solver

@@ -26,7 +26,10 @@ use std::path::{Path, PathBuf};
 use serde_json::json;
 use universe_channel::transport::{PushOutcome, Transport};
 use universe_core::diagnostic::{Diagnostic, Envelope, Severity};
-use universe_core::manifest::{AirlockRestore, DEFAULT_RESTORE_DIR, Manifest};
+use universe_core::manifest::{
+    AirlockRestore, DEFAULT_RESTORE_DIR, Manifest, PackageKind, RELEASE_MANIFEST_SCHEMA_VERSION,
+    ReleaseManifest, ReleasedArtifact, ReleasedPackage,
+};
 use universe_core::{CommandOutput, STDOUT_SCHEMA_VERSION};
 
 use crate::git::{Entry, GitTransport};
@@ -65,6 +68,17 @@ const BOOTSTRAP_DESCRIPTOR: &str = "bootstrap.json";
 /// The ref a publish writes when the caller names none.
 const DEFAULT_BOOTSTRAP_BRANCH: &str = "bootstrap";
 
+/// The directory a payload is written into, relative to the project root.
+///
+/// It is not derived from `[airlock.developer.restore] dir`, and that is deliberate: the
+/// bootstrapper resolves its payload root on its own (`payload::default_root`), the rendered
+/// entrypoint does not pass `--payload`, and the two have to name the same directory. A project
+/// that moved its entrypoints elsewhere would otherwise get a payload nothing looks at.
+const PAYLOAD_DIR: &str = ".universe-airlock/payload";
+
+/// The release manifest's file name inside a payload.
+const PAYLOAD_MANIFEST: &str = "universe-release.json";
+
 /// Exit code for a repository that does not match its manifest.
 const DRIFT: u8 = 1;
 
@@ -91,6 +105,8 @@ enum Verb {
     Check,
     /// Publish the stable bootstrap ref the entrypoint clones.
     PublishBootstrap,
+    /// Write the closed payload a bootstrapper restores from.
+    Pack,
 }
 
 /// Parsed options for one `airlock` invocation.
@@ -117,7 +133,8 @@ struct UsageError(String);
 const USAGE_LINE: &str = "usage: universe airlock render [--check] [--output <dir>] \
                           [--root <dir>] [--stdout] [--json]\n       \
                           universe airlock publish-bootstrap --binary <path> [--remote <url>] \
-                          [--branch <name>] [--root <dir>] [--json]";
+                          [--branch <name>] [--root <dir>] [--json]\n       \
+                          universe airlock pack [--output <dir>] [--root <dir>] [--json]";
 
 impl Invocation {
     fn parse(args: &[String]) -> Result<Self, UsageError> {
@@ -141,6 +158,10 @@ impl Invocation {
                 }
                 "publish-bootstrap" if !verb_seen => {
                     invocation.verb = Verb::PublishBootstrap;
+                    verb_seen = true;
+                }
+                "pack" if !verb_seen => {
+                    invocation.verb = Verb::Pack;
                     verb_seen = true;
                 }
                 "--binary" => {
@@ -207,6 +228,11 @@ impl Invocation {
                 "publish-bootstrap needs --binary\n{USAGE_LINE}"
             )));
         }
+        if invocation.verb == Verb::Pack && invocation.print_stdout {
+            return Err(UsageError(format!(
+                "--stdout is only valid for render; pack writes files\n{USAGE_LINE}"
+            )));
+        }
         Ok(invocation)
     }
 
@@ -263,6 +289,12 @@ fn execute(invocation: &Invocation) -> CommandOutput {
         return failure(USAGE, blocking);
     }
 
+    // Packing reads the manifest and the files a build produced; it writes no generated text
+    // and needs no restore scope, so it returns before the renderer decides what exists.
+    if invocation.verb == Verb::Pack {
+        return pack_payload(invocation, &manifest);
+    }
+
     let restore = manifest
         .airlock
         .as_ref()
@@ -284,7 +316,416 @@ fn execute(invocation: &Invocation) -> CommandOutput {
         // Dispatched before the manifest is read: publishing needs no scope to exist, and the
         // first bootstrap ref is published before the scope that pins it does.
         Verb::PublishBootstrap => unreachable!("publish-bootstrap returns before this point"),
+        Verb::Pack => unreachable!("pack returns before the renderer runs"),
     }
+}
+
+/// Write the closed payload a bootstrapper restores from.
+///
+/// The consumer side of this has existed since `UNI-33`: `universe-airlock-bootstrap verify`
+/// reads `universe-release.json`, checks the commit against the pin it was handed, and checks
+/// every artifact's size and digest before anything is activated. Nothing wrote that file, so the
+/// rendered entrypoint cloned the ref, found the bootstrapper, handed over, and stopped at
+/// `[airlock.payload.manifest] cannot read the release manifest`. This is the producer half.
+///
+/// Two things are deliberately not flags on this verb. The pin comes from
+/// `[airlock.developer.restore] commit` — the same value the entrypoint checks — because a
+/// payload naming another commit is refused by the bootstrapper, and a caller typing the pin
+/// twice is a way to get that wrong. The directory is fixed at `.universe-airlock/payload` for
+/// the same class of reason: the bootstrapper resolves that path itself.
+///
+/// The payload is a *closed* directory. A file in it that the descriptor does not name is
+/// refused rather than removed: the consumer rejects unexpected files, and a signature over the
+/// previous manifest would be left describing bytes that are no longer there. Deleting files in
+/// a producer's tree is not this verb's business.
+fn pack_payload(invocation: &Invocation, manifest: &Manifest) -> CommandOutput {
+    let airlock = manifest.airlock.as_ref();
+    // The delivery scope is what says "this project ships a payload". Packing a repository that
+    // never declared one would be inventing a lane, so the refusal names the declaration.
+    if airlock
+        .and_then(|airlock| airlock.delivery.as_ref())
+        .is_none()
+    {
+        return failure(
+            USAGE,
+            vec![
+                Diagnostic::new(
+                    Severity::Error,
+                    "airlock.pack.scope",
+                    "no [airlock.delivery] scope is declared; a payload is what that scope ships",
+                )
+                .with_path(invocation.manifest_path().display().to_string()),
+            ],
+        );
+    }
+    // The commit the payload is *for*: a release manifest naming any other commit is refused by
+    // the bootstrapper on the target, which is the worst place to find out.
+    let Some(pin) = airlock
+        .and_then(|airlock| airlock.developer.as_ref())
+        .and_then(|developer| developer.restore.as_ref())
+        .map(|restore| restore.commit.clone())
+    else {
+        return failure(
+            USAGE,
+            vec![
+                Diagnostic::new(
+                    Severity::Error,
+                    "airlock.pack.commit",
+                    "no [airlock.developer.restore] commit is declared, and a payload names the \
+                     pin it restores",
+                )
+                .with_path("airlock.developer.restore.commit"),
+            ],
+        );
+    };
+
+    let mut errors: Vec<Diagnostic> = Vec::new();
+    let mut packages: Vec<ReleasedPackage> = Vec::new();
+    let mut sources: Vec<PathBuf> = Vec::new();
+    for package in &manifest.packages {
+        // The predicate `audit` uses: a package that is neither released nor published has no
+        // artifact a payload could carry.
+        if !package.release && package.publish.is_empty() {
+            continue;
+        }
+        let mut produced: Vec<PathBuf> = Vec::new();
+        for pattern in &package.outputs {
+            for path in crate::paths::collect(&invocation.root, pattern) {
+                if !produced.contains(&path) {
+                    produced.push(path);
+                }
+            }
+        }
+        if produced.is_empty() {
+            errors.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "airlock.pack.output",
+                    format!(
+                        "package '{}' ships but produced none of {}",
+                        package.name,
+                        package.outputs.join(", ")
+                    ),
+                )
+                .with_path(format!("packages[{}].outputs", package.name)),
+            );
+            continue;
+        }
+        let mut artifacts: Vec<ReleasedArtifact> = Vec::new();
+        let mut version: Option<String> = None;
+        for path in produced {
+            if package.kind != PackageKind::Conda {
+                errors.push(
+                    Diagnostic::new(
+                        Severity::Error,
+                        "airlock.pack.kind",
+                        format!(
+                            "package '{}' is a {} package, and a payload currently carries Conda \
+                             artifacts only",
+                            package.name,
+                            package.kind.as_str()
+                        ),
+                    )
+                    .with_path(format!("packages[{}].kind", package.name)),
+                );
+                continue;
+            }
+            // The descriptor's identity comes from the archive, not from the manifest: one
+            // manifest entry can declare a directory of archives, and they need not be one name.
+            let opened = match universe_conda::open_package(&path) {
+                Ok(opened) => opened,
+                Err(error) => {
+                    errors.push(
+                        Diagnostic::new(
+                            Severity::Error,
+                            "airlock.pack.unreadable",
+                            format!(
+                                "package '{}' produced {}, which cannot be read as an archive: \
+                                 {error}",
+                                package.name,
+                                path.display()
+                            ),
+                        )
+                        .with_path(path.display().to_string()),
+                    );
+                    continue;
+                }
+            };
+            let identity = opened.artifact().id.clone();
+            let filename = path
+                .file_name()
+                .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+            // The bootstrapper copies by file name and reports the identity; an archive built as
+            // one package and published under another's name restores something nobody can name.
+            if !filename.starts_with(&format!("{}-{}-", identity.name, identity.version)) {
+                errors.push(
+                    Diagnostic::new(
+                        Severity::Error,
+                        "airlock.pack.identity",
+                        format!(
+                            "the archive at {filename} calls itself {} {}, which is not what its \
+                             file name says",
+                            identity.name, identity.version
+                        ),
+                    )
+                    .with_path(path.display().to_string()),
+                );
+                continue;
+            }
+            match &version {
+                None => version = Some(identity.version.clone()),
+                Some(existing) if *existing != identity.version => errors.push(
+                    Diagnostic::new(
+                        Severity::Error,
+                        "airlock.pack.version",
+                        format!(
+                            "package '{}' publishes both {existing} and {} artifacts, and a \
+                             release names one version",
+                            package.name, identity.version
+                        ),
+                    )
+                    .with_path(format!("packages[{}].outputs", package.name)),
+                ),
+                Some(_) => {}
+            }
+            // The store list is where the release workflow sends these bytes, in the renderer's
+            // order: the declared stores first, the implicit release destination last.
+            let mut stores = package.publish.clone();
+            if package.release {
+                stores.push("releases".to_owned());
+            }
+            artifacts.push(ReleasedArtifact {
+                filename: filename.clone(),
+                sha256: opened.artifact().digest.clone(),
+                size: opened.artifact().size_bytes,
+                stores,
+            });
+            sources.push(path);
+        }
+        packages.push(ReleasedPackage {
+            name: package.name.clone(),
+            kind: package.kind,
+            version: version.unwrap_or_default(),
+            artifacts,
+        });
+    }
+    if !errors.is_empty() {
+        return failure(USAGE, errors);
+    }
+
+    // Two packages can declare output globs that select the same file name, and a payload
+    // directory cannot hold both. The consumer refuses the collision; so does the producer, here,
+    // rather than after copying.
+    let mut names: Vec<&str> = Vec::new();
+    for artifact in packages.iter().flat_map(|package| package.artifacts.iter()) {
+        if names.contains(&artifact.filename.as_str()) {
+            errors.push(Diagnostic::new(
+                Severity::Error,
+                "airlock.pack.duplicate",
+                format!(
+                    "two packages publish an artifact named {}, and a payload directory cannot \
+                     hold both",
+                    artifact.filename
+                ),
+            ));
+        } else {
+            names.push(&artifact.filename);
+        }
+    }
+    if packages.is_empty() {
+        errors.push(Diagnostic::new(
+            Severity::Error,
+            "airlock.pack.empty",
+            "no package ships an artifact, so there is no payload to write",
+        ));
+    }
+    // One version for the release, because the bootstrapper reports the payload's version once.
+    // A train whose artifacts disagree is refused rather than reported as whichever came first.
+    let mut version: Option<&str> = None;
+    for package in &packages {
+        if package.version.is_empty() {
+            continue;
+        }
+        match version {
+            None => version = Some(package.version.as_str()),
+            Some(existing) if existing != package.version => errors.push(Diagnostic::new(
+                Severity::Error,
+                "airlock.pack.version",
+                format!(
+                    "this payload would mix {existing} and {}; a release names one version",
+                    package.version
+                ),
+            )),
+            Some(_) => {}
+        }
+    }
+    if !errors.is_empty() {
+        return failure(USAGE, errors);
+    }
+
+    let output = invocation
+        .output
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(PAYLOAD_DIR));
+    let output = if output.is_absolute() {
+        output
+    } else {
+        invocation.root.join(output)
+    };
+
+    // A closed directory, checked before anything is written: a foreign file here is either a
+    // stale artifact from an earlier build or a payload someone edited, and both mean the
+    // directory is not what this descriptor is about to say it is.
+    if let Ok(entries) = std::fs::read_dir(&output) {
+        let mut stale: Vec<String> = Vec::new();
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let expected = name == PAYLOAD_MANIFEST || names.contains(&name.as_str());
+            if !expected {
+                stale.push(name);
+            }
+        }
+        if !stale.is_empty() {
+            stale.sort();
+            return failure(
+                USAGE,
+                vec![
+                    Diagnostic::new(
+                        Severity::Error,
+                        "airlock.pack.stale",
+                        format!(
+                            "{} already holds {}, which this payload does not name; a payload is \
+                             a closed directory, so remove them before packing",
+                            output.display(),
+                            stale.join(", ")
+                        ),
+                    )
+                    .with_path(output.display().to_string()),
+                ],
+            );
+        }
+    }
+
+    let release = ReleaseManifest {
+        schema: RELEASE_MANIFEST_SCHEMA_VERSION,
+        version: version.unwrap_or_default().to_owned(),
+        commit: pin.clone(),
+        packages,
+    };
+    let blocking: Vec<Diagnostic> = release
+        .validate()
+        .into_iter()
+        .filter(Diagnostic::is_error)
+        .collect();
+    if !blocking.is_empty() {
+        // The consumer validates this record again, so a record it would refuse is not written.
+        return failure(USAGE, blocking);
+    }
+    let descriptor = match release.to_json() {
+        Ok(text) => format!("{text}\n"),
+        Err(error) => {
+            return failure(
+                USAGE,
+                vec![Diagnostic::new(
+                    Severity::Error,
+                    "airlock.pack.serialize",
+                    format!("cannot write the release manifest: {error}"),
+                )],
+            );
+        }
+    };
+    if let Err(error) = std::fs::create_dir_all(&output) {
+        return failure(
+            USAGE,
+            vec![
+                Diagnostic::new(
+                    Severity::Error,
+                    "airlock.pack.output",
+                    format!("cannot create {}: {error}", output.display()),
+                )
+                .with_path(output.display().to_string()),
+            ],
+        );
+    }
+    let mut copied: usize = 0;
+    let mut bytes: u64 = 0;
+    for (artifact, source) in release
+        .packages
+        .iter()
+        .flat_map(|package| package.artifacts.iter())
+        .zip(sources.iter())
+    {
+        if let Err(error) = std::fs::copy(source, output.join(&artifact.filename)) {
+            return failure(
+                USAGE,
+                vec![
+                    Diagnostic::new(
+                        Severity::Error,
+                        "airlock.pack.copy",
+                        format!("cannot copy {} into the payload: {error}", source.display()),
+                    )
+                    .with_path(source.display().to_string()),
+                ],
+            );
+        }
+        copied += 1;
+        bytes += artifact.size;
+    }
+    if let Err(error) = std::fs::write(output.join(PAYLOAD_MANIFEST), &descriptor) {
+        return failure(
+            USAGE,
+            vec![
+                Diagnostic::new(
+                    Severity::Error,
+                    "airlock.pack.write",
+                    format!("cannot write the release manifest: {error}"),
+                )
+                .with_path(output.join(PAYLOAD_MANIFEST).display().to_string()),
+            ],
+        );
+    }
+
+    let digest = universe_workflow::sha256::sha256_hex(descriptor.as_bytes());
+    let version = release.version.clone();
+    let packages = release.packages.len();
+    if invocation.json {
+        let envelope: Envelope<serde_json::Value> = Envelope::new(
+            STDOUT_SCHEMA_VERSION,
+            "airlock pack",
+            true,
+            json!({
+                "output": output.display().to_string(),
+                "commit": release.commit,
+                "version": version,
+                "packages": packages,
+                "artifacts": copied,
+                "bytes": bytes,
+                "sha256": digest,
+            }),
+            Vec::new(),
+            Vec::new(),
+        );
+        return CommandOutput::new(
+            format!(
+                "{}\n",
+                envelope
+                    .to_json()
+                    .expect("the airlock envelope always serializes")
+            ),
+            String::new(),
+            0,
+        );
+    }
+    CommandOutput::new(
+        format!(
+            "packed {copied} artifact(s) from {packages} package(s) {version} into {} \
+             for commit {} (sha256:{digest}, {bytes} bytes)\n",
+            output.display(),
+            release.commit
+        ),
+        String::new(),
+        0,
+    )
 }
 
 /// Publish the ref a consumer's entrypoint clones.
@@ -562,6 +1003,7 @@ fn settled(invocation: &Invocation, manifest: &Manifest) -> CommandOutput {
         .collect();
     match invocation.verb {
         Verb::PublishBootstrap => unreachable!("publish-bootstrap returns before this point"),
+        Verb::Pack => unreachable!("pack returns before the renderer runs"),
         Verb::Render => {
             let mut removed = String::new();
             for file in &stale {
