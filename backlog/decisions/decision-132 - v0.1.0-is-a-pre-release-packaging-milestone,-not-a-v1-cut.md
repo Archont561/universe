@@ -283,6 +283,37 @@ absent `[airlock.developer.restore]` scope would not enable; `UNI-55`, `UNI-15`,
 `UNI-40` and `UNI-53` DoD #1 stay open on the same scope. `UNI-59` stays `In Progress`. No
 further tag is cut, and no sealed, Pixi-managed or clean-container environment is claimed.
 
+## Amendment: a fourth package joins the train, and it stays separately installable
+
+**This widens the published set by one artifact, on the owner's direction, and records the
+packaging decision `UNI-55` asks for rather than inventing one.** The checkpoint shipped three
+CLIs while the repository described a fourth artifact, `universe-airlock-bootstrap`, that no
+recipe task built and no workflow published. That gap is why `v0.1.0` has no restore entrypoint:
+the entrypoint a consumer runs fetches a pinned commit and executes the bootstrapper from that
+checkout, and no ref carried one. `UNI-55` is the task that closes it, and the owner chose to
+take it now rather than after the tag.
+
+The decision is **separately installable**, not a bundled asset of the consumer. Three reasons,
+in the order they bind:
+
+- It runs before anything is restored, so it may not depend on the thing it installs
+  (`decision-115`). A bundled asset would be a file inside the environment whose absence it is
+  supposed to repair.
+- It shares the edition's version and train and therefore needs no independent version line
+  (`decision-122`); a package is the smallest thing that can carry a version and be verified by
+  digest at all three destinations.
+- It must stay small and network-free, and an empty `requirements` block is a claim a reader can
+  check. The recipe declares no run dependency at all, and the umbrella `universe` facade does
+  not depend on the bootstrapper, so installing the facade never pulls a binary that has to run
+  before the facade exists.
+
+`universe.toml` now declares four `linux-64` packages, `release.yml` publishes the fourth at all
+three destinations, and `docs/releases/0.1.0.md` names it as separately installable with no
+runtime dependency. That agreement is `UNI-55` criterion 4's evidence. `UNI-59` criterion 4's
+digests describe run `43230051708`; a republish that adds an artifact replaces the channel
+snapshot again, so the run that supersedes them is recorded in `UNI-55` and `UNI-59` rather than
+assumed here.
+
 ## Consequences
 
 - The v1 gate continues to require all six surfaces; `v0.1.0` is a checkpoint on the Conda

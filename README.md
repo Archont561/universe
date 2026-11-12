@@ -16,9 +16,10 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 
 > Status: pre-release `0.x`. The distribution design is settled and recorded in
 > [`backlog/decisions`](backlog/decisions); implementation is tracked in
-> [`backlog/tasks`](backlog/tasks). **Three `linux-64` Conda packages are published by the
-> `v0.1.0` tag** — `universe-airlock`, `universe-kit` and the umbrella `universe` facade — to
-> prefix.dev, the Git branch channel, and as GitHub Release assets. An earlier dispatch (run
+> [`backlog/tasks`](backlog/tasks). **Four `linux-64` Conda packages are published** —
+> `universe-airlock`, `universe-kit`, the umbrella `universe` facade, and the separately
+> installable `universe-airlock-bootstrap` — to prefix.dev, the Git branch channel, and as
+> GitHub Release assets. An earlier dispatch (run
 > `43061441347`) proved force-replacement with read-write-delete access. The annotated tag run
 > `43073492712` is green, and all three destinations read back the same three digests. The
 > offline branch solve with network denied and a clean-container restore transcript are still
@@ -86,11 +87,18 @@ format (`decision-122`). One tag binds every artifact.
 | Edition | Artifacts | Role |
 | :-- | :-- | :-- |
 | **Universe** | `universe-kit`, `universe` (umbrella) | connected owner and producer: validate, build, verify, publish |
-| **Universe Airlock** | `universe-airlock` | finite offline consumer: restore and verify a pinned snapshot |
+| **Universe Airlock** | `universe-airlock`, `universe-airlock-bootstrap` | finite offline consumer: restore and verify a pinned snapshot |
 
 `universe-airlock-bootstrap` is a phase of the Airlock edition rather than an edition of its own: a
 separate artifact because bootstrap readiness and sealed offline readiness are different promises
 (`decision-115`), not a separate product.
+
+It is **separately installable** and ships on the same release train: same version, same three
+destinations, no independent version line (`UNI-55`). Its declaration is deliberately empty of run
+requirements — it has **no runtime dependency** on `universe-airlock`, on the producer, or on any
+registry tooling, because it is what runs before there is an environment to restore. The umbrella
+`universe` facade does not depend on it either, so installing the facade never pulls a binary that
+must run before the facade exists.
 
 ## Repository map
 

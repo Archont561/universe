@@ -630,4 +630,14 @@ a repository check rather than a release-time computation.
   four-platform work of `UNI-15` and `UNI-16`, and `UNI-53` DoD #1 stay open on the same
   transcript and the same scope. No further tag is cut, and no Pixi-managed, sealed or
   clean-container environment is claimed.
+- **2026-11-12 — the train gains a fourth package, which is what a restore entrypoint needs.**
+  The channel that solved offline carried three packages and no bootstrapper, so criterion 5's
+  restore entrypoint had nothing to fetch: it clones a pinned commit and runs
+  `universe-airlock-bootstrap` from that checkout. `UNI-55` now declares that artifact in
+  `universe.toml`, and the next `release.yml` run publishes it at all three destinations
+  (`decision-132` records the packaging decision: separately installable, same version and
+  train, no runtime dependency). Criterion 4's digests describe run `43230051708`; the run that
+  adds the fourth artifact replaces the channel snapshot and the three filenames again, so its
+  read-back is recorded here and in `UNI-55` rather than assumed. Criterion 5 and DoD #3 do not
+  move: they still need a clean-container transcript, which this workspace cannot produce.
 <!-- SECTION:NOTES.END -->
