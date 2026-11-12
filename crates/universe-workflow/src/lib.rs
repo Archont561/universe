@@ -476,6 +476,19 @@ const fn overwrites_changed_digest(kind: StoreKind) -> bool {
     matches!(kind, StoreKind::PrefixDev | StoreKind::Releases)
 }
 
+/// The directory a Pages deployment is generated into, relative to the runner's root.
+///
+/// It is not `output`: the artifacts the build uploaded already live there, and Pages would then
+/// serve the whole build tree — receipts, fragments, and every platform's archives — instead of
+/// the channel a solver reads.
+pub const PAGES_OUTPUT: &str = "output/pages";
+
+/// The GitHub environment a Pages deployment records itself in when the store names none.
+///
+/// The environment is not decoration: GitHub derives the deployment URL from it, and a
+/// deployment that declares none is refused by the Pages API.
+pub const PAGES_ENVIRONMENT: &str = "github-pages";
+
 /// The remote a rendered branch publish pushes to.
 ///
 /// The manifest names the store, not its URL: for a branch store the remote *is* the
@@ -718,8 +731,77 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         ));
     }
 
+    // The Pages deployment comes after the stores: what it serves is the index of what they
+    // accepted, so a deployment that ran first would publish a tree describing artifacts the
+    // release had not yet published.
+    jobs.extend(pages_jobs(manifest));
+
     let needs: Vec<String> = jobs.iter().map(|job| job.id.clone()).collect();
     jobs.push(Job::new("verdict", "publish", needs).verdict());
+    jobs
+}
+
+/// The GitHub Pages deployment of the channel index, when a store asks for one.
+///
+/// Two jobs, because the actions need different privileges and `decision-128` allows one write
+/// scope per job: `pages` renders the tree and uploads it as the Pages artifact, and
+/// `pages-deploy` publishes what was uploaded. The split is also what the actions themselves
+/// document, and it means a rendering failure never reaches a deployment.
+///
+/// The tree is *generated here* rather than committed: a second copy of the channel in the
+/// repository would be a copy that can drift from the one the stores hold, and the point of the
+/// site is to serve exactly what a release published.
+fn pages_jobs(manifest: &Manifest) -> Vec<Job> {
+    let mut jobs = Vec::new();
+    for store in manifest.stores.iter().filter(|store| store.pages) {
+        let url = store.url.as_deref().unwrap_or_default();
+        // `configure-pages` before the index is generated, not after: its base-path output is
+        // what a project page served under a subpath has to be told, and a failure there belongs
+        // before the work rather than after it.
+        let generate = checkout_and_pixi(
+            Job::new(&store.name, "publish", vec!["build".to_owned()])
+                .with_timeout(20)
+                .with_permissions(&[("pages", "write"), ("id-token", "write")])
+                .with_step(Step::uses(universe_assets::CONFIGURE_PAGES))
+                .with_step(Step::uses_with(
+                    universe_assets::DOWNLOAD_ARTIFACT,
+                    &[
+                        ("pattern", "universe-*"),
+                        ("merge-multiple", "true"),
+                        ("path", ARTIFACT_PATH),
+                    ],
+                ))
+                .with_step(Step::Run {
+                    label: "Render the channel the site serves".to_owned(),
+                    command: verb(&format!(
+                        "index --output {PAGES_OUTPUT} --base-url {url} --json"
+                    )),
+                })
+                .with_step(Step::uses_with(
+                    universe_assets::UPLOAD_PAGES_ARTIFACT,
+                    &[("path", PAGES_OUTPUT)],
+                )),
+        );
+        let environment = store
+            .environment
+            .as_deref()
+            .unwrap_or(PAGES_ENVIRONMENT)
+            .to_owned();
+        let deploy = Job::new(
+            &format!("{}-deploy", store.name),
+            "publish",
+            vec![store.name.clone()],
+        )
+        .with_timeout(10)
+        .with_environment(&environment)
+        // A Pages deployment authenticates with the run's own identity, so it holds an
+        // `id-token: write` exchange and the `pages` resource write — and no repository
+        // content, which is why it needs no checkout.
+        .with_permissions(&[("pages", "write"), ("id-token", "write")])
+        .with_step(Step::uses(universe_assets::DEPLOY_PAGES));
+        jobs.push(generate);
+        jobs.push(deploy);
+    }
     jobs
 }
 
@@ -1157,6 +1239,63 @@ writable = true
 auth = "token"
 secrets = ["GITHUB_TOKEN"]
 verifier = "registry"
+"#;
+
+    /// The three `v0.1.0` destinations plus a GitHub Pages store, spelled as a project that
+    /// serves its channel from Pages would spell them.
+    ///
+    /// A Pages store is `static` and not writable: nothing uploads to it. The tree it serves is
+    /// generated from what the other stores accepted, which is why it carries no packages of its
+    /// own and why its `url` is what a consumer's solver points at.
+    const PAGES_STORE: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+repository = "https://github.com/someone/example"
+
+[[packages]]
+name = "example-airlock"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-airlock --version"]
+publish = ["prefix-dev", "branch"]
+release = true
+
+[[stores]]
+name = "prefix-dev"
+kind = "prefix-dev"
+channel = "someone/channel"
+writable = true
+auth = "oidc"
+verifier = "registry"
+
+[[stores]]
+name = "branch"
+kind = "branch"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "file"
+
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "someone/example"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
+
+[[stores]]
+name = "pages"
+kind = "static"
+writable = false
+needs_index = true
+url = "https://someone.github.io/example"
+pages = true
 "#;
 
     fn manifest() -> Manifest {
@@ -1720,6 +1859,143 @@ verifier = "registry"
                 );
             }
         }
+    }
+
+    /// The body of one job in one rendered file, from its `name:` line to the next job's.
+    fn job_body<'a>(file: &'a str, id: &str) -> &'a str {
+        file.split(&format!("name: publish / {id}\n"))
+            .nth(1)
+            .unwrap_or_else(|| panic!("no job named {id}"))
+            .split("name: publish /")
+            .next()
+            .expect("a job body")
+    }
+
+    /// The rendered publish file, and nothing else.
+    fn publish_file(text: &str) -> String {
+        let manifest = Manifest::from_toml(text).expect("the manifest parses");
+        render(&manifest, text)
+            .expect("renders")
+            .files
+            .into_iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content
+    }
+
+    #[test]
+    fn a_pages_store_renders_a_deployment_and_no_publish_job() {
+        // Nothing uploads to a Pages site: the deployment publishes a tree that is *generated*
+        // from what the other stores accepted. Rendering a `publish` step for it would send the
+        // channel to a verb with no implementation behind that store kind.
+        let publish = publish_file(PAGES_STORE);
+
+        assert!(
+            publish.contains("publish-artifacts --store prefix-dev"),
+            "the other stores stopped publishing:\n{publish}"
+        );
+        assert!(
+            !publish.contains("--store pages"),
+            "a Pages store was rendered as a byte destination:\n{publish}"
+        );
+        assert!(
+            publish.contains("name: publish / pages"),
+            "no Pages job was rendered:\n{publish}"
+        );
+        assert!(
+            publish.contains("name: publish / pages-deploy"),
+            "no Pages deployment was rendered:\n{publish}"
+        );
+    }
+
+    #[test]
+    fn the_pages_job_generates_the_index_from_the_build_it_depends_on() {
+        // The tree the site serves is `universe index`'s output, generated in the job from the
+        // artifacts the build uploaded — not a directory committed to the repository, which
+        // would be a second copy of the channel that can drift from the one the stores hold.
+        let publish = publish_file(PAGES_STORE);
+        let pages = job_body(&publish, "pages");
+
+        assert!(
+            pages.contains("needs: [build]"),
+            "the Pages job does not wait for the build:\n{pages}"
+        );
+        assert!(
+            pages.contains("download-artifact"),
+            "the Pages job does not download the built artifacts:\n{pages}"
+        );
+        assert!(
+            pages.contains(
+                "index --output output/pages --base-url https://someone.github.io/example"
+            ),
+            "the Pages job does not generate the index at the store's own URL:\n{pages}"
+        );
+        assert!(
+            pages.contains("actions/upload-pages-artifact@"),
+            "the Pages job does not upload a Pages artifact:\n{pages}"
+        );
+        assert!(
+            pages.contains("configure-pages@"),
+            "the Pages job does not configure Pages, so a repository with no site fails at deploy time instead of here:\n{pages}"
+        );
+        assert!(
+            !pages.contains("publish"),
+            "the Pages job runs a publish verb:\n{pages}"
+        );
+    }
+
+    #[test]
+    fn the_deployment_is_its_own_job_with_the_privileges_it_needs() {
+        // `pages: write` and `id-token: write` belong to the deployment, not to the job that
+        // renders a directory. A second write scope on one job is what `MultipleWriteScopes`
+        // refuses, so the split is also what keeps the renderer's own rule satisfied.
+        let publish = publish_file(PAGES_STORE);
+        let deploy = job_body(&publish, "pages-deploy");
+
+        assert!(
+            deploy.contains("needs: [pages]"),
+            "the deployment does not wait for the artifact:\n{deploy}"
+        );
+        assert!(
+            deploy.contains("pages: write") && deploy.contains("id-token: write"),
+            "the deployment lacks the scopes `deploy-pages` needs:\n{deploy}"
+        );
+        assert!(
+            deploy.contains("deploy-pages@"),
+            "the deployment runs no deployment action:\n{deploy}"
+        );
+        assert!(
+            deploy.contains("environment: github-pages"),
+            "the deployment declares no environment, so the deployment URL is not recorded:\n{deploy}"
+        );
+        assert!(
+            !deploy.contains("pixi run"),
+            "the deployment job pays for a checkout and a toolchain it does not use:\n{deploy}"
+        );
+    }
+
+    #[test]
+    fn a_project_without_a_pages_store_renders_no_pages_job() {
+        let publish = publish_file(THREE_STORES);
+        assert!(
+            !publish.contains("pages"),
+            "a project that declares no Pages store got a Pages job:\n{publish}"
+        );
+    }
+
+    #[test]
+    fn the_verdict_waits_for_the_deployment() {
+        // A verdict that did not need the deployment would report the release green while the
+        // site was still the previous one.
+        let publish = publish_file(PAGES_STORE);
+        let verdict = publish
+            .split("name: publish / verdict")
+            .nth(1)
+            .expect("the verdict job");
+        assert!(
+            verdict.contains("pages-deploy") || publish.contains("needs: [pages-deploy]"),
+            "the verdict does not wait for the deployment:\n{publish}"
+        );
     }
 
     #[test]

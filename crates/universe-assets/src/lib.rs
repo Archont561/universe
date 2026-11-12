@@ -64,11 +64,38 @@ pub const UPLOAD_ARTIFACT: &str =
 pub const DOWNLOAD_ARTIFACT: &str =
     "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2";
 
+/// `actions/configure-pages`, pinned.
+///
+/// A Pages deployment needs the site configured before it uploads: the action reads (and, when
+/// the repository allows it, enables) the site for GitHub Actions and exposes its base path. A
+/// workflow that skipped it would render, pass its own checks, and fail on the tag at the
+/// deployment step — the failure this repository keeps paying for in places the gates cannot see.
+pub const CONFIGURE_PAGES: &str =
+    "actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0";
+
+/// `actions/upload-pages-artifact`, pinned.
+///
+/// It packs a directory into the artifact Pages serves, and it is the only supported way to hand
+/// a tree to `deploy-pages`: the deployment action reads the artifact by that exact name.
+pub const UPLOAD_PAGES_ARTIFACT: &str =
+    "actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0";
+
+/// `actions/deploy-pages`, pinned.
+pub const DEPLOY_PAGES: &str =
+    "actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1";
+
+/// The artifact name `deploy-pages` looks for.
+///
+/// It is not a choice: the deployment action resolves this name and nothing else, so an upload
+/// under another name produces a deployment that finds nothing.
+pub const PAGES_ARTIFACT: &str = "github-pages";
+
 #[cfg(test)]
 mod tests {
     use super::{
-        CHECKOUT, DOWNLOAD_ARTIFACT, PIXI_VERSION, RUST_CACHE, SETUP_PIXI, UPLOAD_ARTIFACT,
-        VERSION, WORKFLOW_TEMPLATE, portal_assets,
+        CHECKOUT, CONFIGURE_PAGES, DEPLOY_PAGES, DOWNLOAD_ARTIFACT, PIXI_VERSION, RUST_CACHE,
+        SETUP_PIXI, UPLOAD_ARTIFACT, UPLOAD_PAGES_ARTIFACT, VERSION, WORKFLOW_TEMPLATE,
+        portal_assets,
     };
 
     /// The figures this repository builds its environment with, read at compile time.
@@ -135,6 +162,9 @@ mod tests {
             RUST_CACHE,
             UPLOAD_ARTIFACT,
             DOWNLOAD_ARTIFACT,
+            CONFIGURE_PAGES,
+            UPLOAD_PAGES_ARTIFACT,
+            DEPLOY_PAGES,
         ] {
             let reference = action.split('@').nth(1).expect("ref");
             let sha = reference.split_whitespace().next().expect("sha");

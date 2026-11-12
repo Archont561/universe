@@ -4,6 +4,20 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- The channel has a hosted index. A `static` store that declares `pages = true` (and must also be
+  `writable = false`, `needs_index = true`, and name its `url`) makes `release.yml` render two
+  more jobs: `<store>` downloads the release's own build artifacts, runs `universe index
+  --output output/pages --base-url <store.url>`, and uploads that tree as the `github-pages`
+  artifact; `<store>-deploy` needs no checkout, holds `pages: write` with `id-token: write`,
+  names the store's `environment` (default `github-pages`), and runs `actions/deploy-pages`
+  alone. Nothing is committed and the site is regenerated per release, so a page cannot describe
+  a channel the release did not publish. The four declarations are validated together because a
+  writable `static` store has no upload to render, an index-less one would deploy an empty
+  directory over the site, and an address derived from repository naming is right only for a
+  project page. `universe.toml` declares that store for this repository's own channel, at
+  `https://archont561.github.io/universe`; GitHub Pages is not enabled on this repository yet,
+  so the deployment job has not run and nothing is served from that address.
+
 - A built package can be tried in a sandbox. `universe-airlock sandbox --package <file.conda> …
   -- <command>` installs the set into a prefix and runs the command inside it; `--mirror <dir>`
   does the same from a mirrored lock. The installer is the bootstrapper's, so the archives are

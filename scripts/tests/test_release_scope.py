@@ -331,3 +331,44 @@ def test_the_bootstrap_release_evidence_is_recorded() -> None:
     assert "universe-airlock-bootstrap 0.1.0" in task, (
         "the clean-environment smoke output is not recorded"
     )
+
+
+def test_the_hosted_index_is_declared_and_deployed() -> None:
+    """Independent source: the manifest store, the rendered workflow, and the documented address.
+
+    A hosted index is not a byte destination: the store publishes nothing, and the site is
+    regenerated from each release's own fragments. The three places have to agree, because a
+    reader is told one address and the workflow is what makes it real.
+    """
+    stores = {store["name"]: store for store in _manifest()["stores"]}
+    pages = stores["pages"]
+    address = "https://archont561.github.io/universe"
+
+    assert pages["kind"] == "static"
+    assert pages["writable"] is False, "nothing uploads to a Pages site"
+    assert pages["needs_index"] is True, "a deployment serves an index or it deploys nothing"
+    assert pages["pages"] is True
+    assert pages["url"] == address
+    assert pages["read_auth"] == "none", "a channel index is read anonymously"
+
+    for package in _manifest()["packages"]:
+        assert "pages" not in package["publish"], "a Pages store has no upload to render"
+
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "actions/upload-pages-artifact@" in workflow
+    assert "actions/deploy-pages@" in workflow
+    assert f"--output output/pages --base-url {address}" in workflow
+    assert "environment: github-pages" in workflow
+    deploy = workflow.split("  pages-deploy:\n", 1)[1].split("\n  verdict:\n", 1)[0]
+    assert "actions/checkout@" not in deploy, "a deployment needs neither the tree nor Pixi"
+    assert "deploy-pages@" in deploy
+    assert deploy.count("- uses:") == 1, "the deployment job runs one step"
+
+    assert address in (ROOT / "README.md").read_text(encoding="utf-8"), (
+        "the address a consumer is told is not documented"
+    )
+    manifest_doc = (ROOT / "docs" / "MANIFEST.md").read_text(encoding="utf-8")
+    assert "pages = true" in manifest_doc, "the declaration a maintainer copies is not documented"
+    workflows_doc = (ROOT / "docs" / "WORKFLOWS.md").read_text(encoding="utf-8")
+    for name in ("upload-pages-artifact", "deploy-pages", "output/pages"):
+        assert name in workflows_doc, f"the rendered jobs do not explain {name}"

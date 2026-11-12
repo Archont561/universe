@@ -89,6 +89,14 @@ read_auth = "none"                   # consumers need no credentials to restore
 verifier = "file"
 
 [[stores]]
+name = "pages"                       # the same channel, served as a static site
+kind = "static"
+writable = false                     # nothing uploads here: the site is generated at release time
+needs_index = true                   # a deployment serves an index; render one from the build
+url = "https://someone.github.io/channel"
+pages = true                         # adds the generate-and-deploy jobs to release.yml
+
+[[stores]]
 name = "conda-prefix"
 kind = "prefix-dev"
 writable = true
@@ -166,6 +174,16 @@ There is no autodetection and no "publish everywhere" switch: a package names it
   also declares the npm output — a wrapper that was never built cannot be uploaded.
 - **The reverse is checked too.** A writable store that no package names is a half-applied
   rename, and it warns.
+- **A hosted index is a store that publishes nothing.** `pages = true` on a `static` store tells
+  the renderer to add two jobs: one renders the channel from the release's own fragments with
+  `universe index` and uploads it as a Pages artifact, the other deploys that artifact. The
+  store must also be `writable = false`, declare `needs_index = true`, and name the `url` the
+  index advertises as its own base. Those four facts are checked together because each of the
+  alternatives is a silent failure: a writable Pages store would render a publish job whose kind
+  has no upload, an index-less one would deploy an empty directory over the site, and a site
+  whose address is derived from repository naming is wrong for any layout but a project page.
+  Nothing is committed: the tree exists only inside one release run, so it cannot describe a
+  channel the release did not publish.
 - **A trusted publisher can name a GitHub environment.** Declare it with `environment` on the
   store, for example `environment = "prefix"`. The renderer puts that name on the one publish
   job for that store, so its OIDC token carries the matching `environment` claim. An empty name

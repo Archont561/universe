@@ -16,7 +16,7 @@ $ universe ci render
   universe-airlock.yml  mirror/pixi · mirror/bun · mirror/cargo · render-airlock · verdict
 ```
 
-Six things are worth noticing, because they are the design:
+Eight things are worth noticing, because they are the design:
 
 - **Publishing is split by destination, not by ecosystem.** Each job holds exactly one write
   scope and one secret. Artifact stores upload one file per step, serially — two writers racing
@@ -39,6 +39,16 @@ Six things are worth noticing, because they are the design:
   job's `workflow_ref` claim. A descriptive name the entry does not know cannot mint a token.
   `ci render` removes the former `universe-publish.yml`, so one tag never starts two publish
   workflows.
+- **A hosted index is generated, not committed.** When the manifest declares a `pages` store,
+  `release.yml` gains `<store>` and `<store>-deploy` after the destination jobs. The first
+  downloads every build artifact, runs `universe index --output output/pages --base-url
+  <store.url>`, and uploads that directory with `actions/upload-pages-artifact` as the
+  `github-pages` artifact; the second needs no
+  checkout and no Pixi, holds `pages: write` with `id-token: write`, names the store's
+  `environment` (default `github-pages`), and runs `actions/deploy-pages` alone. Splitting them
+  is what lets the deployment job carry the two OIDC permissions and nothing else. The tree is
+  rebuilt from each release's own fragments, so a page can only ever describe bytes the run
+  published, and no generated file enters the repository.
 - **GitHub Releases is implicit.** A declared `releases`-kind store receives every package
   with `release = true` without the package naming it; `release = false` opts out. The job
   holds `contents: write` and exports the store's `GITHUB_TOKEN`, and the rolling release is

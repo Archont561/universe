@@ -589,6 +589,7 @@ mod tests {
             kind,
             writable: true,
             needs_index: false,
+            pages: false,
             read_auth: universe_core::manifest::ReadAuth::None,
             auth: universe_core::manifest::StoreAuth::Token,
             verifier: universe_core::manifest::Verifier::File,

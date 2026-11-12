@@ -160,6 +160,11 @@ impl Default for Audit {
     }
 }
 
+/// `serde` predicate for a flag whose default is `false`, so an unset flag is not written back.
+const fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 const fn default_true() -> bool {
     true
 }
@@ -289,6 +294,15 @@ pub struct Store {
     /// Endpoint, for stores addressed by URL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// Whether GitHub Pages serves this store's generated index.
+    ///
+    /// A Pages site is not a place bytes are uploaded to: the workflow renders the channel tree
+    /// with `universe index` from what the other stores accepted and deploys that tree. So this
+    /// is only meaningful on a `static` store, which is not `writable`, and `url` is the address
+    /// a consumer's solver points at. `environment` names the GitHub environment the deployment
+    /// records itself in, and defaults to `github-pages`.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub pages: bool,
     /// Ceilings one publish is measured against before anything moves.
     #[serde(default, skip_serializing_if = "StoreBudgets::is_default")]
     pub budgets: StoreBudgets,
@@ -1001,6 +1015,79 @@ impl Manifest {
         }
     }
 
+    /// The one kind of store a Pages deployment describes, and what it has to declare.
+    ///
+    /// Three refusals, each of them a workflow that would otherwise render and then fail on a
+    /// tag. A Pages site is not a byte destination, so `writable` has to be false or the
+    /// renderer would also emit an upload to a verb that store kind has no implementation for.
+    /// It has to be `static`, because what Pages serves is a generated index tree. And it has to
+    /// name its `url`, because that address is what a consumer's solver is configured with, and
+    /// deriving it from the repository name is a guess that is wrong for a project page served
+    /// under an owner domain.
+    fn validate_pages_store(&self, store: &Store, path: &str, diagnostics: &mut Vec<Diagnostic>) {
+        if !store.pages {
+            return;
+        }
+        if store.kind != StoreKind::Static {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.store.pages.kind",
+                    format!(
+                        "store '{}' declares `pages = true` and kind '{}'; a Pages deployment \
+                         serves the generated index of a `static` store",
+                        store.name,
+                        store.kind.as_str()
+                    ),
+                )
+                .with_path(format!("{path}.kind")),
+            );
+        }
+        if store.writable {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.store.pages.writable",
+                    format!(
+                        "store '{}' declares `pages = true` and `writable = true`; nothing uploads \
+                         to a Pages site — the deployment serves a tree generated from what the \
+                         other stores accepted",
+                        store.name
+                    ),
+                )
+                .with_path(format!("{path}.writable")),
+            );
+        }
+        if !store.needs_index {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.store.pages.index",
+                    format!(
+                        "store '{}' declares `pages = true` and not `needs_index`; the deployment \
+                         has nothing to serve unless an index is generated for it",
+                        store.name
+                    ),
+                )
+                .with_path(format!("{path}.needs_index")),
+            );
+        }
+        if store.url.as_deref().unwrap_or_default().trim().is_empty() {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.store.pages.url",
+                    format!(
+                        "store '{}' declares `pages = true` and no `url`; the address the site is \
+                         served from is what a consumer points a solver at",
+                        store.name
+                    ),
+                )
+                .with_path(format!("{path}.url")),
+            );
+        }
+    }
+
     fn validate_stores(&self, diagnostics: &mut Vec<Diagnostic>) {
         for (index, store) in self.stores.iter().enumerate() {
             let path = format!("stores[{index}]");
@@ -1074,6 +1161,7 @@ impl Manifest {
                     .with_path(format!("{path}.channel")),
                 );
             }
+            self.validate_pages_store(store, &path, diagnostics);
             if let Some(max_builds) = store.max_builds_per_version {
                 // A release store prunes against GitHub's asset cap; a branch store prunes
                 // against its own snapshot, which is `universe publish --keep`. Any other
@@ -1819,6 +1907,113 @@ writable = true
 auth = "oidc"
 verifier = "registry"
 "#;
+
+    /// Three destinations plus a Pages store, which is the smallest manifest that says
+    /// "publish the channel and serve its index from GitHub Pages".
+    const PAGES: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+
+[[packages]]
+name = "example-airlock"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-airlock --version"]
+publish = ["conda-prefix"]
+release = true
+
+[[stores]]
+name = "conda-prefix"
+kind = "prefix-dev"
+channel = "someone/channel"
+writable = true
+auth = "oidc"
+verifier = "registry"
+
+[[stores]]
+name = "pages"
+kind = "static"
+writable = false
+needs_index = true
+url = "https://someone.github.io/example"
+pages = true
+"#;
+
+    #[test]
+    fn a_pages_store_is_accepted_when_it_declares_what_a_deployment_needs() {
+        let diagnostics = findings(PAGES);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|finding| !finding.code().starts_with("manifest.store.pages")),
+            "{:?}",
+            codes(&diagnostics)
+        );
+        let store = parsed(PAGES)
+            .stores
+            .into_iter()
+            .find(|store| store.pages)
+            .expect("the Pages store");
+        assert_eq!(store.kind, StoreKind::Static);
+        assert_eq!(
+            store.url.as_deref(),
+            Some("https://someone.github.io/example")
+        );
+    }
+
+    #[test]
+    fn a_pages_store_that_is_also_a_byte_destination_is_refused() {
+        // Two jobs would otherwise publish the same store: an upload to a kind with no upload
+        // implementation, and a deployment of a tree nothing generated.
+        let text = PAGES.replace("writable = false", "writable = true");
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.pages.writable"),
+            "{:?}",
+            codes(&diagnostics)
+        );
+    }
+
+    #[test]
+    fn a_pages_store_that_is_not_static_is_refused_by_kind() {
+        let text = PAGES.replace("kind = \"static\"", "kind = \"s3\"");
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.pages.kind"),
+            "{:?}",
+            codes(&diagnostics)
+        );
+    }
+
+    #[test]
+    fn a_pages_store_without_an_address_is_refused() {
+        // The URL is what a consumer's solver is configured with. Deriving it from the
+        // repository name would be right for a project page and wrong for every other layout.
+        let text = PAGES.replace("url = \"https://someone.github.io/example\"\n", "");
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.pages.url"),
+            "{:?}",
+            codes(&diagnostics)
+        );
+    }
+
+    #[test]
+    fn a_pages_store_without_an_index_is_refused() {
+        // A deployment serves an index. One that renders none would deploy an empty directory
+        // over the site, which is worse than not deploying at all.
+        let text = PAGES.replace("needs_index = true\n", "");
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.pages.index"),
+            "{:?}",
+            codes(&diagnostics)
+        );
+    }
 
     fn parsed(text: &str) -> Manifest {
         Manifest::from_toml(text).expect("manifest parses")
