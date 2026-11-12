@@ -128,4 +128,14 @@ release assets and the umbrella package's runtime requirements.
   artifact and a rotation procedure exercised on a fixture (`decision-131`); that is key material
   and signing work, not packaging, so the task stays `In Progress`. `UNI-59` criterion 5 and
   DoD #3 stay open on the clean-container transcript. No tag is cut by this change.
+**Status note — the ref now explains itself (2026-11-13).** `universe airlock
+publish-bootstrap` publishes a generated `README.md` beside the executable and
+`bootstrap.json`, so the ref a person lands on states what it is, what the binary beside it
+hashes to, and that it is not a Conda channel — the first wrong assumption a reader arriving
+from a manifest pin makes. It is generated from the bytes in the same commit, so republishing a
+different binary rewrites the digest on the page; and because nothing in it varies with time, an
+unchanged binary still yields an unchanged ref and the pin in every consumer's manifest stays
+put. `crates/universe-kit/tests/bootstrap_ref.rs` asserts the three-entry tree and the
+no-stale-digest property. This does not touch criterion 5 or DoD #3, which stay open on key
+material and the clean-container transcript.
 <!-- SECTION:NOTES.END -->

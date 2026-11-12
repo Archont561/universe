@@ -20,6 +20,11 @@ systems.
 - `UNI-66` — declarative rule engine for adapter lint rules (`UNI-7` blocker; `UNI-31` is done).
 - `UNI-67` — doc-102 integrity invariants as cross-artifact rules (`UNI-10`, `UNI-21` blockers).
 - `UNI-68` — freshness for every generated artifact, not just the rendered workflows (`UNI-10`, `UNI-46` blockers).
+- `UNI-76` — the renderer deletes and overwrites only the files it wrote.
+- `UNI-77` — a publish job that cannot publish is refused before it is rendered.
+- `UNI-78` — the rendered file set is the set of lanes the manifest declares (`UNI-76` blocker).
+- `UNI-79` — rendered checkouts do not persist credentials.
+- `UNI-80` — `ci render --stdout` separates its documents.
 
 ## Exit condition
 
