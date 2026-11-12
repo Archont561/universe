@@ -21,6 +21,8 @@ pub enum Method {
     Put,
     /// Ask the destination to create something.
     Post,
+    /// Change part of a document that already exists.
+    Patch,
     /// Remove.
     Delete,
 }
@@ -34,6 +36,7 @@ impl Method {
             Self::Head => "HEAD",
             Self::Put => "PUT",
             Self::Post => "POST",
+            Self::Patch => "PATCH",
             Self::Delete => "DELETE",
         }
     }
@@ -171,6 +174,7 @@ impl Http {
             Method::Head => reqwest::Method::HEAD,
             Method::Put => reqwest::Method::PUT,
             Method::Post => reqwest::Method::POST,
+            Method::Patch => reqwest::Method::PATCH,
             Method::Delete => reqwest::Method::DELETE,
         };
         let mut builder = self.client.request(method, &request.url).headers(headers);
@@ -383,10 +387,11 @@ mod tests {
     fn a_read_request_does_not_mutate_and_a_write_does() {
         assert!(!Method::Get.is_mutating());
         assert!(!Method::Head.is_mutating());
-        for method in [Method::Put, Method::Post, Method::Delete] {
+        for method in [Method::Put, Method::Post, Method::Patch, Method::Delete] {
             assert!(method.is_mutating(), "{method:?} writes");
         }
         assert_eq!(Method::Post.as_str(), "POST");
+        assert_eq!(Method::Patch.as_str(), "PATCH");
         assert_eq!(Method::Head.as_str(), "HEAD");
     }
 

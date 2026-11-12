@@ -170,6 +170,11 @@ read_auth = "none"
 auth = "token"
 secrets = ["GITHUB_TOKEN"]
 verifier = "registry"
+# The body of the release, read from a file in this tree. Prose with headings, links and code
+# blocks belongs in a document a reviewer can read in the pull request that changes it, not in
+# a flag value composed by the publisher. The publish job names this path; the release's own
+# name carries the version, which is why the body does not have to repeat that it changed.
+notes = "docs/releases/0.1.0.md"
 
 # The hosted channel index. GitHub Pages serves the tree `universe index` renders from what the
 # three stores above accepted, so a consumer points a solver at one URL and reads the same bytes

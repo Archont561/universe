@@ -58,8 +58,20 @@ Eight things are worth noticing, because they are the design:
   protection rules`. This repository added that rule, and the next tag run deployed.
 - **GitHub Releases is implicit.** A declared `releases`-kind store receives every package
   with `release = true` without the package naming it; `release = false` opts out. The job
-  holds `contents: write` and exports the store's `GITHUB_TOKEN`, and the rolling release is
-  named `<tag_prefix>-<subdir>` (`packages-linux-64` by default).
+  holds `contents: write` and exports the store's `GITHUB_TOKEN`.
+- **A release's tag is its address; its name is what a reader sees.** The rolling release is
+  tagged `<tag_prefix>-<subdir>` (`packages-linux-64` by default), which stays put so a link to
+  it keeps working across versions. Its title carries what the tag cannot: `universe (linux-64)
+  0.1.0`, from the store, the subdir and the version the assets agree on. A subdir holding two
+  versions names neither and says only the platform, because a title claiming one of them would
+  contradict the asset list beneath it. When the title or the body no longer matches, the
+  publisher patches the existing release rather than leaving a stale name on a moving tag.
+- **The body comes from a file in the tree.** `releases.notes` in the manifest names it —
+  `docs/releases/0.1.0.md` here — and the publish job passes `--notes-file` so the text a
+  reviewer approved in the pull request is the text the release shows. Prose with headings,
+  links and code blocks does not belong in a shell argument. `--notes-file` is refused when the
+  file is missing or empty, and refused when no selected store publishes releases: a flag that
+  reached nothing would leave the caller believing a body went out.
 - **The `v0.1.0` artifact stores are allowed to replace changed bytes.** A rebuild can occupy
   the same package filename with a different digest. The renderer adds `--force` to the
   `publish-artifacts` commands for `prefix-dev` and `releases` stores, so the hosted channel

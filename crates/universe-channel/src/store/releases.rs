@@ -27,6 +27,12 @@ pub struct Release {
     pub id: u64,
     /// Tag the release is published under.
     pub tag_name: String,
+    /// The name a reader sees, which for a rolling release describes the newest build.
+    #[serde(default)]
+    pub name: Option<String>,
+    /// The release body: the notes the publisher was given, verbatim.
+    #[serde(default)]
+    pub body: Option<String>,
     /// Template URL for an asset upload, with its `{?...}` expansion.
     pub upload_url: String,
     /// Whether GitHub has published the release.
@@ -67,6 +73,17 @@ pub struct ReleaseReport {
     pub tag: String,
     /// Whether the release was created, or would be.
     pub created: bool,
+    /// The name this publish gave, or confirmed on, the release.
+    ///
+    /// The tag is the address; this is what a reader sees, and a run's own JSON saying it is the
+    /// difference between a release that was named and one that was assumed to be.
+    pub name: String,
+    /// Whether an existing release's name or body was rewritten.
+    ///
+    /// A rolling release is one release across versions, so its front page has to move when the
+    /// version does; without this the first version's name stays on a release that holds later
+    /// builds, which is the failure the rename exists to prevent.
+    pub updated: bool,
     /// Assets that were sent.
     pub uploaded: Vec<String>,
     /// Assets the release already held, byte for byte.
@@ -162,11 +179,19 @@ impl Releases {
     ///
     /// Returns [`StoreError::Response`] when GitHub refuses, which for an existing tag means
     /// the lookup and the creation disagreed — a race two concurrent builds can lose.
-    pub fn create(&self, tag: &str, title: Option<&str>) -> Result<Release, StoreError> {
+    pub fn create(
+        &self,
+        tag: &str,
+        title: Option<&str>,
+        notes: Option<&str>,
+    ) -> Result<Release, StoreError> {
         let body = serde_json::json!({
             "tag_name": tag,
             "name": title.unwrap_or(tag),
-            "body": format!("Artifacts published by Universe under `{tag}`."),
+            "body": notes.map_or_else(
+                || format!("Artifacts published by Universe under `{tag}`."),
+                str::to_owned,
+            ),
         });
         let request = Request::new(Method::Post, self.api("releases"))
             .with_header("Content-Type", "application/json")
@@ -194,17 +219,68 @@ impl Releases {
         &self,
         tag: &str,
         title: Option<&str>,
+        notes: Option<&str>,
         dry_run: bool,
-    ) -> Result<(Option<Release>, bool), StoreError> {
+    ) -> Result<(Option<Release>, bool, bool), StoreError> {
         if let Some(release) = self.find(tag)? {
-            return Ok((Some(release), false));
+            let stale = title.is_some_and(|title| release.name.as_deref() != Some(title))
+                || notes.is_some_and(|notes| release.body.as_deref() != Some(notes));
+            if !stale {
+                return Ok((Some(release), false, false));
+            }
+            if dry_run {
+                return Ok((Some(release), false, true));
+            }
+            let updated = self.update(&release, title, notes)?;
+            return Ok((Some(updated), false, true));
         }
         if dry_run {
-            return Ok((None, true));
+            return Ok((None, true, false));
         }
         // A second lookup after a failed create is not retried here: the caller reports the
         // refusal, and the next run starts from `find` again.
-        Ok((Some(self.create(tag, title)?), true))
+        Ok((Some(self.create(tag, title, notes)?), true, false))
+    }
+
+    /// Rewrite an existing release's name and body in place.
+    ///
+    /// A rolling release keeps its tag — the tag is the address a link uses — so moving the
+    /// version it describes is an edit rather than a new release. Only the fields the caller
+    /// supplied are sent, so a publish that names a release without notes leaves the existing
+    /// body alone instead of blanking it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError::Response`] when GitHub refuses the edit.
+    pub fn update(
+        &self,
+        release: &Release,
+        title: Option<&str>,
+        notes: Option<&str>,
+    ) -> Result<Release, StoreError> {
+        let mut body = serde_json::Map::new();
+        if let Some(title) = title {
+            body.insert("name".to_owned(), serde_json::json!(title));
+        }
+        if let Some(notes) = notes {
+            body.insert("body".to_owned(), serde_json::json!(notes));
+        }
+        let url = self.api(&format!("releases/{}", release.id));
+        let request = Request::new(Method::Patch, url.clone())
+            .with_header("Content-Type", "application/json")
+            .with_body(serde_json::Value::Object(body).to_string().into_bytes());
+        let response = self.send(request)?;
+        if !response.is_success() {
+            return Err(StoreError::Response {
+                url,
+                message: format!(
+                    "GitHub answered {}: {}",
+                    response.status,
+                    short(&response.body)
+                ),
+            });
+        }
+        decode(&response)
     }
 
     /// Every asset in `release`, following pagination.
@@ -297,14 +373,17 @@ impl Releases {
         &self,
         tag: &str,
         title: Option<&str>,
+        notes: Option<&str>,
         uploads: &[Upload],
         policy: Policy,
         max_builds: Option<usize>,
     ) -> Result<ReleaseReport, StoreError> {
-        let (release, created) = self.ensure(tag, title, policy.dry_run)?;
+        let (release, created, updated) = self.ensure(tag, title, notes, policy.dry_run)?;
         let mut report = ReleaseReport {
             tag: tag.to_owned(),
+            name: title.unwrap_or(tag).to_owned(),
             created,
+            updated,
             dry_run: policy.dry_run,
             ..ReleaseReport::default()
         };

@@ -39,6 +39,21 @@ def _tasks() -> dict[str, Any]:
     return cast(dict[str, Any], tasks)
 
 
+def _notes_argument() -> str:
+    """The `--notes-file` a release publish carries, as the manifest declares it.
+
+    The release body lives in the tree, so the job that publishes it names the file the
+    manifest names. Deriving the argument here rather than hard-coding it keeps the test
+    about the two agreeing: a job that dropped the flag, or a manifest that moved the file
+    without the workflow following, both fail the publish-line assertions below.
+    """
+    stores = {store["name"]: store for store in _manifest()["stores"]}
+    notes = stores["releases"].get("notes")
+    assert notes, "the releases store declares no notes file"
+    assert (ROOT / notes).is_file(), f"{notes} is declared and absent"
+    return f" --notes-file {notes}"
+
+
 def _publish_lines() -> list[str]:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     return [
@@ -85,10 +100,13 @@ def test_the_facade_recipe_and_pixi_task_exist() -> None:
 
 def test_the_rendered_workflow_publishes_every_package_to_every_store() -> None:
     lines = _publish_lines()
+    notes = _notes_argument()
     for store in ("prefix-dev", "releases"):
         for name in EXPECTED_PACKAGES:
+            arguments = notes if store == "releases" else ""
             assert any(
-                f"publish-artifacts --store {store} --force --package {name} --json" in line
+                f"publish-artifacts --store {store} --force{arguments} --package {name} --json"
+                in line
                 for line in lines
             ), f"{store} does not publish {name}: {lines}"
 
@@ -291,10 +309,12 @@ def test_the_bootstrap_is_a_separately_installable_package() -> None:
     )
 
     lines = _publish_lines()
+    notes = _notes_argument()
     for store in ("prefix-dev", "releases"):
+        arguments = notes if store == "releases" else ""
         assert any(
-            f"publish-artifacts --store {store} --force --package universe-airlock-bootstrap"
-            in line
+            f"publish-artifacts --store {store} --force{arguments} "
+            f"--package universe-airlock-bootstrap" in line
             for line in lines
         ), f"{store} does not publish the bootstrapper: {lines}"
     branch_lines = [line for line in lines if "publish --store branch" in line]

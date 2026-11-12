@@ -164,7 +164,7 @@ impl VerbSpec {
             );
         }
         if self.upload {
-            usage.push_str(" [--store <name>] [--force] [--dry-run]");
+            usage.push_str(" [--store <name>] [--force] [--dry-run] [--notes-file <path>]");
         }
         usage.push_str(" [--json]");
         format!("unknown argument: {argument}\n{usage}")
@@ -213,6 +213,8 @@ pub(crate) struct Options {
     pub(crate) dry_run: bool,
     /// Whether an upload may replace an artifact whose digest differs.
     pub(crate) force: bool,
+    /// Prose published as a release body, when the caller names a file.
+    pub(crate) notes_file: Option<PathBuf>,
 }
 
 impl Options {
@@ -243,6 +245,7 @@ impl Options {
             check: false,
             dry_run: false,
             force: false,
+            notes_file: None,
         };
         let mut rest = args.iter();
         while let Some(argument) = rest.next() {
@@ -287,6 +290,9 @@ impl Options {
                     options.store = Some(value(rest.next(), "--store")?.clone());
                 }
                 "--force" if spec.upload => options.force = true,
+                "--notes-file" if spec.upload => {
+                    options.notes_file = Some(PathBuf::from(value(rest.next(), "--notes-file")?));
+                }
                 "--branch" if spec.transport => {
                     options.branch = Some(value(rest.next(), "--branch")?.clone());
                 }
@@ -382,6 +388,33 @@ mod tests {
         let error = parse(&["--nonsense"], VerbSpec::index()).expect_err("refused");
         assert!(error.contains("--output <dir>"), "{error}");
         assert!(!error.contains("--remote"), "{error}");
+    }
+
+    #[test]
+    fn publish_artifacts_takes_the_file_its_release_body_is_read_from() {
+        // A path, not the prose: the body is Markdown with headings, links and code blocks, and
+        // a shell argument holding it is one quoting mistake away from publishing a fragment.
+        let options = parse(
+            &["--notes-file", "docs/releases/0.1.0.md"],
+            VerbSpec::publish_artifacts(),
+        )
+        .expect("the flag is accepted");
+        assert_eq!(
+            options.notes_file.as_deref(),
+            Some(std::path::Path::new("docs/releases/0.1.0.md"))
+        );
+        let error = parse(&["--notes-file"], VerbSpec::publish_artifacts()).expect_err("refused");
+        assert!(error.contains("--notes-file needs a value"), "{error}");
+    }
+
+    #[test]
+    fn a_verb_that_publishes_no_release_refuses_the_notes_file() {
+        // `index` renders a channel and uploads nothing, so a body it accepted would be a body
+        // it dropped.
+        assert!(
+            parse(&["--notes-file", "notes.md"], VerbSpec::index()).is_err(),
+            "index accepted a release body"
+        );
     }
 
     #[test]
