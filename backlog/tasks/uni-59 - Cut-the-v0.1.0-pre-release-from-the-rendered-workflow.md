@@ -671,4 +671,13 @@ a repository check rather than a release-time computation.
   at the absent payload manifest with exit 1. What a transcript from a clean image would still add
   is the thing this workspace cannot supply — a container runtime — so criterion 5 and DoD #3 stay
   open, and no clean-container, sealed or Pixi-managed restore is claimed.
+**Status note — the release's name and body, and what the next run changes (2026-11-13).**
+The release published at `https://github.com/Archont561/universe/releases/tag/packages-linux-64`
+still carries the title `packages-linux-64 artifacts` and the generated body the publisher wrote,
+because the naming and `--notes-file` work merged after it was created (see `UNI-11`'s note). It
+is not a claim about the bytes: the tag and its four assets are unchanged, and every digest this
+record cites still reads back. The next release run patches that release in place — the title
+becomes `universe (linux-64) 0.1.0`, the body becomes `docs/releases/0.1.0.md` — so the stale
+title is scheduled work rather than a defect left standing. Criterion 5 and DoD #3 stay open on
+the clean-container transcript.
 <!-- SECTION:NOTES.END -->

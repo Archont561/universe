@@ -77,6 +77,17 @@ inferred from a workflow's YAML.
   `build_job` now takes the workflow's name and both files emit it;
   `the_publish_file_builds_what_it_publishes` pins the coupling, and `docs/WORKFLOWS.md` names
   it as part of the design.
+- **2026-11-13 — five follow-ups this task's criteria did not cover.** The renderer is Done
+  against the criteria above, and six issues filed from a consumer (`ds`) found behaviour those
+  criteria never claimed. Five became tasks: `UNI-76` (a known filename that is not this
+  renderer's gets deleted, and would be overwritten), `UNI-77` (a writable store with no publish
+  verb renders a complete job with no publish step, and the verdict passes), `UNI-78`
+  (`universe.yml` is rendered for a manifest that declares no packages), `UNI-79` (rendered
+  checkouts persist credentials), `UNI-80` (`--stdout` concatenates documents with no separator).
+  The two others were already covered: the facade's bare-name exec is `UNI-40` criterion 5, and
+  the README append in `airlock render` is `UNI-53` criterion 3, which now carries a reversal.
+  Kept here rather than reopened because none of the six contradicts a criterion that was ticked —
+  the criteria were narrower than the surface.
 - **The tag-triggered file was renamed to `release.yml`, a reversal recorded as one.** The
   channel's trusted publisher for this repository names `release.yml`, and GitHub puts the
   workflow basename in `workflow_ref`; `universe-publish.yml` could not mint a token against

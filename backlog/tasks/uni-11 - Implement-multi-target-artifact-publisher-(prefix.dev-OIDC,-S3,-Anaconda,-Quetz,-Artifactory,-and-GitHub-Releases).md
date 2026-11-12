@@ -268,4 +268,16 @@ remained owner-side; see the note below.
   branch solve remains open, the build is still not reproducible, and the `v0.1.0` tag was cut
   on 2026-11-11 (see the correction below).
 **Status note — correction (2026-11-11).** The annotated `v0.1.0` tag was cut from `1de18891bd69f8d16b4d261cfdaa53525555eabd` and pushed; its tag-triggered `release.yml` run `43073492712` is green, including `publish / verdict`. https://github.com/Archont561/universe/actions/runs/43073492712 This records the tag as evidence, not as a completion of this record's criteria: the tasks above remain To Do. The offline branch solve with network denied, a clean-container restore transcript, and the four-platform and integrated v1 lanes are still open. `UNI-59` records the tag run's digests and the remaining gaps. No further tag is cut.
+**Status note — the rolling release's name and body (2026-11-13).** The `github-pages`
+destination above describes a release tagged `<tag_prefix>-<subdir>`; the tag is still that, but
+the release no longer *titles* itself after it. A release created as `packages-linux-64 artifacts`
+is now named `universe (linux-64) 0.1.0` — project, subdir and the version the assets agree on —
+and the body is read from the file the manifest names (`docs/releases/0.1.0.md` here) rather than
+composed by the publisher. A tag is an address a link keeps using across versions, so it stays
+put; the title is what moves with them, which is why `ensure` patches a stale name or body on the
+release it found instead of leaving the previous build's title on a moving tag. A subdir holding
+two versions names neither. This merges with the retention model above unchanged: pruning still
+operates on one release per subdir, which is the reason a version suffix was put in the title
+rather than in the tag. Recorded here rather than as a new task because the behaviour belongs to
+this publisher; `UNI-59` carries the evidence trail.
 <!-- SECTION:NOTES:END -->
