@@ -1,18 +1,30 @@
-"""The v0.1.0 manifest must publish the three CLIs the owner put in scope."""
+"""The v0.1.0 manifest must publish the four artifacts the owner put in scope.
+
+The first three are the CLIs `decision-132` widened to; the fourth is the Airlock
+bootstrapper, which `UNI-55` ships as a separately installable package so a disconnected host
+has something to run before the consumer it restores exists.
+"""
 
 import tomllib
 from pathlib import Path
 from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_PACKAGES = ("universe-airlock", "universe-kit", "universe")
+EXPECTED_PACKAGES = (
+    "universe-airlock",
+    "universe-airlock-bootstrap",
+    "universe-kit",
+    "universe",
+)
 TASKS_BY_PACKAGE = {
     "universe-airlock": "package-airlock",
+    "universe-airlock-bootstrap": "package-airlock-bootstrap",
     "universe-kit": "package-kit",
     "universe": "package-cli",
 }
 BINARIES_BY_PACKAGE = {
     "universe-airlock": "universe-airlock",
+    "universe-airlock-bootstrap": "universe-airlock-bootstrap",
     "universe-kit": "universe-kit",
     "universe": "universe",
 }
@@ -245,3 +257,51 @@ def test_the_rebuilt_channel_is_published_and_solves_offline() -> None:
         "the offline solve transcript lines are not recorded"
     )
     assert "transcript" in notes_doc
+
+
+def test_the_bootstrap_is_a_separately_installable_package() -> None:
+    """Independent source: decision-115 separates bootstrap readiness from sealed readiness.
+
+    The bootstrapper runs before anything it restores exists, so it stays its own artifact: it
+    is published like the others, and neither it nor the facade may depend on the other.
+    """
+    packages = {package["name"]: package for package in _manifest()["packages"]}
+    bootstrap = packages["universe-airlock-bootstrap"]
+
+    assert bootstrap["kind"] == "conda"
+    assert bootstrap["platforms"] == ["linux-64"]
+    assert bootstrap["outputs"] == ["output/universe-airlock-bootstrap/linux-64/*.conda"]
+    assert bootstrap["publish"] == ["prefix-dev", "branch"]
+    assert bootstrap["release"] is True
+    assert "depends_on" not in bootstrap, (
+        "the bootstrapper restores the consumer, so it cannot depend on it"
+    )
+    assert "universe-airlock-bootstrap" not in packages["universe"]["depends_on"], (
+        "the facade must not pull in a binary that runs before any environment exists"
+    )
+
+    lines = _publish_lines()
+    for store in ("prefix-dev", "releases"):
+        assert any(
+            f"publish-artifacts --store {store} --force --package universe-airlock-bootstrap"
+            in line
+            for line in lines
+        ), f"{store} does not publish the bootstrapper: {lines}"
+    branch_lines = [line for line in lines if "publish --store branch" in line]
+    assert len(branch_lines) == 1
+    assert "--package universe-airlock-bootstrap" in branch_lines[0]
+
+
+def test_the_consumer_docs_and_the_asset_list_agree_on_the_bootstrapper() -> None:
+    """Independent source: the recipe, the Pixi task and the manifest entry all exist."""
+    recipe = ROOT / "crates" / "universe-airlock-bootstrap" / "recipe" / "recipe.yaml"
+    variants = ROOT / "crates" / "universe-airlock-bootstrap" / "recipe" / "variants.yaml"
+    assert recipe.is_file() and variants.is_file()
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    notes = (ROOT / "docs" / "releases" / "0.1.0.md").read_text(encoding="utf-8")
+
+    for document in (readme, notes):
+        assert "universe-airlock-bootstrap" in document
+        assert "separately installable" in document.lower()
+    assert "no runtime dependency" in notes.lower()

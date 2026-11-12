@@ -6,11 +6,12 @@
 # as a criterion, and `crates/universe-kit/tests/manifest.rs` fails if this file does not
 # parse cleanly or lints with any finding.
 #
-# Scope is `decision-132`, widened by its main-CLI amendment: `v0.1.0` publishes three
-# `linux-64` Conda packages — the Airlock consumer, the `universe-kit` producer, and the
-# umbrella `universe` facade. The package list, the platform list, and the store list are
-# the whole of it — another package or platform is a change to this file, not to the
-# workflow.
+# Scope is `decision-132`, widened by its main-CLI amendment and by `UNI-55`: `v0.1.0`
+# publishes four `linux-64` Conda packages — the Airlock consumer, the `universe-kit`
+# producer, the umbrella `universe` facade, and the thin `universe-airlock-bootstrap`
+# artifact a disconnected host runs first. The package list, the platform list, and the
+# store list are the whole of it — another package or platform is a change to this file,
+# not to the workflow.
 
 schema = 1
 
@@ -60,6 +61,27 @@ release = true
 [packages.catalog]
 title = "Universe Airlock"
 summary = "Finite offline consumer for verified sealed snapshots"
+license = "MIT"
+
+[[packages]]
+name = "universe-airlock-bootstrap"
+kind = "conda"
+# A phase of the Airlock edition, not a third product (`decision-122`, `UNI-55`). It runs
+# before anything is restored, so it declares no run dependency on the consumer it is about
+# to install, and nothing depends on it: `depends_on` is absent on purpose, and the facade
+# below does not name it. `package-airlock-bootstrap` needs no `--test=skip` because its
+# recipe declares no run requirements at all, so rattler-build's post-build test has a
+# solvable environment.
+command = ["pixi", "run", "-e", "packaging", "--frozen", "package-airlock-bootstrap"]
+platforms = ["linux-64"]
+outputs = ["output/universe-airlock-bootstrap/linux-64/*.conda"]
+smoke = ["universe-airlock-bootstrap --version"]
+publish = ["prefix-dev", "branch"]
+release = true
+
+[packages.catalog]
+title = "Universe Airlock Bootstrap"
+summary = "Thin native bootstrapper that verifies and activates a pinned Airlock restore"
 license = "MIT"
 
 [[packages]]

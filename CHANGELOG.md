@@ -4,6 +4,16 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- `universe-airlock-bootstrap` is declared as a fourth publishable package, closing the shipping
+  gap `UNI-55` names: the recipe existed, but nothing built or published it, so no ref carried
+  the binary a restore entrypoint runs. It is a **separately installable** package on the same
+  version and train, with **no runtime dependency** on `universe-airlock`, on the producer, or on
+  registry tooling, and the umbrella `universe` facade does not depend on it — the bootstrapper
+  runs before any environment it restores exists (`decision-115`). `universe.toml`,
+  `release.yml` and `docs/releases/0.1.0.md` agree on that reading, which is `decision-132`'s
+  evidence for `UNI-55` criterion 4. `python -m pytest scripts/tests/test_release_scope.py` was
+  red on the missing declaration before the manifest entry existed.
+
 - The rendered `release.yml` passes `--force` to its `prefix-dev` and `releases` artifact
   uploads, so a rebuild under an occupied package name asks those destinations to replace the
   changed digest. The branch store is unchanged. `decision-132` records this as a scoped
