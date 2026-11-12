@@ -27,10 +27,18 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::Finding;
 use crate::hash::Hasher;
 use crate::payload::{Artifact, Report};
+use crate::prefix;
 
 /// The receipt a materialised environment carries, so a later `doctor` can describe it without
 /// the payload it came from.
 pub const RECEIPT_FILE: &str = "receipt";
+
+/// The directory inside an environment that holds the installed files.
+///
+/// A prefix is a directory, and the environment holding one is the record of which payload
+/// produced it: the archives stay beside it as the bytes that were verified, and `prefix` is what
+/// a caller puts on `PATH`.
+pub const PREFIX_DIR: &str = "prefix";
 
 /// Receipt format version, so a future change can refuse an old receipt instead of misreading
 /// it.
@@ -60,6 +68,12 @@ pub struct Outcome {
     pub reused: bool,
     /// What `current` pointed at before this run, when it pointed anywhere.
     pub previous: Option<PathBuf>,
+    /// The installed prefix, which is what a caller puts on `PATH`.
+    pub prefix: PathBuf,
+    /// Files and directories the prefix holds.
+    pub entries: u64,
+    /// Bytes those files occupy.
+    pub bytes: u64,
 }
 
 /// A materialised environment's own description of itself.
@@ -269,6 +283,8 @@ pub fn activate(layout: &Layout, payload_root: &Path, report: &Report) -> Result
     })?;
 
     let mut reused = false;
+    let mut installed_entries: u64 = 0;
+    let mut installed_bytes: u64 = 0;
     if target.join(RECEIPT_FILE).exists() {
         // The same payload was restored before. Its environment is immutable, so the run is a
         // pointer move rather than a second copy.
@@ -282,6 +298,21 @@ pub fn activate(layout: &Layout, payload_root: &Path, report: &Report) -> Result
                 artifact,
             )?;
         }
+        // The archives are kept as the verified bytes; the prefix is what they install. Both
+        // live in the staged directory, so neither can appear where `current` already points.
+        let prefix_dir = staging.path.join(PREFIX_DIR);
+        std::fs::create_dir_all(&prefix_dir).map_err(|error| {
+            Finding::error(
+                "airlock.state.activate",
+                format!("cannot create {}: {error}", prefix_dir.display()),
+            )
+        })?;
+        for artifact in &artifacts {
+            let installed =
+                prefix::materialise(&staging.path.join(&artifact.filename), &prefix_dir)?;
+            installed_entries += installed.entries;
+            installed_bytes += installed.bytes;
+        }
         let receipt = Receipt {
             version: report.manifest.version.clone(),
             commit: report.manifest.commit.clone(),
@@ -291,6 +322,13 @@ pub fn activate(layout: &Layout, payload_root: &Path, report: &Report) -> Result
         };
         write_receipt(&staging.path, &receipt)?;
         staging.commit(&target)?;
+    }
+
+    let prefix = target.join(PREFIX_DIR);
+    if reused {
+        // An environment restored earlier is immutable, so its own prefix answers for it rather
+        // than this run reporting zero files for a directory full of them.
+        (installed_entries, installed_bytes) = measure(&prefix);
     }
 
     let previous = layout.current_env();
@@ -311,7 +349,34 @@ pub fn activate(layout: &Layout, payload_root: &Path, report: &Report) -> Result
         env: target,
         reused,
         previous,
+        prefix,
+        entries: installed_entries,
+        bytes: installed_bytes,
     })
+}
+
+/// Count what a prefix holds, for a reuse that installed nothing this run.
+fn measure(prefix: &Path) -> (u64, u64) {
+    let mut entries: u64 = 0;
+    let mut bytes: u64 = 0;
+    let mut queue = vec![prefix.to_path_buf()];
+    while let Some(directory) = queue.pop() {
+        let Ok(read) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in read.flatten() {
+            let Ok(metadata) = std::fs::symlink_metadata(entry.path()) else {
+                continue;
+            };
+            entries += 1;
+            if metadata.is_dir() {
+                queue.push(entry.path());
+            } else if metadata.is_file() {
+                bytes += metadata.len();
+            }
+        }
+    }
+    (entries, bytes)
 }
 
 /// A staging directory that deletes itself unless it was promoted.
@@ -530,22 +595,82 @@ pub fn inspect(layout: &Layout) -> Status {
 
 #[cfg(test)]
 mod tests {
-    use super::{Layout, Receipt, Status, activate, default_root, inspect};
+    use super::{Layout, Receipt, Status, activate, default_root, inspect, measure};
     use crate::hash::sha256_hex;
     use crate::payload::verify;
     use crate::signature::Lane;
 
     const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
+    /// A real `.conda` with one executable in it, and `marker` as that executable's output.
+    ///
+    /// Activation installs a prefix now, so an "artifact" that is not an archive would test the
+    /// refusal path instead of the behaviour under test.
+    fn conda(marker: &str) -> Vec<u8> {
+        use std::io::Write;
+
+        let executable = format!("#!/bin/sh\nprintf '{marker}\\n'\n").into_bytes();
+        let index = br#"{"name":"fixture","version":"0.1.0","build":"h1234567_0","build_number":0,"subdir":"linux-64","depends":[]}"#;
+        let paths = format!(
+            r#"{{"paths":[{{"_path":"bin/fixture","path_type":"hardlink","sha256":"{}","size_in_bytes":{}}}],"paths_version":1}}"#,
+            sha256_hex(&executable),
+            executable.len()
+        );
+
+        let mut info = tar::Builder::new(Vec::new());
+        for (name, bytes) in [
+            ("info/index.json", index.as_slice()),
+            ("info/paths.json", paths.as_bytes()),
+        ] {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(bytes.len() as u64);
+            header.set_mode(0o644);
+            header.set_mtime(0);
+            header.set_cksum();
+            info.append_data(&mut header, name, bytes)
+                .expect("info entry");
+        }
+        let info = info.into_inner().expect("info tar");
+
+        let mut payload = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        header.set_size(executable.len() as u64);
+        header.set_mode(0o755);
+        header.set_mtime(0);
+        header.set_cksum();
+        payload
+            .append_data(&mut header, "bin/fixture", executable.as_slice())
+            .expect("payload entry");
+        let payload = payload.into_inner().expect("payload tar");
+
+        let mut buffer = std::io::Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(&mut buffer);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("metadata.json", options).expect("metadata");
+        zip.write_all(br#"{"conda_pkg_format_version": 2}"#)
+            .expect("metadata bytes");
+        zip.start_file("info-fixture.tar.zst", options)
+            .expect("info");
+        zip.write_all(&zstd::encode_all(info.as_slice(), 0).expect("compress"))
+            .expect("info bytes");
+        zip.start_file("pkg-fixture.tar.zst", options)
+            .expect("payload");
+        zip.write_all(&zstd::encode_all(payload.as_slice(), 0).expect("compress"))
+            .expect("payload bytes");
+        zip.finish().expect("finish archive");
+        buffer.into_inner()
+    }
+
     fn payload() -> tempfile::TempDir {
         let scratch = tempfile::TempDir::new().expect("a temporary payload");
-        let bytes = b"the only artifact\n";
-        std::fs::write(scratch.path().join("airlock-0.1.0.conda"), bytes).expect("artifact");
+        let bytes = conda("the only artifact");
+        std::fs::write(scratch.path().join("airlock-0.1.0.conda"), &bytes).expect("artifact");
         let manifest = format!(
             r#"{{"schema":1,"version":"0.1.0","commit":"{COMMIT}","packages":[
                  {{"name":"universe-airlock","kind":"conda","version":"0.1.0","artifacts":[
                    {{"filename":"airlock-0.1.0.conda","sha256":"{}","size":{},"stores":["conda-static"]}}]}}]}}"#,
-            sha256_hex(bytes),
+            sha256_hex(&bytes),
             bytes.len()
         );
         std::fs::write(scratch.path().join("universe-release.json"), manifest).expect("manifest");
@@ -564,9 +689,10 @@ mod tests {
         assert!(!outcome.reused);
         assert_eq!(outcome.previous, None);
         assert_eq!(layout.current_env().as_deref(), Some(outcome.env.as_path()));
+        // The verified archive is kept beside the prefix it produced.
         assert_eq!(
             std::fs::read(outcome.env.join("airlock-0.1.0.conda")).expect("the artifact"),
-            b"the only artifact\n"
+            conda("the only artifact")
         );
         let receipt = Receipt::parse(
             &std::fs::read_to_string(outcome.env.join(super::RECEIPT_FILE)).expect("a receipt"),
@@ -576,6 +702,24 @@ mod tests {
         assert_eq!(receipt.commit, COMMIT);
         assert_eq!(receipt.signature, "unsigned");
         assert_eq!(receipt.artifacts.len(), 1);
+
+        // Activation installs a prefix now, so the environment holds more than the archives:
+        // `prefix` is what a caller puts on `PATH`, and the executable bit is why it can.
+        assert_eq!(outcome.prefix, outcome.env.join(super::PREFIX_DIR));
+        use std::os::unix::fs::PermissionsExt;
+        let installed = outcome.prefix.join("bin/fixture");
+        let mode = std::fs::metadata(&installed)
+            .expect("the installed executable")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "the installed executable is {mode:o}");
+        assert_eq!(
+            std::fs::read(&installed).expect("installed bytes"),
+            b"#!/bin/sh\nprintf 'the only artifact\\n'\n"
+        );
+        assert!(outcome.entries >= 1, "nothing was installed");
+        assert!(outcome.bytes >= 1);
     }
 
     #[test]
@@ -592,6 +736,15 @@ mod tests {
         assert!(second.reused);
         assert_eq!(first.env, second.env);
         assert_eq!(second.previous, Some(first.env.clone()));
+        // A reuse installs nothing, but the environment still holds a prefix; reporting zero
+        // files for a directory full of them would be the kind of quiet wrong number a receipt
+        // exists to prevent.
+        assert_eq!(second.entries, measure(&second.prefix).0);
+        assert_eq!(second.bytes, measure(&second.prefix).1);
+        assert!(
+            second.entries >= 1,
+            "the reused environment holds no prefix"
+        );
     }
 
     #[test]
@@ -606,13 +759,13 @@ mod tests {
 
         // Publish a different, larger payload as a staging target, then corrupt it mid-flight.
         let second = tempfile::TempDir::new().expect("a scratch directory");
-        let bytes = b"a different artifact\n";
-        std::fs::write(second.path().join("airlock-0.1.0.conda"), bytes).expect("artifact");
+        let bytes = conda("a different artifact");
+        std::fs::write(second.path().join("airlock-0.1.0.conda"), &bytes).expect("artifact");
         let manifest = format!(
             r#"{{"schema":1,"version":"0.2.0","commit":"{COMMIT}","packages":[
                  {{"name":"universe-airlock","kind":"conda","version":"0.2.0","artifacts":[
                    {{"filename":"airlock-0.1.0.conda","sha256":"{}","size":{},"stores":["conda-static"]}}]}}]}}"#,
-            sha256_hex(bytes),
+            sha256_hex(&bytes),
             bytes.len()
         );
         std::fs::write(second.path().join("universe-release.json"), manifest).expect("manifest");
@@ -630,7 +783,7 @@ mod tests {
         assert_eq!(layout.current_env().as_deref(), Some(first.env.as_path()));
         assert_eq!(
             std::fs::read(first.env.join("airlock-0.1.0.conda")).expect("still there"),
-            b"the only artifact\n"
+            std::fs::read(payload.path().join("airlock-0.1.0.conda")).expect("the first payload")
         );
         // And nothing was left behind by the abandoned staging.
         let leftovers: Vec<String> = std::fs::read_dir(layout.envs())
@@ -655,13 +808,13 @@ mod tests {
         .expect("activates");
 
         let second = tempfile::TempDir::new().expect("a scratch directory");
-        let bytes = b"a different artifact\n";
-        std::fs::write(second.path().join("airlock-0.1.0.conda"), bytes).expect("artifact");
+        let bytes = conda("a different artifact");
+        std::fs::write(second.path().join("airlock-0.1.0.conda"), &bytes).expect("artifact");
         let manifest = format!(
             r#"{{"schema":1,"version":"0.2.0","commit":"{COMMIT}","packages":[
                  {{"name":"universe-airlock","kind":"conda","version":"0.2.0","artifacts":[
                    {{"filename":"airlock-0.1.0.conda","sha256":"{}","size":{},"stores":["conda-static"]}}]}}]}}"#,
-            sha256_hex(bytes),
+            sha256_hex(&bytes),
             bytes.len()
         );
         std::fs::write(second.path().join("universe-release.json"), manifest).expect("manifest");

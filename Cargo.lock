@@ -3932,9 +3932,14 @@ dependencies = [
  "rstest",
  "rstest-bdd",
  "rstest-bdd-macros",
+ "serde",
+ "serde_json",
  "sha2",
+ "tar",
  "tempfile",
  "universe-core",
+ "zip",
+ "zstd",
 ]
 
 [[package]]

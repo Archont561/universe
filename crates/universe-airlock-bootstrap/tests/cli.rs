@@ -6,6 +6,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+mod support;
+
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";
 const BINARY: &str = env!("CARGO_BIN_EXE_universe-airlock-bootstrap");
@@ -144,7 +146,7 @@ fn the_usage_says_where_the_payload_really_lives() {
 #[test]
 fn verify_reports_a_payload_without_activating_anything() {
     let scenario = Scenario::new("verify");
-    scenario.publish("0.1.0", COMMIT, b"the only artifact\n");
+    scenario.publish("0.1.0", COMMIT, &support::conda("the only artifact"));
 
     let output = scenario.run(&[
         "verify",
@@ -167,7 +169,7 @@ fn verify_reports_a_payload_without_activating_anything() {
 #[test]
 fn a_restore_materialises_the_payload_and_doctor_can_see_it() {
     let scenario = Scenario::new("restore");
-    scenario.publish("0.1.0", COMMIT, b"the only artifact\n");
+    scenario.publish("0.1.0", COMMIT, &support::conda("the only artifact"));
 
     let restored = scenario.restore(COMMIT);
 
@@ -201,14 +203,14 @@ fn a_restore_materialises_the_payload_and_doctor_can_see_it() {
     let environment = scenario.state().join(current);
     assert_eq!(
         std::fs::read(environment.join("airlock-0.1.0.conda")).expect("the artifact"),
-        b"the only artifact\n"
+        support::conda("the only artifact")
     );
 }
 
 #[test]
 fn a_second_restore_reuses_the_environment_instead_of_copying_again() {
     let scenario = Scenario::new("idempotent");
-    scenario.publish("0.1.0", COMMIT, b"the only artifact\n");
+    scenario.publish("0.1.0", COMMIT, &support::conda("the only artifact"));
 
     assert_eq!(scenario.restore(COMMIT).code, 0);
     let second = scenario.restore(COMMIT);
@@ -240,7 +242,7 @@ fn a_restore_from_another_commit_is_refused_before_any_state_exists() {
 #[test]
 fn a_sealed_restore_refuses_an_unsigned_payload_and_activates_nothing() {
     let scenario = Scenario::new("sealed");
-    scenario.publish("0.1.0", COMMIT, b"the only artifact\n");
+    scenario.publish("0.1.0", COMMIT, &support::conda("the only artifact"));
 
     let output = scenario.run(&[
         "restore",
@@ -264,13 +266,13 @@ fn a_sealed_restore_refuses_an_unsigned_payload_and_activates_nothing() {
 fn a_failed_restore_leaves_the_previous_version_active() {
     // The end-to-end form of `UNI-33` #3, through the binary a host actually runs.
     let scenario = Scenario::new("preserve");
-    scenario.publish("0.1.0", COMMIT, b"the only artifact\n");
+    scenario.publish("0.1.0", COMMIT, &support::conda("the only artifact"));
     let first = scenario.restore(COMMIT);
     assert_eq!(first.code, 0, "stderr: {}", first.stderr);
     let before = std::fs::read_link(scenario.state().join("current")).expect("a current link");
 
     // Republish as a new version, verified, then corrupt it before the restore runs.
-    scenario.publish("0.2.0", COMMIT, b"a different artifact\n");
+    scenario.publish("0.2.0", COMMIT, &support::conda("a different artifact"));
     let payload = scenario.payload();
     std::fs::write(
         payload.join("airlock-0.1.0.conda"),
@@ -311,14 +313,14 @@ fn the_handover_contract_restores_from_the_callers_working_directory() {
     let _ = std::fs::remove_dir_all(&project);
     let payload = project.join(".universe-airlock").join("payload");
     std::fs::create_dir_all(&payload).expect("create the payload directory");
-    let bytes = b"the only artifact\n";
-    std::fs::write(payload.join("airlock-0.1.0.conda"), bytes).expect("write an artifact");
+    let bytes = support::conda("the only artifact");
+    std::fs::write(payload.join("airlock-0.1.0.conda"), &bytes).expect("write an artifact");
     let manifest = format!(
         r#"{{"schema":1,"version":"0.1.0","commit":"{COMMIT}","packages":[
              {{"name":"universe-airlock","kind":"conda","version":"0.1.0","artifacts":[
                {{"filename":"airlock-0.1.0.conda","sha256":"{}","size":{},
                  "stores":["conda-static"]}}]}}]}}"#,
-        digest(bytes),
+        digest(&bytes),
         bytes.len()
     );
     std::fs::write(payload.join("universe-release.json"), manifest).expect("write a manifest");
@@ -344,6 +346,13 @@ fn the_handover_contract_restores_from_the_callers_working_directory() {
         std::fs::read(environment.join("airlock-0.1.0.conda")).expect("the artifact"),
         bytes
     );
+    // The prefix is what a caller puts on `PATH`, and the restore installed it.
+    let installed = environment.join("prefix").join("bin/fixture");
+    assert!(
+        installed.is_file(),
+        "no prefix was installed: {installed:?}"
+    );
+    assert!(stdout.contains("prefix: "), "{stdout}");
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -351,7 +360,7 @@ fn the_handover_contract_restores_from_the_callers_working_directory() {
 #[test]
 fn restore_without_a_pin_is_a_usage_error() {
     let scenario = Scenario::new("no-pin");
-    scenario.publish("0.1.0", COMMIT, b"the only artifact\n");
+    scenario.publish("0.1.0", COMMIT, &support::conda("the only artifact"));
 
     let output = scenario.run(&["restore"]);
 

@@ -4,6 +4,21 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- A restore installs a prefix instead of only copying archives. `universe-airlock-bootstrap
+  restore` now materialises each verified `.conda` into `<environment>/prefix`, applying
+  `info/paths.json`: files at the modes the archive recorded, symlinks and hardlinks created as
+  links, every file's size and digest checked **after** prefix relocation, and a build-time
+  `prefix_placeholder` rewritten to the prefix it was installed into (NUL-padded for binary
+  files, so the linker's offsets do not move). `restore` reports `prefix:` and `installed:`. The
+  archive refuses what a real installer refuses: an entry `paths.json` does not name, a name
+  `paths.json` records with no payload, a path that escapes the prefix, a link type that
+  disagrees with the archive, and a `noarch` package, which needs the interpreter it would be
+  installed for and is `UNI-52` criterion 4. Restoring the four packages of release
+  `43252390113` from this repository's own payload produces a prefix holding four executables,
+  and `prefix/bin/universe-airlock --version` prints `universe-airlock 0.1.0`. This is the
+  payload path, not a lock replay: `UNI-51` still owns lockfiles, and no acceptance criterion of
+  `UNI-52` is claimed by it.
+
 - A restore now ends somewhere. `universe airlock pack` writes the closed payload the
   bootstrapper reads — `universe-release.json` naming every released artifact with its digest,
   size and destination stores, plus one file per artifact — from what `universe build` produced

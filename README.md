@@ -26,7 +26,9 @@ whose bytes are pinned** — which the same tool can restore on a machine with n
 > commits a rendered restore entrypoint, `.universe-airlock/restore.sh`, pinned at a `bootstrap`
 > ref that carries the bootstrapper binary, and `universe airlock pack` writes the closed payload
 > that binary restores. Run against the real remote, the entrypoint clones the pin, hands over,
-> and the four published packages are materialised as one activated environment. What a restore
+> and the four published packages are installed into a prefix that runs
+> `universe-airlock --version`. Replaying a *lock* rather than a payload manifest is still
+> `UNI-52`. What a restore
 > does *not* yet do is replay a lock into an installed prefix — that is `UNI-52` — and a
 > clean-container transcript is still unrecorded, so `UNI-59` stays open.
 > One platform is not the integrated v1 release, and the v1

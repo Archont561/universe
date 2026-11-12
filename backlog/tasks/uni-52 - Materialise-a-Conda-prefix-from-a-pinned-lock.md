@@ -1,10 +1,10 @@
 ---
 id: UNI-52
 title: Materialise a Conda prefix from a pinned lock
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-31'
-updated_date: '2026-10-31'
+updated_date: '2026-11-12'
 labels:
   - airlock
   - offline
@@ -58,7 +58,6 @@ switching, or any solve-time behaviour. The lock is the whole contract.
 - [ ] #2 `pixi run gates` passes and no test requires network egress.
 <!-- DOD.END -->
 
-## Notes
 
 2026-11-12 — the payload this task replays now has a producer, and one thing is worth separating.
 
@@ -77,3 +76,59 @@ acceptance criterion here moves: #1 needs a prefix that runs a native client, #2
 digests checked at install rather than at copy, #3 needs relocation evidence, and #5 needs the
 replay path itself. The payload being closed is a precondition for those, not a substitute for
 them.
+
+## Notes
+
+2026-11-12 — the extraction half exists; the lock half does not, and the difference matters.
+
+`prefix::materialise` in `universe-airlock-bootstrap` installs one archive into one prefix. It is
+the part of this task the archive can answer on its own: `info/paths.json` says which entries are
+hardlinks, symlinks and directories, which digest and size each installed file must have, and
+which of them carry a build-time prefix; the module applies all of that. Three decisions are worth
+recording.
+
+- **The digest is checked after relocation.** `paths.json` describes the file as installed, so
+  hashing the bytes that landed is the only check that also covers the rewrite.
+- **Both directions of `paths.json` are enforced.** An archive entry the record does not name is a
+  file whose bytes nobody recorded; a name with no payload is an environment missing a file it was
+  told it has. Both are refused rather than skipped.
+- **Owning the extractor is the option the description already allowed**, taken now rather than
+  bundling an installer. It costs this binary `zip`, `zstd`, `tar` and `serde_json`: compile-time
+  weight, not a runtime dependency, so the "no preinstalled language ecosystem" property holds.
+
+Measured, on this repository's own payload: the four packages of release `43252390113` restore
+into a prefix holding `bin/universe-airlock`, `bin/universe-kit`, `bin/universe` and
+`bin/universe-airlock-bootstrap`, all at mode `0755`, and `prefix/bin/universe-airlock --version`
+prints `universe-airlock 0.1.0`. `restore` reports `installed: 6 entries (11904056 bytes)`.
+
+**No acceptance criterion moves, deliberately.**
+
+- Criterion 1 says a *pinned lock* restores. This restores a *payload manifest* — the artifact list
+  `airlock pack` writes. Turning a Pixi lock into that list is `UNI-51`, so the criterion is
+  about a seam this change does not cross. Its second half does now hold for the payload path: an
+  empty prefix, and a native client that runs out of it.
+- Criterion 2's digest check is per-artifact today (unchanged) plus per-file at install; "matches
+  the lock" still needs the lock.
+- Criterion 3's relocation is implemented and tested on fixtures, but no published package here
+  carries a placeholder, so there is no installed-file evidence from the real artifacts yet.
+- Criterion 4 is refused rather than met: `noarch` packages fail with `airlock.prefix.noarch`.
+- Criterion 5 holds for this path — no resolver, no channel request, and a missing artifact fails
+  the run — but it is one clause of a criterion whose subject is the replay.
+
+2026-11-12 — what the new tests make checkable, and what they cannot.
+
+`tests/prefix.rs` now builds one `.conda` per case and asserts the refusal, not just the success:
+both directions of `info/paths.json`, size and digest separately, a symlink or hardlink that leaves
+or names nothing, a placeholder that does not fit a fixed-width binary patch, a second payload
+member, a payload that is not zstd, and an entry type this build cannot install. `state.rs` also
+measures the prefix it reuses instead of reporting zero files. `pixi run gates` passes: 652 Rust
+tests, 169 Python tests, Rust line coverage 90.2 percent against the gate's 90, `prefix.rs` itself
+at 78 percent, and no test touches the network.
+
+Two things in that note above are worth restating rather than leaving implied, because they are
+what a reader will ask. Egress was **not** denied while the live replay ran: this sandbox cannot
+build a netns or a container, so criterion 1's "egress denied" is asserted from the code — the
+bootstrapper links no HTTP client and reads only the payload directory it is given — and not from
+an experiment. And the noarch refusal is a scope boundary, not an oversight: installing a
+`noarch: python` package writes `site-packages` entries against an interpreter the payload does
+not yet carry.
