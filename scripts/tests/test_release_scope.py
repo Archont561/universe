@@ -305,3 +305,29 @@ def test_the_consumer_docs_and_the_asset_list_agree_on_the_bootstrapper() -> Non
         assert "universe-airlock-bootstrap" in document
         assert "separately installable" in document.lower()
     assert "no runtime dependency" in notes.lower()
+
+
+def test_the_bootstrap_release_evidence_is_recorded() -> None:
+    """Independent source: run 43252390113's build audit and the three destinations."""
+    task = (
+        ROOT / "backlog" / "tasks" / "uni-55 - Package-and-ship-the-Airlock-bootstrap-artifact.md"
+    ).read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    for document in (task, changelog):
+        assert "43252390113" in document, "the bootstrap publish run is missing"
+
+    digest = "1fb284e59d46fd54a97cae2c2e61c72afbb64e24011d06e9436acb5dc1a88861"
+    assert len(digest) == 64
+    for document in (task, changelog):
+        assert digest in document, "the bootstrapper's published digest is not recorded"
+    assert "298467" in task, "the bootstrapper's published size is not recorded"
+    assert "5424f2a40a5efb5f9067deb90877848a222c6084" in task, (
+        "the four-package branch snapshot is not recorded"
+    )
+    assert "93807" in task, "the fresh prefix.dev read is not recorded"
+    assert "- [x] #2" in task, "criterion 2 is not ticked after the clean-environment smoke"
+    assert "- [x] #3" in task, "criterion 3 is not ticked after the publish read-back"
+    assert "universe-airlock-bootstrap 0.1.0" in task, (
+        "the clean-environment smoke output is not recorded"
+    )

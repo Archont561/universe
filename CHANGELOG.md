@@ -4,6 +4,18 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- The bootstrapper is published: `release.yml` run `43252390113` (head `412412f8`) is green on
+  attempt 1 with all five jobs, and it is the first run whose channel carries four packages. The
+  build audited `universe-airlock-bootstrap` at
+  `sha256:1fb284e59d46fd54a97cae2c2e61c72afbb64e24011d06e9436acb5dc1a88861` (298467 bytes) beside
+  `universe-airlock` `fa33b2a0…` (298824), `universe-kit` `aece6a4e…` (3493512) and the facade
+  `a767f730…` (195251); the four GitHub Release assets, the one-snapshot `channel` branch at
+  `5424f2a40a5efb5f9067deb90877848a222c6084` and a cache-busted prefix.dev read (publication
+  `93807`) agree on all four. A Pixi project asking only for the bootstrapper from a fresh clone
+  of `channel` installed with `pixi install --offline` and printed
+  `universe-airlock-bootstrap 0.1.0`, so the artifact is smoke-tested in a prefix holding nothing
+  else. `UNI-55` criteria 2, 3 and 4 are satisfied; criterion 5 still needs the release key.
+
 - `universe-airlock-bootstrap` is declared as a fourth publishable package, closing the shipping
   gap `UNI-55` names: the recipe existed, but nothing built or published it, so no ref carried
   the binary a restore entrypoint runs. It is a **separately installable** package on the same
