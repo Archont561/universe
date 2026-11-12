@@ -167,6 +167,24 @@ auth = "token"
 secrets = ["GITHUB_TOKEN"]
 verifier = "registry"
 
+# The hosted channel index. GitHub Pages serves the tree `universe index` renders from what the
+# three stores above accepted, so a consumer points a solver at one URL and reads the same bytes
+# `pixi` would read from prefix.dev or from the branch.
+#
+# Not a destination: nothing uploads here, which is why it is `static` and not writable. The
+# deployment is rendered from this declaration — `pages = true` adds the two jobs that generate
+# the index and deploy it — rather than from a hand-written workflow, so the site cannot describe
+# a channel the release did not publish. `url` is the address the index advertises as its own
+# base URL, which is what makes the repodata it writes point back at itself.
+[[stores]]
+name = "pages"
+kind = "static"
+writable = false
+needs_index = true
+url = "https://archont561.github.io/universe"
+pages = true
+read_auth = "none"
+
 [release]
 tag_pattern = "v*"
 changelog = "CHANGELOG.md"
