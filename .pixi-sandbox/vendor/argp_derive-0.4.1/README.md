@@ -1,0 +1,240 @@
+Argp is a Derive-based argument parser optimized for code size and flexibility.
+
+The public API of this library consists primarily of the `FromArgs` derive and the `parse_args_or_exit` function, which can be used to produce a top-level `FromArgs` type from the current program’s command-line arguments.
+
+## Features
+
+- Zero runtime dependencies.
+
+- Small size overhead – ~40 kiB [^1], that’s **10x less** than [clap](https://github.com/clap-rs/clap) or [clap_derive](https://github.com/clap-rs/clap/tree/master/clap_derive)! See [argparse-rosetta-rs](https://github.com/jirutka/argparse-rosetta-rs) for more details.
+
+- Derive-based API – you define structs and enums for the parsed values, use attributes to specify how they should be parsed and a procedural derive macro will generate the parser at compile-time.
+
+- Context-sensitive parsing.
+
+- Support for subcommands.
+
+- Help message generator with Markdown support and dynamic wrapping based on terminal width.
+
+## Origins
+
+Argp originally started as a fork of [argh](https://github.com/google/argh/) to make it less opinionated, more UNIXy and flexible.
+
+Notable changes from argh:
+
+- Support for global options (i.e. options defined at the top level can be used in subcommands).
+
+- Support for combined short options (e.g. `-ab` is parsed as `-a -b`, `-an 5` as `-a -n 5`).
+
+- Support for non-UTF8 arguments (OsStr).
+
+- The `from_str_fn` attribute can also contain a function path, not just a single identifier, and can return any `Err` type which implements `ToString`.
+
+- No pedantic requirement for descriptions to start with a lower-case letter.
+
+- Help message is dynamically wrapped based on terminal width (on unix systems).
+
+- The indentation of descriptions in the help message is dynamically calculated based on the widths of all elements.
+
+- The `arg_name` attribute can also be used even on positional arguments to customise how the argument is displayed in the help message.
+
+- Errors are represented using an enum instead of a String and the information used to generate a help message is stored in a partially structured form in a struct; this opens the door to customisation of messages.
+
+- Specialised `example`, `note`, and `error_code` attributes are replaced by a single `footer` attribute – you can use it for whatever you like.
+
+- Positional arguments in the Usage string are displayed *after* options and switches and `<arg_name>` is displayed in descriptions of options.
+
+- Trailing options are allowed after the `-h, --help` switch, but are not allowed after the `help` subcommand only.
+
+- The `from_env` function has been renamed to `parse_args_or_exit`, `cargo_from_env` to `cargo_parse_args_or_exit`.
+
+- `redact_arg_values` has been removed (if you happen to need it, let me know in Issues).
+
+## Basic Example
+
+``` rust
+use argp::FromArgs;
+
+/// Reach new heights.
+#[derive(FromArgs)]
+struct GoUp {
+    /// Whether or not to jump.
+    #[argp(switch, short = 'j')]
+    jump: bool,
+
+    /// How high to go.
+    #[argp(option, arg_name = "meters")]
+    height: usize,
+
+    /// An optional nickname for the pilot.
+    #[argp(option, arg_name = "name")]
+    pilot_nickname: Option<String>,
+}
+
+fn main() {
+    let up: GoUp = argp::parse_args_or_exit(argp::DEFAULT);
+}
+```
+
+`./some_bin --help` will then output the following:
+
+    Usage: cmdname [-j] --height <meters> [--pilot-nickname <name>]
+
+    Reach new heights.
+
+    Options:
+      -j, --jump                   Whether or not to jump.
+          --height <meters>        How high to go.
+          --pilot-nickname <name>  An optional nickname for the pilot.
+      -h, --help                   Show this help message and exit.
+
+The resulting program can then be used in any of these ways:
+
+- `./some_bin --height 5`
+
+- `./some_bin -j --height 5`
+
+- `./some_bin --jump --height 5 --pilot-nickname Wes`
+
+Switches, like `jump`, are optional and will be set to true if provided.
+
+Options, like `height` and `pilot_nickname`, can be either required, optional, or repeating, depending on whether they are contained in an `Option` or a `Vec`.
+Default values can be provided using the `#[argp(default = "<your_code_here>")]` attribute, and in this case an option is treated as optional.
+
+``` rust
+use argp::FromArgs;
+
+fn default_height() -> usize {
+    5
+}
+
+/// Reach new heights.
+#[derive(FromArgs)]
+struct GoUp {
+    /// An optional nickname for the pilot.
+    #[argp(option)]
+    pilot_nickname: Option<String>,
+
+    /// An optional height.
+    #[argp(option, default = "default_height()")]
+    height: usize,
+
+    /// An optional direction which is "up" by default.
+    #[argp(option, default = "String::from(\"only up\")")]
+    direction: String,
+}
+
+fn main() {
+    let up: GoUp = argp::parse_args_or_exit(argp::DEFAULT);
+}
+```
+
+Custom option types can be deserialized so long as they implement the `FromArgValue` trait (already implemented for most types in std for which the `FromStr` trait is implemented).
+If more customized parsing is required, you can supply a custom `fn(&str) → Result<T, E>` using the `from_str_fn` attribute, or `fn(&OsStr) → Result<T, E>` using the `from_os_str_fn` attribute, where `E` implements `ToString`:
+
+``` rust
+use argp::FromArgs;
+use std::ffi::OsStr;
+use std::path::PathBuf;
+
+/// Goofy thing.
+#[derive(FromArgs)]
+struct FineStruct {
+    /// Always five.
+    #[argp(option, from_str_fn(always_five))]
+    five: usize,
+
+    /// File path.
+    #[argp(option, from_os_str_fn(convert_path))]
+    path: PathBuf,
+}
+
+fn always_five(_value: &str) -> Result<usize, String> {
+    Ok(5)
+}
+
+fn convert_path(value: &OsStr) -> Result<PathBuf, String> {
+    Ok(PathBuf::from("/tmp").join(value))
+}
+```
+
+Positional arguments can be declared using `#[argp(positional)]`.
+These arguments will be parsed in order of their declaration in the structure:
+
+``` rust
+use argp::FromArgs;
+
+/// A command with positional arguments.
+#[derive(FromArgs, PartialEq, Debug)]
+struct WithPositional {
+    #[argp(positional)]
+    first: String,
+}
+```
+
+The last positional argument may include a default, or be wrapped in `Option` or `Vec` to indicate an optional or repeating positional argument.
+
+Subcommands are also supported.
+To use a subcommand, declare a separate `FromArgs` type for each subcommand as well as an enum that cases over each command:
+
+``` rust
+use argp::FromArgs;
+
+/// Top-level command.
+#[derive(FromArgs, PartialEq, Debug)]
+struct TopLevel {
+    /// Be verbose.
+    #[argp(switch, short = 'v', global)]
+    verbose: bool,
+
+    #[argp(subcommand)]
+    nested: MySubCommandEnum,
+}
+
+#[derive(FromArgs, PartialEq, Debug)]
+#[argp(subcommand)]
+enum MySubCommandEnum {
+    One(SubCommandOne),
+    Two(SubCommandTwo),
+}
+
+/// First subcommand.
+#[derive(FromArgs, PartialEq, Debug)]
+#[argp(subcommand, name = "one")]
+struct SubCommandOne {
+    /// How many x.
+    #[argp(option)]
+    x: usize,
+}
+
+/// Second subcommand.
+#[derive(FromArgs, PartialEq, Debug)]
+#[argp(subcommand, name = "two")]
+struct SubCommandTwo {
+    /// Whether to fooey.
+    #[argp(switch)]
+    fooey: bool,
+}
+```
+
+For more information, refer to the [argp documentation](https://docs.rs/argp/latest/argp/).
+
+## How to debug the expanded derive macro for `argp`
+
+The `argp::FromArgs` derive macro can be debugged with the [cargo-expand](https://crates.io/crates/cargo-expand) crate.
+
+### Expand the derive macro in `examples/simple_example.rs`
+
+See [argp/examples/simple_example.rs](argp/examples/simple_example.rs) for the example struct we wish to expand.
+
+First, install `cargo-expand` by running `cargo install cargo-expand`.
+Note this requires the nightly build of Rust.
+
+Once installed, run `cargo expand` with in the `argp` package and you can see the expanded code.
+
+## License
+
+This project is licensed under [BSD-3-Clause license](http://opensource.org/licenses/BSD-3-Clause/).
+For the full text of the license, see the [LICENSE](LICENSE) file.
+
+[^1]: Measured on a release build with `strip = true` and `panic = "abort"`. The exact size depends on several factors, including the number of options and subcommands.
