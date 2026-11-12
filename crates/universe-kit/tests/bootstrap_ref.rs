@@ -24,6 +24,9 @@ const BOOTSTRAP: &str = "universe-airlock-bootstrap";
 /// The descriptor published beside the binary.
 const DESCRIPTOR: &str = "bootstrap.json";
 
+/// The page a person lands on when they open the ref in a browser.
+const README: &str = "README.md";
+
 /// A stub that says what it was handed, which is the entrypoint's whole contract.
 const STUB: &[u8] =
     b"#!/bin/sh\nprintf 'stub-bootstrap' >&2\nprintf ' %s' \"$@\" >&2\nprintf '\\n' >&2\n";
@@ -176,10 +179,11 @@ fn the_verb_publishes_an_executable_and_a_descriptor() {
     assert_eq!(
         entries,
         vec![
+            ("100644".to_owned(), README.to_owned()),
             ("100644".to_owned(), DESCRIPTOR.to_owned()),
             ("100755".to_owned(), BOOTSTRAP.to_owned())
         ],
-        "the ref must hold the descriptor and an executable bootstrapper, in that order"
+        "the ref must hold a README, the descriptor and an executable bootstrapper, in that order"
     );
 
     // The entrypoint's `[ -x ... ]` test is the read that matters, and the mode above is what
@@ -296,5 +300,80 @@ fn publishing_without_a_declared_ref_uses_the_namespaced_default() {
         fixture.refs().contains("refs/heads/universe/bootstrap"),
         "the default ref is not the namespaced one: {}",
         fixture.refs()
+    );
+}
+
+/// A ref nobody can read is a ref nobody can trust, and a bare one-file branch is the least
+/// legible thing in the repository: opening it shows a binary.
+#[test]
+fn the_ref_explains_itself_to_a_reader_without_the_manifest() {
+    let fixture = Fixture::new();
+    let output = fixture.publish(STUB);
+    assert_eq!(
+        output.exit_code(),
+        0,
+        "publish-bootstrap failed: {}",
+        output.stderr()
+    );
+
+    let commit = ref_commit(&fixture.remote);
+    let readme = git(
+        &["cat-file", "-p", &format!("{commit}:{README}")],
+        &fixture.remote,
+    );
+    let digest = universe_workflow::sha256::sha256_hex(STUB);
+
+    // What the page is for, and that it is not the channel: the two things a reader arriving
+    // from a link gets wrong without being told.
+    // The page names the ref it is published to, which is the one the reader arrived on.
+    assert!(readme.contains(BRANCH), "{readme}");
+    assert!(
+        readme.to_lowercase().contains("not a conda channel"),
+        "{readme}"
+    );
+    // What this exact binary is, so the page is also the check a suspicious reader performs.
+    assert!(
+        readme.contains(&digest),
+        "the page does not name the digest: {readme}"
+    );
+    assert!(
+        readme.contains(&STUB.len().to_string()),
+        "the page does not name the binary's size: {readme}"
+    );
+    assert!(readme.contains(universe_core::VERSION), "{readme}");
+    // And how it is used, which is the entrypoint's own contract rather than a suggestion.
+    assert!(readme.contains("restore"), "{readme}");
+}
+
+/// The page describes the binary beside it, so republishing a different binary rewrites it
+/// rather than leaving the previous digest on a page a reader would take at its word.
+#[test]
+fn republishing_a_different_binary_rewrites_the_page() {
+    let fixture = Fixture::new();
+    assert_eq!(fixture.publish(STUB).exit_code(), 0);
+    let first = ref_commit(&fixture.remote);
+
+    assert_eq!(
+        fixture
+            .publish(b"#!/bin/sh\nprintf 'other\\n' >&2\n")
+            .exit_code(),
+        0
+    );
+    let second = ref_commit(&fixture.remote);
+
+    assert_ne!(first, second, "an unchanged ref would keep the stale page");
+    let readme = git(
+        &["cat-file", "-p", &format!("{second}:{README}")],
+        &fixture.remote,
+    );
+    let stale = universe_workflow::sha256::sha256_hex(STUB);
+    let fresh = universe_workflow::sha256::sha256_hex(b"#!/bin/sh\nprintf 'other\\n' >&2\n");
+    assert!(
+        readme.contains(&fresh),
+        "the page does not name the new digest: {readme}"
+    );
+    assert!(
+        !readme.contains(&stale),
+        "the page still names the previous binary's digest: {readme}"
     );
 }

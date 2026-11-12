@@ -66,6 +66,68 @@ const BOOTSTRAP_BINARY: &str = "universe-airlock-bootstrap";
 /// 300 KiB executable.
 const BOOTSTRAP_DESCRIPTOR: &str = "bootstrap.json";
 
+/// The page published beside the binary.
+///
+/// The ref is what a person lands on when they follow the pin out of a manifest, and without
+/// this they land on two files with no statement of what they are. It is generated rather than
+/// committed elsewhere because it describes the bytes in the same commit: a digest on a page
+/// nobody regenerates is a digest that goes stale the next time the bootstrapper is rebuilt.
+const BOOTSTRAP_README: &str = "README.md";
+
+/// What the page says, given the bytes it describes.
+///
+/// Nothing here varies with time or with where it was published from: a republish of the same
+/// binary has to produce the same commit, or the pin in every consumer's manifest moves for a
+/// reason that has nothing to do with the binary.
+fn bootstrap_readme(branch: &str, digest: &str, size: usize) -> String {
+    let version = universe_core::VERSION;
+    format!(
+        r#"# `{BOOTSTRAP_BINARY}`
+
+The thin native bootstrapper that restores a Universe payload on a host whose only reachable
+thing is Git. This ref, `{branch}`, holds exactly one build of it.
+
+**This is not a Conda channel.** A solver cannot install anything from here, and nothing here is
+a package. A package named `{BOOTSTRAP_BINARY}` is published to the channel, and installing that
+with a solver is a different thing from `exec`ing the copy in this checkout — only the second is
+what a restore entrypoint does.
+
+## What a restore entrypoint does with it
+
+A rendered entrypoint clones this ref at a pinned commit, refuses to continue unless the checkout
+matches that commit, checks that the bootstrapper is executable, and hands over:
+
+```sh
+exec "$CHECKOUT/{BOOTSTRAP_BINARY}" restore --commit "$PIN_COMMIT"
+```
+
+That is why this ref is stable rather than per-release: the pin in a consumer's manifest names a
+commit here, and the commit only moves when the binary does.
+
+## What this commit contains
+
+- `{BOOTSTRAP_BINARY}` — the executable, version `{version}`.
+- `{BOOTSTRAP_DESCRIPTOR}` — its digest and size, for a reader who wants to check the binary
+  without downloading it.
+- This page.
+
+## Checking the binary
+
+```sh
+sha256sum {BOOTSTRAP_BINARY}
+```
+
+It must print:
+
+```text
+{digest}  {BOOTSTRAP_BINARY}
+```
+
+Size: {size} bytes. Version: `{version}`.
+"#
+    )
+}
+
 /// The ref a publish writes when the caller names none.
 ///
 /// Namespaced for the same reason the channel's default is: a bare `bootstrap` at the
@@ -944,6 +1006,11 @@ fn publish_bootstrap(invocation: &Invocation) -> CommandOutput {
     })
     .to_string();
     let entries = vec![
+        Entry {
+            path: BOOTSTRAP_README.to_owned(),
+            bytes: bootstrap_readme(&branch, &digest, bytes.len()).into_bytes(),
+            executable: false,
+        },
         Entry {
             path: BOOTSTRAP_DESCRIPTOR.to_owned(),
             bytes: descriptor.into_bytes(),
