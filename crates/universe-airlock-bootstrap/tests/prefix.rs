@@ -69,6 +69,9 @@ struct Deviation {
     duplicate_member: bool,
     /// Write the payload member as bytes that are not zstd.
     corrupt_payload: bool,
+    /// Write `info/link.json` with this text, which is where a noarch package states its
+    /// flavour and its entry points.
+    link: Option<String>,
 }
 
 /// A `.conda` written under a temporary directory, with a prefix to install into.
@@ -112,6 +115,25 @@ impl Fixture {
             None,
             Deviation {
                 extra: Some((path, bytes.to_vec())),
+                ..Deviation::default()
+            },
+        )
+    }
+
+    /// A `noarch: python` package with these entry points, which is how a pure-Python Conda
+    /// package ships a command.
+    fn noarch_python(entries: Vec<Entry>, entry_points: &[&str]) -> Self {
+        let link = serde_json::json!({
+            "noarch": { "type": "python", "entry_points": entry_points },
+            "package_metadata_version": 1,
+        })
+        .to_string();
+        Self::build_in(
+            tempfile::tempdir().expect("temp dir"),
+            entries,
+            Some("python"),
+            Deviation {
+                link: Some(link),
                 ..Deviation::default()
             },
         )
@@ -232,6 +254,9 @@ impl Fixture {
         let mut info: Vec<(&str, Vec<u8>)> = Vec::new();
         if deviation.omit_info != Some("info/index.json") {
             info.push(("info/index.json", index.to_string().into_bytes()));
+        }
+        if let Some(link) = &deviation.link {
+            info.push(("info/link.json", link.clone().into_bytes()));
         }
         if deviation.omit_info != Some("info/paths.json") {
             let paths = if deviation.bad_paths {
@@ -918,4 +943,242 @@ fn a_file_whose_size_does_not_match_the_record_is_refused() {
         message.contains("airlock.prefix.size"),
         "the refusal is not about the size: {message}"
     );
+}
+
+/// A prefix that already holds an interpreter, which is what a `noarch: python` package is
+/// installed for.
+fn with_interpreter(fixture: &Fixture, version: &str) -> PathBuf {
+    let prefix = fixture.prefix();
+    let interpreter = prefix.join("lib").join(version);
+    std::fs::create_dir_all(interpreter.join("site-packages")).expect("interpreter");
+    prefix
+}
+
+fn python_file(path: &'static str, bytes: &[u8]) -> Entry {
+    Entry::File {
+        path,
+        bytes: bytes.to_vec(),
+        mode: 0o644,
+        placeholder: None,
+        file_mode: None,
+    }
+}
+
+#[test]
+fn a_noarch_python_package_installs_into_the_interpreters_site_packages() {
+    // A pure-Python package is recorded at `site-packages/…` and belongs under the interpreter
+    // the prefix already holds; installing it at the recorded path is how an environment ends up
+    // with a package nothing imports.
+    let source = b"VALUE = 1\n";
+    let fixture = Fixture::noarch_python(
+        vec![python_file("site-packages/fixture/__init__.py", source)],
+        &[],
+    );
+    let prefix = with_interpreter(&fixture, "python3.13");
+
+    fixture.install().expect("install");
+
+    let installed = prefix.join("lib/python3.13/site-packages/fixture/__init__.py");
+    assert_eq!(
+        std::fs::read(&installed).expect("the installed module"),
+        source
+    );
+    assert!(
+        !prefix.join("site-packages").exists(),
+        "the recorded path was installed verbatim"
+    );
+}
+
+#[test]
+fn a_noarch_python_entry_point_becomes_a_script_in_bin() {
+    // The command a package declares is what a user runs. It is generated at install time
+    // against the prefix's own interpreter, so its shebang is the environment's python.
+    let fixture = Fixture::noarch_python(
+        vec![python_file(
+            "site-packages/fixture/cli.py",
+            b"def main():\n    return 0\n",
+        )],
+        &["fixture-cli = fixture.cli:main"],
+    );
+    let prefix = with_interpreter(&fixture, "python3.13");
+
+    let installed = fixture.install().expect("install");
+
+    let script = prefix.join("bin/fixture-cli");
+    let text = std::fs::read_to_string(&script).expect("the entry point");
+    assert!(
+        text.starts_with(&format!("#!{}/bin/python\n", prefix.display())),
+        "the shebang is not the prefix's interpreter: {text}"
+    );
+    assert!(
+        text.contains("from fixture.cli import main"),
+        "the script does not import the declared function: {text}"
+    );
+    assert!(
+        text.contains("sys.exit(main())"),
+        "the script does not exit with the function's result: {text}"
+    );
+    let mode = std::fs::metadata(&script)
+        .expect("metadata")
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o111, 0o111, "the entry point is not executable");
+    // A generated script is an installed file, so the receipt counts it.
+    assert!(installed.entries >= 2);
+    assert!(installed.bytes >= text.len() as u64);
+}
+
+#[test]
+fn a_noarch_python_package_without_an_interpreter_is_refused() {
+    let fixture = Fixture::noarch_python(
+        vec![python_file(
+            "site-packages/fixture/__init__.py",
+            b"VALUE = 1\n",
+        )],
+        &[],
+    );
+    let message = fixture
+        .install()
+        .expect_err("there is no interpreter to install for");
+    assert!(
+        message.contains("airlock.prefix.noarch.interpreter"),
+        "the refusal is not about the interpreter: {message}"
+    );
+}
+
+#[test]
+fn a_prefix_with_two_interpreters_is_refused_rather_than_guessed() {
+    let fixture = Fixture::noarch_python(
+        vec![python_file(
+            "site-packages/fixture/__init__.py",
+            b"VALUE = 1\n",
+        )],
+        &[],
+    );
+    let prefix = with_interpreter(&fixture, "python3.12");
+    std::fs::create_dir_all(prefix.join("lib/python3.13")).expect("a second interpreter");
+
+    let message = fixture
+        .install()
+        .expect_err("two interpreters is a question, not a default");
+    assert!(
+        message.contains("airlock.prefix.noarch.ambiguous"),
+        "the refusal is not about the ambiguity: {message}"
+    );
+}
+
+#[test]
+fn a_noarch_python_package_that_carries_a_path_outside_its_two_roots_is_refused() {
+    // Conda's rule for this flavour: a payload path is either under `site-packages/` or under
+    // `python-scripts/`. Anything else is a package that is not what it says it is.
+    let fixture =
+        Fixture::noarch_python(vec![python_file("etc/fixture.conf", b"setting = 1\n")], &[]);
+    let _prefix = with_interpreter(&fixture, "python3.13");
+
+    let message = fixture
+        .install()
+        .expect_err("a path outside the two roots is refused");
+    assert!(
+        message.contains("airlock.prefix.noarch.path"),
+        "the refusal is not about the path: {message}"
+    );
+}
+
+#[test]
+fn a_noarch_package_without_link_json_is_refused() {
+    // Without `info/link.json` there is no statement of the flavour or of the commands, and a
+    // noarch package's whole installation is derived from those two facts.
+    let fixture = Fixture::new(
+        vec![python_file(
+            "site-packages/fixture/__init__.py",
+            b"VALUE = 1\n",
+        )],
+        Some("python"),
+    );
+    let _prefix = with_interpreter(&fixture, "python3.13");
+
+    let message = fixture.install().expect_err("no link.json, no flavour");
+    assert!(
+        message.contains("airlock.prefix.noarch.link"),
+        "the refusal is not about the missing record: {message}"
+    );
+}
+
+#[test]
+fn an_entry_point_that_is_not_name_equals_module_colon_function_is_refused() {
+    let fixture = Fixture::noarch_python(
+        vec![python_file(
+            "site-packages/fixture/__init__.py",
+            b"VALUE = 1\n",
+        )],
+        &["fixture-cli"],
+    );
+    let _prefix = with_interpreter(&fixture, "python3.13");
+
+    let message = fixture
+        .install()
+        .expect_err("a malformed entry point is not a command");
+    assert!(
+        message.contains("airlock.prefix.noarch.entry"),
+        "the refusal is not about the entry point: {message}"
+    );
+}
+
+#[test]
+fn a_noarch_generic_package_installs_its_files_where_they_are_recorded() {
+    // `noarch: generic` is not relocated at all: its files are already prefix-relative.
+    let fixture = Fixture::new(
+        vec![python_file("share/fixture/data.txt", b"some data\n")],
+        Some("generic"),
+    );
+    let prefix = fixture.prefix();
+
+    fixture.install().expect("install");
+
+    assert_eq!(
+        std::fs::read(prefix.join("share/fixture/data.txt")).expect("the data file"),
+        b"some data\n"
+    );
+}
+
+#[test]
+fn a_noarch_flavour_this_build_cannot_install_is_refused_by_name() {
+    let fixture = Fixture::new(
+        vec![python_file("share/fixture/data.txt", b"some data\n")],
+        Some("r"),
+    );
+    let message = fixture.install().expect_err("no such flavour");
+    assert!(
+        message.contains("airlock.prefix.noarch.type"),
+        "the refusal is not about the flavour: {message}"
+    );
+    assert!(
+        message.contains("r"),
+        "the refusal does not name it: {message}"
+    );
+}
+
+#[test]
+fn a_python_script_entry_is_installed_into_bin_and_made_executable() {
+    let fixture = Fixture::noarch_python(
+        vec![python_file(
+            "python-scripts/fixture-tool",
+            b"#!/usr/bin/env python\nprint('tool')\n",
+        )],
+        &[],
+    );
+    let prefix = with_interpreter(&fixture, "python3.13");
+
+    fixture.install().expect("install");
+
+    let script = prefix.join("bin/fixture-tool");
+    assert_eq!(
+        std::fs::read(&script).expect("the script"),
+        b"#!/usr/bin/env python\nprint('tool')\n"
+    );
+    let mode = std::fs::metadata(&script)
+        .expect("metadata")
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o111, 0o111, "a declared script is not executable");
 }

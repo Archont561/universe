@@ -48,7 +48,7 @@ switching, or any solve-time behaviour. The lock is the whole contract.
 - [ ] #1 A pinned lock restores into an empty prefix on Linux x86_64 with network egress denied, and the restored environment runs a native client.
 - [ ] #2 Every installed artifact's digest matches the lock; a corrupted or missing artifact aborts before any state is activated, leaving the previous state untouched.
 - [ ] #3 Prefix relocation is verified: no installed file references the original build prefix, and the check is part of the acceptance fixture rather than a manual step.
-- [ ] #4 `noarch: python` and native packages are both covered by fixtures, including at least one package that carries an entry point.
+- [x] #4 `noarch: python` and native packages are both covered by fixtures, including at least one package that carries an entry point. — 2026-11-12: `prefix::materialise` installs a `noarch: python` package under the prefix's own `lib/python3.*`, relocates its `python-scripts/` into `bin`, and generates the commands `info/link.json` declares; `crates/universe-airlock-bootstrap/tests/prefix.rs` covers that case, the `noarch: generic` one, and four refusals, next to the native fixtures (31 tests in the file).
 - [ ] #5 The restore path contains no resolver and no channel metadata request; the run fails rather than falling back to a channel when an artifact is absent.
 <!-- AC.END -->
 
@@ -111,7 +111,8 @@ prints `universe-airlock 0.1.0`. `restore` reports `installed: 6 entries (119040
   the lock" still needs the lock.
 - Criterion 3's relocation is implemented and tested on fixtures, but no published package here
   carries a placeholder, so there is no installed-file evidence from the real artifacts yet.
-- Criterion 4 is refused rather than met: `noarch` packages fail with `airlock.prefix.noarch`.
+- Criterion 4 was refused rather than met when this was written; it is met as of the 2026-11-12
+  note at the end of this file, which also records the one ordering it depends on.
 - Criterion 5 holds for this path — no resolver, no channel request, and a missing artifact fails
   the run — but it is one clause of a criterion whose subject is the replay.
 
@@ -124,6 +125,24 @@ member, a payload that is not zstd, and an entry type this build cannot install.
 measures the prefix it reuses instead of reporting zero files. `pixi run gates` passes: 652 Rust
 tests, 169 Python tests, Rust line coverage 90.2 percent against the gate's 90, `prefix.rs` itself
 at 78 percent, and no test touches the network.
+
+2026-11-12 — `noarch` packages install, and the ordering they depend on is the caller's.
+
+`noarch: generic` needed nothing: its recorded paths are prefix-relative. `noarch: python` needed
+three rules, all of them Conda's. Its payload is a `site-packages/` tree, so it is installed under
+the prefix's own `lib/python3.X/site-packages`; its `python-scripts/` entries become executable
+files in `bin`; and the `entry_points` in `info/link.json` become generated scripts whose shebang
+is the prefix's interpreter, because the package cannot know which prefix it lands in. The
+archive's own bytes are never rewritten by this: only where they land.
+
+The refusals are the four the archive cannot answer: no interpreter, two interpreters, a payload
+path under neither root, and an entry point that is not `name = module:function` — the last one
+because everything accepted there is written into a script the environment then executes.
+
+The limit that follows, and it is a real one: a `noarch: python` package has to be installed
+*after* the package that carries its interpreter, and nothing in this module orders a payload. A
+lock replay therefore has to install the closure in dependency order, which is the next thing this
+task needs rather than a defect in the installer.
 
 Two things in that note above are worth restating rather than leaving implied, because they are
 what a reader will ask. Egress was **not** denied while the live replay ran: this sandbox cannot
