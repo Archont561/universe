@@ -67,7 +67,12 @@ const BOOTSTRAP_BINARY: &str = "universe-airlock-bootstrap";
 const BOOTSTRAP_DESCRIPTOR: &str = "bootstrap.json";
 
 /// The ref a publish writes when the caller names none.
-const DEFAULT_BOOTSTRAP_BRANCH: &str = "bootstrap";
+///
+/// Namespaced for the same reason the channel's default is: a bare `bootstrap` at the
+/// repository root claims a name every project would want, and the pin in a manifest says which
+/// project published it only by accident. A project that wants another ref declares `branch` in
+/// `[airlock.developer.restore]`, and the entrypoint it renders names that ref, not this one.
+const DEFAULT_BOOTSTRAP_BRANCH: &str = "universe/bootstrap";
 
 /// The directory a payload is written into, relative to the project root.
 ///

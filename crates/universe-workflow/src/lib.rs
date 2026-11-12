@@ -671,7 +671,16 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         // A branch store is pushed to, so the job has to say which remote and which branch;
         // a registry store is uploaded to, and names nothing beyond itself.
         let arguments = if publish == "publish" {
-            format!("publish --store {} --remote {BRANCH_REMOTE}", store.name)
+            // The ref is the destination's, so it is emitted when the store declares one and
+            // omitted when it does not: an undeclared ref keeps the tool's default, and this
+            // repository declares `universe/conda-channel` because `channel` was its old name.
+            match store.branch.as_deref() {
+                Some(branch) => format!(
+                    "publish --store {} --remote {BRANCH_REMOTE} --branch {branch}",
+                    store.name
+                ),
+                None => format!("publish --store {} --remote {BRANCH_REMOTE}", store.name),
+            }
         } else if overwrites_changed_digest(store.kind) {
             format!("publish-artifacts --store {} --force", store.name)
         } else {
@@ -1240,6 +1249,15 @@ auth = "token"
 secrets = ["GITHUB_TOKEN"]
 verifier = "registry"
 "#;
+
+    /// The same destinations, with the branch store naming its ref the way this repository does.
+    fn named_ref_manifest() -> Manifest {
+        Manifest::from_toml(&THREE_STORES.replace(
+            "name = \"branch\"\nkind = \"branch\"",
+            "name = \"branch\"\nkind = \"branch\"\nbranch = \"universe/conda-channel\"",
+        ))
+        .expect("the manifest parses")
+    }
 
     /// The three `v0.1.0` destinations plus a GitHub Pages store, spelled as a project that
     /// serves its channel from Pages would spell them.
@@ -1881,6 +1899,48 @@ pages = true
             .find(|file| file.path == PUBLISH_FILE)
             .expect("publish file")
             .content
+    }
+
+    #[test]
+    fn a_branch_store_publishes_to_the_ref_the_manifest_names() {
+        // The ref is where the bytes land. A renderer that omitted the flag would publish to the
+        // tool's default, which for this repository is a different ref: the release would go
+        // green and the channel a consumer is told about would never change.
+        let manifest = named_ref_manifest();
+        let publish = render(&manifest, THREE_STORES)
+            .expect("renders")
+            .files
+            .into_iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+
+        assert!(
+            publish.contains(
+                "publish --store branch --remote ${{ github.server_url }}/${{ github.repository }}.git --branch universe/conda-channel"
+            ),
+            "the branch store does not name its ref:\n{publish}"
+        );
+    }
+
+    #[test]
+    fn a_branch_store_that_names_no_ref_leaves_the_choice_to_the_tool() {
+        // Absent is not the same as empty: an undeclared ref keeps the rendered command exactly
+        // as it was, so a project that never declared one is unaffected by this field existing.
+        let manifest = Manifest::from_toml(THREE_STORES).expect("the manifest parses");
+        let publish = render(&manifest, THREE_STORES)
+            .expect("renders")
+            .files
+            .into_iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+
+        assert!(
+            publish.contains("publish --store branch --remote"),
+            "{publish}"
+        );
+        assert!(!publish.contains("--branch"), "{publish}");
     }
 
     #[test]

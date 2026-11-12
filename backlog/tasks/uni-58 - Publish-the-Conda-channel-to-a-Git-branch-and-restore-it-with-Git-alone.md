@@ -96,3 +96,31 @@ each consumer is a channel with as many readings as it has consumers.
 - [x] #2 A property test proves the metadata is a pure function of the fragment set, so any permutation of input fragments yields byte-identical output. — 2026-11-04: `channel::permutation_tests` rotates and reverses arbitrary fragment selections and asserts the rendered file set is unchanged; the renderer sorts by channel path first.
 - [x] #3 `pixi run gates` passes. — 2026-11-04: 16 gates, exit 0.
 <!-- DOD.END -->
+
+## Notes
+
+2026-11-13 — the ref is declared, and it is namespaced.
+
+The channel was published to a bare `channel`, which was the tool's default from the first
+commit of this task and never appeared in a manifest. Two problems with that, both visible only
+once the repository had a second ref doing the same thing: the name claims the top level of the
+repository's namespace, where it reads as though the first project to push owns it, and it is
+invisible in a diff — a project that renamed its channel would find out when a consumer's solver
+stopped updating.
+
+So `[[stores]]` gained `branch` for the `branch` and `static` kinds, the renderer emits
+`--branch <ref>` when it is declared, and the default moved with the rename so a hand-run
+`universe publish` cannot quietly recreate the old name. `branch` on a registry is refused
+(`manifest.store.branch.kind`) because that store has no ref, and an empty one is refused
+(`manifest.store.branch.name`) because `git` would be handed an empty ref.
+
+The two renames are recorded as reversals rather than as a fresh start: `channel` was moved to
+`universe/conda-channel` at the same commit (`eb5d6f31`) and then deleted, and `bootstrap` was
+re-published under its new name with the real verb rather than moved — `universe airlock
+publish-bootstrap` wrote `universe/bootstrap` at `7c402a80` from a stripped release build of the
+bootstrapper, and the old ref was deleted afterwards. The manifest pin and the rendered
+entrypoint moved with it, and running that entrypoint against the real remote cloned
+`universe/bootstrap`, matched the pin, and executed the binary out of the checkout.
+
+What this does not change: a release still writes one snapshot tree, the tree is still a
+function of the content, and nothing here touches the retention or budget rules.

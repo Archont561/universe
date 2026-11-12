@@ -58,6 +58,21 @@ and its drift verification.
 <!-- DOD.END -->
 
 ## Notes
+
+2026-11-13 — the pinned ref is namespaced, and the entrypoint proves it against the real remote.
+
+`bootstrap` became `universe/bootstrap`. The task's own rendering did not need to change: it
+emits `PIN_BRANCH` from `[airlock.developer.restore]`, so the rename was a manifest change plus
+the `publish-bootstrap` default moving with it. What the re-render bought is evidence at the
+seam that matters — run against `https://github.com/Archont561/universe.git`, the refreshed
+entrypoint cloned `universe/bootstrap`, checked out `7c402a80`, found
+`universe-airlock-bootstrap` executable at that commit, ran it, and stopped at the absent payload
+manifest, which is a restore of a payload nothing packed. The old `bootstrap` ref was deleted
+afterwards; the commit it held is not referenced by anything now, which is why the pin moved in
+the same change rather than later.
+
+Definition of done #1 is unchanged by this: a clean-container transcript is still the thing this
+workspace cannot produce, and nothing above claims one.
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-06 — the entrypoint renderer landed, and the two things it needed from the manifest are
 new surface rather than invented defaults.

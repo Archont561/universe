@@ -66,6 +66,31 @@ impl Fixture {
         ])
     }
 
+    /// Publish with no `--branch` and no manifest, which is the only way to observe the
+    /// default the verb would use for a project that declares nothing.
+    fn publish_without_branch(&self, bytes: &[u8]) -> universe_core::CommandOutput {
+        let binary = self.root().join("unbuilt-bootstrapper");
+        std::fs::write(&binary, bytes).expect("write the built bootstrapper");
+        universe_kit::run([
+            "airlock",
+            "publish-bootstrap",
+            "--binary",
+            &binary.display().to_string(),
+            "--remote",
+            &self.remote.display().to_string(),
+            "--json",
+        ])
+    }
+
+    /// Every head the bare remote holds.
+    fn refs(&self) -> String {
+        let output = Command::new("git")
+            .args(["ls-remote", "--heads", &self.remote.display().to_string()])
+            .output()
+            .expect("git is installed");
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    }
+
     /// A project whose manifest pins `commit` on this remote.
     fn project(&self, commit: &str) -> PathBuf {
         let project = self.root().join("project");
@@ -250,5 +275,26 @@ fn the_rendered_entrypoint_runs_what_the_verb_published() {
     assert!(
         stderr.contains(&format!("stub-bootstrap restore --commit {commit}")),
         "the entrypoint did not hand over to what the verb published\nstderr: {stderr}"
+    );
+}
+
+/// The default ref is namespaced, because `bootstrap` at the repository root competes for the
+/// same namespace every project uses and says nothing about who owns it.
+#[test]
+fn publishing_without_a_declared_ref_uses_the_namespaced_default() {
+    let fixture = Fixture::new();
+
+    let output = fixture.publish_without_branch(STUB);
+
+    assert_eq!(
+        output.exit_code(),
+        0,
+        "the publish succeeded: {}",
+        output.stderr()
+    );
+    assert!(
+        fixture.refs().contains("refs/heads/universe/bootstrap"),
+        "the default ref is not the namespaced one: {}",
+        fixture.refs()
     );
 }

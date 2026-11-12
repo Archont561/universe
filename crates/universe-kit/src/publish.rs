@@ -21,7 +21,12 @@ use crate::project::Project;
 use crate::scratch::Scratch;
 
 /// Default branch name for the channel.
-const DEFAULT_BRANCH: &str = "channel";
+///
+/// Namespaced under `universe/` because this repository's own history left `channel` at the
+/// top level, where it competes for the same namespace as every other project's refs and says
+/// nothing about who publishes it. A project that wants another name declares `branch` on the
+/// store, which the renderer emits; this default only exists for a hand-run command.
+const DEFAULT_BRANCH: &str = "universe/conda-channel";
 
 /// Run `universe publish`.
 pub(crate) fn run(args: &[String]) -> CommandOutput {

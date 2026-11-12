@@ -83,6 +83,7 @@ writable = true
 [[stores]]
 name = "conda-static"                # a real conda channel: <channel>/<subdir>/repodata.json
 kind = "static"
+branch = "universe/conda-channel"    # the ref the snapshot tree is pushed to
 writable = true
 needs_index = true                   # we generate and upload the index, so it is reviewable
 read_auth = "none"                   # consumers need no credentials to restore
@@ -174,6 +175,12 @@ There is no autodetection and no "publish everywhere" switch: a package names it
   also declares the npm output — a wrapper that was never built cannot be uploaded.
 - **The reverse is checked too.** A writable store that no package names is a half-applied
   rename, and it warns.
+- **A snapshot store names the ref it publishes to.** `branch` on a `branch` or `static` store is
+  where the tree is pushed; the renderer emits `--branch` from it, and a store that omits it gets
+  the tool's default, `universe/conda-channel`. Declaring it is how a project keeps a name it
+  chose, and how a rename stays visible in the diff rather than in the tool's history. A registry
+  has no ref, so `branch` there is an error rather than a no-op, and an empty one is an error
+  too.
 - **A hosted index is a store that publishes nothing.** `pages = true` on a `static` store tells
   the renderer to add two jobs: one renders the channel from the release's own fragments with
   `universe index` and uploads it as a Pages artifact, the other deploys that artifact. The

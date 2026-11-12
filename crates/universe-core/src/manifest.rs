@@ -294,6 +294,16 @@ pub struct Store {
     /// Endpoint, for stores addressed by URL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// The Git ref a branch or static store publishes its snapshot tree to.
+    ///
+    /// It belongs to the store rather than to the workflow file because it is where the bytes
+    /// land: two branch stores publish to two refs, and a renderer that left it to the tool's
+    /// default would publish to a name the manifest never named. Absent means the tool default,
+    /// which is the same for every project.
+    ///
+    /// A registry has no ref, so declaring one there is refused rather than ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
     /// Whether GitHub Pages serves this store's generated index.
     ///
     /// A Pages site is not a place bytes are uploaded to: the workflow renders the channel tree
@@ -1088,6 +1098,47 @@ impl Manifest {
         }
     }
 
+    /// The ref a snapshot store publishes to, and the two ways declaring one is meaningless.
+    ///
+    /// A branch or static store answers "which ref?" and a registry does not, so a `branch` on
+    /// one reads as if it changed where bytes go while changing nothing. An empty value is the
+    /// other half: the renderer would emit `--branch ''`, which the tool passes to `git` and the
+    /// remote refuses.
+    fn validate_store_branch(&self, store: &Store, path: &str, diagnostics: &mut Vec<Diagnostic>) {
+        let Some(branch) = store.branch.as_deref() else {
+            return;
+        };
+        if !matches!(store.kind, StoreKind::Branch | StoreKind::Static) {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.store.branch.kind",
+                    format!(
+                        "store '{}' declares `branch` and kind '{}'; only a `branch` or `static` \
+                         store publishes to a Git ref",
+                        store.name,
+                        store.kind.as_str()
+                    ),
+                )
+                .with_path(format!("{path}.branch")),
+            );
+        }
+        if branch.trim().is_empty() {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.store.branch.name",
+                    format!(
+                        "store '{}' declares an empty `branch`; the ref the snapshot is pushed to \
+                         has to be named",
+                        store.name
+                    ),
+                )
+                .with_path(format!("{path}.branch")),
+            );
+        }
+    }
+
     fn validate_stores(&self, diagnostics: &mut Vec<Diagnostic>) {
         for (index, store) in self.stores.iter().enumerate() {
             let path = format!("stores[{index}]");
@@ -1162,6 +1213,7 @@ impl Manifest {
                 );
             }
             self.validate_pages_store(store, &path, diagnostics);
+            self.validate_store_branch(store, &path, diagnostics);
             if let Some(max_builds) = store.max_builds_per_version {
                 // A release store prunes against GitHub's asset cap; a branch store prunes
                 // against its own snapshot, which is `universe publish --keep`. Any other
@@ -2010,6 +2062,87 @@ pages = true
         let diagnostics = problems(&text);
         assert!(
             codes(&diagnostics).contains(&"manifest.store.pages.index"),
+            "{:?}",
+            codes(&diagnostics)
+        );
+    }
+
+    /// Two destinations where one of them is a Git ref, which is the only kind that has a
+    /// branch to name.
+    const NAMED_BRANCH: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+
+[[packages]]
+name = "example-airlock"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-airlock --version"]
+publish = ["branch"]
+
+[[stores]]
+name = "branch"
+kind = "branch"
+branch = "universe/conda-channel"
+writable = true
+needs_index = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "file"
+
+[[stores]]
+name = "conda-prefix"
+kind = "prefix-dev"
+channel = "someone/channel"
+writable = true
+auth = "oidc"
+verifier = "registry"
+"#;
+
+    #[test]
+    fn a_branch_store_can_name_the_ref_it_publishes_to() {
+        // The ref is a property of the destination, like a release store's `tag_prefix`: it is
+        // where the bytes land, so a renderer that left it to the tool's default would publish
+        // to a name the manifest never said.
+        let store = parsed(NAMED_BRANCH)
+            .stores
+            .into_iter()
+            .find(|store| store.name == "branch")
+            .expect("the branch store");
+        assert_eq!(store.branch.as_deref(), Some("universe/conda-channel"));
+        assert!(
+            findings(NAMED_BRANCH)
+                .iter()
+                .all(|finding| !finding.code().starts_with("manifest.store.branch"))
+        );
+    }
+
+    #[test]
+    fn a_branch_name_on_a_store_that_has_no_ref_is_refused() {
+        // A registry has no branch. Accepting the key there would leave a declaration that
+        // reads as if it changed where bytes go and changes nothing.
+        let text = NAMED_BRANCH.replace(
+            "channel = \"someone/channel\"",
+            "channel = \"someone/channel\"\nbranch = \"universe/conda-channel\"",
+        );
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.branch.kind"),
+            "{:?}",
+            codes(&diagnostics)
+        );
+    }
+
+    #[test]
+    fn a_branch_store_with_an_empty_ref_is_refused() {
+        let text = NAMED_BRANCH.replace("branch = \"universe/conda-channel\"", "branch = \"  \"");
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.branch.name"),
             "{:?}",
             codes(&diagnostics)
         );

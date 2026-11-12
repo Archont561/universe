@@ -142,6 +142,10 @@ verifier = "registry"
 [[stores]]
 name = "branch"
 kind = "branch"
+# The ref the snapshot tree is pushed to. It is declared rather than left to the tool's default
+# because it is where the bytes land: `channel` was this repository's old, unnamespaced name, and
+# a renderer that omitted the flag would publish the next release to a ref nobody reads.
+branch = "universe/conda-channel"
 writable = true
 needs_index = true
 read_auth = "none"
@@ -208,8 +212,10 @@ stores = ["prefix-dev", "branch"]
 
 [airlock.developer.restore]
 remote = "https://github.com/Archont561/universe.git"
-branch = "bootstrap"
-commit = "991324f5dee0cb02d18ea66e35e1e12206a35b14"
+# Namespaced for the same reason the channel's ref is: a bare `bootstrap` at the repository root
+# claims a name every project in this namespace would want.
+branch = "universe/bootstrap"
+commit = "7c402a800b9d33aa6aec1e8445a4e985658e97cc"
 
 # The scope that ships a payload, and the reason `universe airlock pack` has something to pack.
 #

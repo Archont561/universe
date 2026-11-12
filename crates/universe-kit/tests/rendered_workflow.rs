@@ -46,6 +46,7 @@ auth = "token"
 [[stores]]
 name = "channel-branch"
 kind = "branch"
+branch = "universe/conda-channel"
 writable = true
 auth = "token"
 "#,
@@ -208,10 +209,18 @@ fn the_rendered_jobs_leave_the_artifact_in_both_destinations() {
         .expect("the uploaded artifact"),
         b"conda bytes"
     );
+    // The ref the manifest declared, reached through the `--branch` the renderer emitted: this
+    // is the whole point of declaring one, so a fixture that names it and a publish that lands
+    // anywhere else is the failure this asserts against.
     let branch = Command::new("git")
         .arg("-C")
         .arg(&remote)
-        .args(["rev-parse", "--quiet", "--verify", "refs/heads/channel"])
+        .args([
+            "rev-parse",
+            "--quiet",
+            "--verify",
+            "refs/heads/universe/conda-channel",
+        ])
         .output()
         .expect("git is installed");
     assert!(
