@@ -78,6 +78,30 @@ The prefix it produces is the environment: `prefix/bin` is what a caller puts on
 that also pins wheels replays what a prefix can hold and names what it left out, since a Conda
 prefix holds Conda packages.
 
+## Sandbox runs a set you just built
+
+`universe-airlock sandbox --package <file.conda> [--package <file.conda>] -- <command>` installs
+those archives into a prefix and runs the command inside it, so a package can be tried before it
+is published. `--mirror <dir>` does the same from a mirrored lock instead of loose files.
+
+The install is the bootstrapper's, so an archive is digest-checked and its `info/paths.json`
+applied exactly as a restore does. A set that cannot be installed never runs the command: the
+whole point of the verb is that a broken package produces a refusal rather than a program that
+happens to work.
+
+Inside the run, `<prefix>/bin` is first on `PATH`, `CONDA_PREFIX` names the prefix, and
+`PYTHONPATH`, `PYTHONHOME`, `PYTHONSTARTUP`, `PYTHONEXECUTABLE`, `VIRTUAL_ENV` and `CONDA_PREFIX_1`
+are removed while `PYTHONNOUSERSITE` is set. Without that, a `noarch: python` package imports
+modules from outside the set it was installed with and the run passes for a reason that has
+nothing to do with the packages.
+
+It is an **environment** sandbox, not a machine one. No mount, user, or network namespace is
+created, so the command can still reach the network and the filesystem outside the prefix, and
+every run says so on stderr. What is real: the set is verified before the first command runs, the
+environment is scoped to the prefix, and the prefix is deleted when the run ends unless `--keep`
+or `--dir` asks for it. `--dir` also refuses a directory that is not empty, because installing one
+set over another produces an environment that is neither.
+
 ## Verify reads, never writes
 
 `universe-airlock verify --payload <dir>` answers four questions about a sealed payload

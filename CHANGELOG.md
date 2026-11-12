@@ -4,6 +4,23 @@ All notable changes to Universe are recorded here.
 
 ## Unreleased
 
+- A built package can be tried in a sandbox. `universe-airlock sandbox --package <file.conda> …
+  -- <command>` installs the set into a prefix and runs the command inside it; `--mirror <dir>`
+  does the same from a mirrored lock. The installer is the bootstrapper's, so the archives are
+  digest-checked and `info/paths.json` is applied as a restore applies it, and a set that cannot
+  be installed never runs the command — a broken package fails rather than producing a program
+  that happens to work. The child gets `<prefix>/bin` first on `PATH` and `CONDA_PREFIX` naming the
+  prefix, and the host's `PYTHONPATH`, `PYTHONHOME`, `PYTHONSTARTUP`, `PYTHONEXECUTABLE`,
+  `VIRTUAL_ENV` and `CONDA_PREFIX_1` are removed while `PYTHONNOUSERSITE` is set, so a
+  `noarch: python` package cannot import from outside its own set. The prefix is temporary and
+  deleted afterwards unless `--keep` or `--dir` asks otherwise, and `--dir` refuses a directory
+  that already holds something. It is an environment sandbox, not an operating-system one: no
+  namespaces are created, the command can still reach the network, and each run says so on stderr
+  instead of implying an air gap this code cannot create. `--json` reports the prefix, the install
+  order, and the command's exit code with its two streams. Run against the four `linux-64`
+  archives this repository published to its `channel` branch, the set installed in dependency
+  order and `universe --version` ran out of the prefix.
+
 - A mirrored lock can now be installed. `universe-airlock-bootstrap replay --mirror <dir>
   [--prefix <dir>]` reads the `mirror.json` a mirror publishes, checks every artifact against the
   digest and size the index recorded **before** it writes anything, and installs them into one

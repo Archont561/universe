@@ -5,6 +5,7 @@ use universe_core::{CliError, CommandOutput, Product};
 
 use argp::{EarlyExit, Error, FromArgs};
 
+mod sandbox;
 mod verify;
 
 /// Version of this component, equal to the workspace version the whole artifact set
@@ -40,6 +41,28 @@ struct Airlock {
 enum Command {
     Version(VersionCommand),
     Verify(VerifyCommand),
+    Sandbox(SandboxCommand),
+}
+
+/// Run one command inside a prefix built from a set of Conda packages.
+#[derive(FromArgs)]
+#[argp(subcommand, name = "sandbox")]
+struct SandboxCommand {
+    /// `.conda` archive to install; repeat it for a set.
+    #[argp(option)]
+    package: Vec<String>,
+
+    /// Mirror directory holding a `mirror.json` and its blobs.
+    #[argp(option)]
+    mirror: Option<String>,
+
+    /// Directory to install into, instead of a temporary one that is removed afterwards.
+    #[argp(option)]
+    dir: Option<String>,
+
+    /// Keep the prefix the run installed into.
+    #[argp(switch)]
+    keep: bool,
 }
 
 /// Report the version this consumer was built from.
@@ -71,8 +94,30 @@ where
         .map(|argument| argument.as_ref().to_owned())
         .collect();
 
-    match Airlock::from_args(&[BINARY], &args) {
+    // `sandbox` runs a command of the caller's, so its arguments are split here rather than
+    // parsed: everything after the first `--` belongs to the child, including flags this
+    // grammar would otherwise try to read. Nothing else in this CLI takes a tail, so a `--`
+    // that is not a sandbox's is an argument argp will refuse in its own words.
+    let (own, tail) = split(&args);
+    if !tail.is_empty() && own.first().map(String::as_str) != Some("sandbox") {
+        return universe_core::version_usage_output(
+            BINARY,
+            CliError::UnknownArgument(tail.first().cloned().unwrap_or_default()),
+        );
+    }
+
+    match Airlock::from_args(&[BINARY], &own) {
         Ok(cli) => match cli.command {
+            Some(Command::Sandbox(options)) => sandbox::run(
+                sandbox::Request {
+                    packages: options.package,
+                    mirror: options.mirror,
+                    dir: options.dir,
+                    keep: options.keep,
+                    command: tail,
+                },
+                cli.json,
+            ),
             Some(Command::Verify(options)) => verify::run(options.payload, options.lane, cli.json),
             Some(Command::Version(_)) | None => {
                 // The parsed grammar is forwarded in the core's own vocabulary. That is what
@@ -101,6 +146,17 @@ where
             };
             universe_core::version_usage_output(BINARY, error)
         }
+    }
+}
+
+/// Split the arguments at the first `--`.
+///
+/// The left side is this binary's own grammar; the right side is a command it will run. The
+/// separator is dropped, because it is the shell's and the caller's, not the child's.
+fn split(args: &[String]) -> (Vec<String>, Vec<String>) {
+    match args.iter().position(|argument| argument == "--") {
+        Some(index) => (args[..index].to_vec(), args[index + 1..].to_vec()),
+        None => (args.to_vec(), Vec::new()),
     }
 }
 

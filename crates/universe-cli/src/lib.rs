@@ -116,7 +116,8 @@ mod tests {
         assert_eq!(forwarded, mirroring);
 
         // Everything else in the namespace is the consumer's.
-        for verb in ["exec", "verify", "restore"] {
+        // A sandbox runs a command the user built, on their own machine: the consumer's.
+        for verb in ["exec", "verify", "restore", "sandbox"] {
             let arguments = args(&["airlock", verb]);
             let (component, forwarded) = route(&arguments);
             assert_eq!(component, "universe-airlock", "{verb}");
