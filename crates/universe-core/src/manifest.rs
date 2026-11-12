@@ -294,6 +294,14 @@ pub struct Store {
     /// Endpoint, for stores addressed by URL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// Repository-relative path to the prose a release's body is read from.
+    ///
+    /// The release notes live in the tree as a file — `docs/releases/0.1.0.md` here — so the
+    /// body a destination publishes is the same text a reader can review in a pull request,
+    /// rather than a sentence the publisher composed. Only a `releases` store has a body, so
+    /// declaring one elsewhere is refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
     /// The Git ref a branch or static store publishes its snapshot tree to.
     ///
     /// It belongs to the store rather than to the workflow file because it is where the bytes
@@ -1139,6 +1147,45 @@ impl Manifest {
         }
     }
 
+    /// The notes file a release body comes from, and why declaring one elsewhere is refused.
+    ///
+    /// A release is the only destination with a front page, so a `notes` on any other store
+    /// reads as if it changed what the run publishes while changing nothing. An empty value is
+    /// the other half: the CLI would be handed a path that cannot name a file.
+    fn validate_store_notes(&self, store: &Store, path: &str, diagnostics: &mut Vec<Diagnostic>) {
+        let Some(notes) = store.notes.as_deref() else {
+            return;
+        };
+        if store.kind != StoreKind::Releases {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.store.notes.kind",
+                    format!(
+                        "store '{}' declares `notes` and kind '{}'; only a `releases` store has a \
+                         release body to fill",
+                        store.name,
+                        store.kind.as_str()
+                    ),
+                )
+                .with_path(format!("{path}.notes")),
+            );
+        }
+        if notes.trim().is_empty() {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "manifest.store.notes.path",
+                    format!(
+                        "store '{}' declares an empty `notes`; it has to name a file in the tree",
+                        store.name
+                    ),
+                )
+                .with_path(format!("{path}.notes")),
+            );
+        }
+    }
+
     fn validate_stores(&self, diagnostics: &mut Vec<Diagnostic>) {
         for (index, store) in self.stores.iter().enumerate() {
             let path = format!("stores[{index}]");
@@ -1214,6 +1261,7 @@ impl Manifest {
             }
             self.validate_pages_store(store, &path, diagnostics);
             self.validate_store_branch(store, &path, diagnostics);
+            self.validate_store_notes(store, &path, diagnostics);
             if let Some(max_builds) = store.max_builds_per_version {
                 // A release store prunes against GitHub's asset cap; a branch store prunes
                 // against its own snapshot, which is `universe publish --keep`. Any other
@@ -2118,6 +2166,90 @@ verifier = "registry"
             findings(NAMED_BRANCH)
                 .iter()
                 .all(|finding| !finding.code().starts_with("manifest.store.branch"))
+        );
+    }
+
+    /// A manifest whose release store carries its body's prose as a file.
+    const NOTED_RELEASE: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+
+[[packages]]
+name = "example-airlock"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-airlock --version"]
+publish = ["branch"]
+release = true
+
+[[stores]]
+name = "branch"
+kind = "branch"
+branch = "universe/conda-channel"
+writable = true
+needs_index = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "file"
+
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "someone/universe"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
+notes = "docs/releases/0.1.0.md"
+"#;
+
+    #[test]
+    fn a_release_store_can_name_the_file_its_body_is_read_from() {
+        // The body is prose with headings, links and code blocks. In the manifest it can only be
+        // a path: a body composed by the publisher is a sentence nobody reviewed, and one typed
+        // as a flag value is a quoting mistake away from publishing a fragment of Markdown.
+        let store = parsed(NOTED_RELEASE)
+            .stores
+            .into_iter()
+            .find(|store| store.name == "releases")
+            .expect("the releases store");
+        assert_eq!(store.notes.as_deref(), Some("docs/releases/0.1.0.md"));
+        assert!(
+            findings(NOTED_RELEASE).is_empty(),
+            "{:?}",
+            codes(&findings(NOTED_RELEASE))
+        );
+    }
+
+    #[test]
+    fn a_notes_path_on_a_store_with_no_release_is_refused() {
+        // Only a release has a front page. Accepting the key on a branch store would read as if
+        // it changed what the run publishes while changing nothing.
+        let text = NOTED_RELEASE.replace(
+            "branch = \"universe/conda-channel\"",
+            "branch = \"universe/conda-channel\"\nnotes = \"docs/releases/0.1.0.md\"",
+        );
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.notes.kind"),
+            "{:?}",
+            codes(&diagnostics)
+        );
+    }
+
+    #[test]
+    fn a_release_store_with_an_empty_notes_path_is_refused() {
+        // The renderer would emit `--notes-file ''` and the publish would read a directory.
+        let text = NOTED_RELEASE.replace("notes = \"docs/releases/0.1.0.md\"", "notes = \" \"");
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.notes.path"),
+            "{:?}",
+            codes(&diagnostics)
         );
     }
 

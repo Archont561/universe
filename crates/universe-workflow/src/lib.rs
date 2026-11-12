@@ -686,6 +686,12 @@ fn publish_jobs(manifest: &Manifest) -> Vec<Job> {
         } else {
             format!("publish-artifacts --store {}", store.name)
         };
+        // The release body is a file in the tree, so the job names the path the manifest names
+        // and the destination reads what the pull request reviewed.
+        let arguments = match store.notes.as_deref() {
+            Some(notes) => format!("{arguments} --notes-file {notes}"),
+            None => arguments,
+        };
         let packages = manifest
             .destinations()
             .into_iter()
@@ -1183,6 +1189,43 @@ writable = true
 auth = "token"
 secrets = ["GITHUB_TOKEN"]
 verifier = "registry"
+"#;
+
+    /// `THREE_STORES` with the release body declared as a file, as this repository declares it.
+    const NOTED_RELEASE: &str = r#"
+schema = 1
+
+[project]
+name = "example"
+platforms = ["linux-64"]
+repository = "https://github.com/someone/example"
+
+[[packages]]
+name = "example-airlock"
+kind = "conda"
+command = ["cargo", "build"]
+outputs = ["output/**/*.conda"]
+smoke = ["example-airlock --version"]
+publish = ["branch"]
+release = true
+
+[[stores]]
+name = "branch"
+kind = "branch"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "file"
+
+[[stores]]
+name = "releases"
+kind = "releases"
+channel = "someone/example"
+writable = true
+auth = "token"
+secrets = ["GITHUB_TOKEN"]
+verifier = "registry"
+notes = "docs/releases/0.1.0.md"
 "#;
 
     /// Three packages reaching one branch store. A snapshot push replaces the whole tree,
@@ -1814,6 +1857,45 @@ pages = true
         assert!(
             !branch.contains("--force"),
             "a branch push was given an artifact-store overwrite flag:\n{branch}"
+        );
+    }
+
+    #[test]
+    fn the_release_job_names_the_file_its_body_is_read_from() {
+        // The body is a file in the tree, so the job that publishes it names the path the
+        // manifest names. A job that rendered the default would publish the tag's artifacts
+        // with no description at all.
+        let manifest = Manifest::from_toml(NOTED_RELEASE).expect("the manifest parses");
+        let rendered = render(&manifest, NOTED_RELEASE).expect("renders");
+        let publish = &rendered
+            .files
+            .iter()
+            .find(|file| file.path == PUBLISH_FILE)
+            .expect("publish file")
+            .content;
+        let releases = publish
+            .split("name: publish / releases")
+            .nth(1)
+            .unwrap_or_else(|| panic!("no releases job:\n{publish}"))
+            .split("name: publish /")
+            .next()
+            .expect("a job body");
+        assert!(
+            releases.contains("--notes-file docs/releases/0.1.0.md"),
+            "the releases job publishes no body:\n{releases}"
+        );
+        // The path is repository-relative in the manifest, so the job must have checked the
+        // tree out at the root it resolves against.
+        let branch = publish
+            .split("name: publish / branch")
+            .nth(1)
+            .expect("the branch job")
+            .split("name: publish /")
+            .next()
+            .expect("a job body");
+        assert!(
+            !branch.contains("--notes-file"),
+            "a branch push was handed release prose:\n{branch}"
         );
     }
 

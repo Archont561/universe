@@ -79,6 +79,7 @@ catalog = { title = "Universe core", license = "MIT" }
 name = "releases"                    # the default destination for everything below
 kind = "releases"
 writable = true
+notes = "docs/releases/0.1.0.md"     # the body the release page shows, read from this file
 
 [[stores]]
 name = "conda-static"                # a real conda channel: <channel>/<subdir>/repodata.json
@@ -181,6 +182,15 @@ There is no autodetection and no "publish everywhere" switch: a package names it
   chose, and how a rename stays visible in the diff rather than in the tool's history. A registry
   has no ref, so `branch` there is an error rather than a no-op, and an empty one is an error
   too.
+- **A release's body is a file, and its name carries the version.** `notes` on a `releases`
+  store is a repository-relative path; the renderer emits `--notes-file` from it, so the job
+  publishes the text a reviewer read in the pull request instead of a sentence the publisher
+  composed. The file is read verbatim and refused when it is missing or empty. Only a release
+  has a front page, so `notes` on any other kind is an error. The release's tag stays
+  `<tag_prefix>-<subdir>` because a tag is an address a link keeps using, while its title is
+  `universe (linux-64) 0.1.0` — project, subdir and the version the assets agree on. When the
+  title or body no longer matches, the publisher patches the release rather than leaving a stale
+  name on a tag that moved. A subdir holding two versions names only the platform.
 - **A hosted index is a store that publishes nothing.** `pages = true` on a `static` store tells
   the renderer to add two jobs: one renders the channel from the release's own fragments with
   `universe index` and uploads it as a Pages artifact, the other deploys that artifact. The

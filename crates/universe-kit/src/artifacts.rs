@@ -18,7 +18,7 @@ use std::path::Path;
 use serde_json::json;
 use universe_channel::store::{
     FilesystemRemote, HttpRemote, Kind, OidcExchange, Policy, ReleaseReport, Releases, Report,
-    StoreError, Target, TrustedPublisher, Upload, apply,
+    StoreError, Target, TrustedPublisher, Upload, apply, split_name,
 };
 use universe_core::CommandOutput;
 use universe_core::diagnostic::{Diagnostic, Severity};
@@ -81,12 +81,36 @@ pub(crate) fn run(args: &[String]) -> CommandOutput {
         force: options.force,
         dry_run: options.dry_run,
     };
+    // A flag that reached no release would leave the caller believing a body they wrote was
+    // published. Nothing else in the verb reads it, so say so instead of dropping it.
+    if options.notes_file.is_some() && !stores.iter().any(|store| store.kind == StoreKind::Releases)
+    {
+        return failure(
+            USAGE,
+            &[Diagnostic::new(
+                Severity::Error,
+                "publish.notes.unused",
+                "--notes-file was given but no selected store publishes releases",
+            )],
+        );
+    }
 
     let mut credentials = Credentials::ambient();
     let mut published: Vec<serde_json::Value> = Vec::new();
     let mut body = String::new();
     for store in &stores {
-        match publish_to(store, &uploads, policy, &mut credentials) {
+        let notes = match notes_for(store, options.notes_file.as_deref(), &project.root) {
+            Ok(notes) => notes,
+            Err(diagnostic) => return failure(USAGE, &[diagnostic]),
+        };
+        match publish_to(
+            store,
+            &project.manifest.project.name,
+            &uploads,
+            notes.as_deref(),
+            policy,
+            &mut credentials,
+        ) {
             Ok(outcome) => {
                 body.push_str(&outcome.describe(store, policy));
                 published.push(outcome.json(store, policy));
@@ -153,10 +177,17 @@ impl Outcome {
                         report.tag,
                         report.unchanged.len()
                     ));
-                    if report.pruned.is_empty() {
-                        text.push_str(")\n");
+                    text.push(')');
+                    if report.name.is_empty() {
+                        text.push('\n');
                     } else {
-                        text.push_str(&format!("; pruned {})\n", report.pruned.join(", ")));
+                        text.push_str(&format!(" as '{name}'\n", name = report.name));
+                    }
+                    if report.updated {
+                        text.push_str("  its name or body was stale and was rewritten\n");
+                    }
+                    if !report.pruned.is_empty() {
+                        text.push_str(&format!("  pruned {}\n", report.pruned.join(", ")));
                     }
                 }
                 text
@@ -182,7 +213,9 @@ impl Outcome {
                     .iter()
                     .map(|report| json!({
                         "tag": report.tag,
+                        "name": report.name,
                         "created": report.created,
+                        "updated": report.updated,
                         "uploaded": report.uploaded,
                         "unchanged": report.unchanged,
                         "pruned": report.pruned,
@@ -191,6 +224,67 @@ impl Outcome {
                     .collect::<Vec<_>>(),
             }),
         }
+    }
+}
+
+/// The notes a store's release body is read from: the caller's flag, else the manifest.
+///
+/// The flag wins because it is what a human typed for this run; the manifest is what the
+/// generated workflow carries, so an ordinary release needs no argument at all. Paths are
+/// repository-relative in both, matching every other path a manifest declares.
+fn notes_for(
+    store: &Store,
+    flag: Option<&Path>,
+    root: &Path,
+) -> Result<Option<String>, Diagnostic> {
+    if store.kind != StoreKind::Releases {
+        return Ok(None);
+    }
+    // Both are resolved against the project root rather than the process's directory, so
+    // `--root` means the same thing for a body as it does for every other path in the verb.
+    let named = match (flag, store.notes.as_deref()) {
+        (Some(path), _) => Some(root.join(path)),
+        (None, Some(notes)) => Some(root.join(notes)),
+        (None, None) => None,
+    };
+    match named {
+        Some(path) => notes_from(Some(&path)),
+        None => Ok(None),
+    }
+}
+
+/// The release notes a run was handed, read from the file the manifest or the caller named.
+///
+/// A file rather than a flag value because notes are prose with headings, links and code blocks:
+/// a shell argument would be one quoting mistake away from a release whose body is a fragment of
+/// its own Markdown. The text is passed to the destination verbatim, so what is published is
+/// byte-for-byte what the repository holds.
+///
+/// # Errors
+///
+/// Returns a diagnostic naming the path when it cannot be read. A release whose notes silently
+/// fell back to a generated sentence would look published and read as unfinished.
+fn notes_from(path: Option<&Path>) -> Result<Option<String>, Diagnostic> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    match std::fs::read_to_string(path) {
+        Ok(text) if !text.trim().is_empty() => Ok(Some(text)),
+        Ok(_) => Err(Diagnostic::new(
+            Severity::Error,
+            "publish.notes.empty",
+            format!(
+                "{} is empty; a release body read from an empty file reads as unfinished",
+                path.display()
+            ),
+        )
+        .with_path(path.display().to_string())),
+        Err(error) => Err(Diagnostic::new(
+            Severity::Error,
+            "publish.notes.unreadable",
+            format!("cannot read the release notes {}: {error}", path.display()),
+        )
+        .with_path(path.display().to_string())),
     }
 }
 
@@ -252,7 +346,9 @@ fn stores_for(
 /// Publish `uploads` to one store.
 fn publish_to(
     store: &Store,
+    project: &str,
     uploads: &[Upload],
+    notes: Option<&str>,
     policy: Policy,
     credentials: &mut Credentials,
 ) -> Result<Outcome, PublishError> {
@@ -280,7 +376,8 @@ fn publish_to(
 
     let target = target_for(store, kind, credentials)?;
     if kind == Kind::Releases {
-        return publish_releases(store, &target, uploads, policy).map(Outcome::Released);
+        return publish_releases(store, project, &target, uploads, notes, policy)
+            .map(Outcome::Released);
     }
     let remote = HttpRemote::new(target).map_err(PublishError::from)?;
     apply(&remote, uploads, policy)
@@ -291,8 +388,10 @@ fn publish_to(
 /// Publish to one release per subdir, applying the store's retention.
 fn publish_releases(
     store: &Store,
+    project: &str,
     target: &Target,
     uploads: &[Upload],
+    notes: Option<&str>,
     policy: Policy,
 ) -> Result<Vec<ReleaseReport>, PublishError> {
     let releases = Releases::new(target).map_err(PublishError::from)?;
@@ -305,11 +404,13 @@ fn publish_releases(
             .filter(|upload| upload.subdir() == subdir.as_str())
             .cloned()
             .collect();
+        let name = release_name(project, &subdir, &group);
         reports.push(
             releases
                 .publish(
                     &tag,
-                    Some(&format!("{tag} artifacts")),
+                    Some(&name),
+                    notes,
                     &group,
                     policy,
                     store.max_builds_per_version,
@@ -318,6 +419,30 @@ fn publish_releases(
         );
     }
     Ok(reports)
+}
+
+/// What a release is called, given the project and what the subdir holds.
+///
+/// The tag is the address a link uses, so it stays stable — `packages-linux-64` today and next
+/// year. The *name* is what a reader sees in a list of releases, and a rolling release that
+/// holds four builds of one version while calling itself after the subdir makes the reader open
+/// it to find out which version they are looking at. So the name carries both: the project, the
+/// platform the subdir stands for, and the version when the subdir agrees on one.
+///
+/// A subdir holding several versions names none of them: naming the newest would be a claim
+/// about the release that its own asset list contradicts on the next line.
+#[must_use]
+pub fn release_name(project: &str, subdir: &str, uploads: &[Upload]) -> String {
+    let mut versions = uploads
+        .iter()
+        .map(|upload| split_name(upload.file_name()).1)
+        .filter(|version| !version.is_empty());
+    let first = versions.next();
+    let agreed = first.filter(|version| versions.all(|other| &other == version));
+    match agreed {
+        Some(version) => format!("{project} ({subdir}) {version}"),
+        None => format!("{project} ({subdir})"),
+    }
 }
 
 /// The subdirs `uploads` mention, in order and without repeats.
@@ -571,8 +696,8 @@ impl From<StoreError> for PublishError {
 #[cfg(test)]
 mod tests {
     use super::{
-        Credentials, Outcome, PublishError, channel_kind, stores_for, subdirs, target_for,
-        token_for, token_from, uploads_of,
+        Credentials, Outcome, PublishError, channel_kind, notes_for, release_name, stores_for,
+        subdirs, target_for, token_for, token_from, uploads_of,
     };
     use crate::channel::Verified;
     use crate::project::Project;
@@ -582,6 +707,130 @@ mod tests {
     use universe_channel::store::TrustedPublisher;
     use universe_channel::store::{Kind, Policy, ReleaseReport, Report, StoreError, Upload};
     use universe_core::manifest::{Manifest, StoreAuth, StoreKind};
+
+    #[test]
+    fn a_release_is_named_after_the_project_the_platform_and_the_version() {
+        // The tag is the address and stays put; the name is what a reader sees in a list, and
+        // "packages-linux-64 artifacts" tells them nothing about which build they are looking at.
+        let uploads = vec![
+            Upload::new("linux-64/universe-0.1.0-h41f06ac_0.conda", b"a".to_vec()),
+            Upload::new(
+                "linux-64/universe-kit-0.1.0-h41f06ac_0.conda",
+                b"b".to_vec(),
+            ),
+        ];
+        assert_eq!(
+            release_name("universe", "linux-64", &uploads),
+            "universe (linux-64) 0.1.0"
+        );
+    }
+
+    #[test]
+    fn a_subdir_holding_two_versions_names_neither() {
+        // Naming the newest would be a claim the asset list contradicts; naming the oldest
+        // would be wrong about what is newest. The platform alone is true of both.
+        let uploads = vec![
+            Upload::new("linux-64/universe-0.1.0-h41f06ac_0.conda", b"a".to_vec()),
+            Upload::new("linux-64/universe-0.2.0-h41f06ac_0.conda", b"b".to_vec()),
+        ];
+        assert_eq!(
+            release_name("universe", "linux-64", &uploads),
+            "universe (linux-64)"
+        );
+    }
+
+    /// A store in a directory that holds the notes file the test wrote.
+    fn noted_store(
+        directory: &std::path::Path,
+        notes: Option<&str>,
+    ) -> universe_core::manifest::Store {
+        let mut store = store_of(StoreKind::Releases);
+        store.notes = notes.map(str::to_owned);
+        let _ = directory;
+        store
+    }
+
+    #[test]
+    fn the_manifest_names_the_file_and_the_body_is_its_bytes() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir_all(directory.path().join("docs/releases")).expect("docs dir");
+        let path = directory.path().join("docs/releases/0.1.0.md");
+        // Verbatim, newlines and trailing space included: the destination publishes what the
+        // repository holds, and a body trimmed on the way out is a body that differs from the
+        // one the pull request reviewed.
+        let text = "# 0.1.0\n\nFour packages.  \n";
+        std::fs::write(&path, text).expect("notes");
+        let store = noted_store(directory.path(), Some("docs/releases/0.1.0.md"));
+
+        let notes = notes_for(&store, None, directory.path()).expect("readable");
+        assert_eq!(notes.as_deref(), Some(text));
+    }
+
+    #[test]
+    fn a_missing_notes_file_is_refused_rather_than_publishing_silence() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let store = noted_store(directory.path(), Some("docs/releases/0.1.0.md"));
+
+        let diagnostic = notes_for(&store, None, directory.path()).expect_err("refused");
+        assert_eq!(diagnostic.code(), "publish.notes.unreadable");
+        assert!(
+            diagnostic.message().contains("0.1.0.md"),
+            "{}",
+            diagnostic.message()
+        );
+    }
+
+    #[test]
+    fn an_empty_notes_file_is_refused() {
+        // A release whose body fell back to nothing looks published and reads as unfinished.
+        let directory = tempfile::tempdir().expect("temp dir");
+        std::fs::write(directory.path().join("notes.md"), "  \n\n").expect("notes");
+        let store = noted_store(directory.path(), Some("notes.md"));
+
+        let diagnostic = notes_for(&store, None, directory.path()).expect_err("refused");
+        assert_eq!(diagnostic.code(), "publish.notes.empty");
+    }
+
+    #[test]
+    fn the_flag_wins_over_the_manifest() {
+        // The manifest is what the workflow carries; a human typing the flag for one run means
+        // that run, so the flag is read instead of the declared path.
+        let directory = tempfile::tempdir().expect("temp dir");
+        std::fs::write(directory.path().join("declared.md"), "declared\n").expect("notes");
+        std::fs::write(directory.path().join("typed.md"), "typed\n").expect("notes");
+        let store = noted_store(directory.path(), Some("declared.md"));
+
+        let notes = notes_for(
+            &store,
+            Some(std::path::Path::new("typed.md")),
+            directory.path(),
+        )
+        .expect("readable");
+        assert_eq!(notes.as_deref(), Some("typed\n"));
+    }
+
+    #[test]
+    fn a_store_with_no_body_is_handed_no_notes() {
+        // An upload store has no front page, and reading a declared path for it would be
+        // reading a file nothing publishes.
+        let directory = tempfile::tempdir().expect("temp dir");
+        let store = store_of(StoreKind::PrefixDev);
+
+        assert_eq!(
+            notes_for(
+                &store,
+                Some(std::path::Path::new("absent.md")),
+                directory.path()
+            )
+            .expect("no read is attempted"),
+            None
+        );
+    }
+
+    #[test]
+    fn a_name_with_no_artifact_in_it_still_names_the_platform() {
+        assert_eq!(release_name("universe", "noarch", &[]), "universe (noarch)");
+    }
 
     fn store_of(kind: StoreKind) -> universe_core::manifest::Store {
         universe_core::manifest::Store {
@@ -598,6 +847,7 @@ mod tests {
             channel: Some("acme/acme".to_owned()),
             url: Some("http://127.0.0.1:8080".to_owned()),
             branch: None,
+            notes: None,
             budgets: universe_core::manifest::StoreBudgets::default(),
             tag_prefix: None,
             max_builds_per_version: None,
@@ -881,7 +1131,9 @@ mod tests {
         let store = store_of(StoreKind::Releases);
         let outcome = Outcome::Released(vec![ReleaseReport {
             tag: "packages-linux-64".to_owned(),
+            name: "universe (linux-64) 0.1.0".to_owned(),
             created: true,
+            updated: false,
             uploaded: vec!["foo-1.0.0-0.conda".to_owned()],
             unchanged: Vec::new(),
             pruned: vec!["foo-1.0.0-0.conda".to_owned()],
@@ -889,8 +1141,11 @@ mod tests {
             dry_run: false,
         }]);
 
+        // The tag is the address and the name is the headline; a reader checking a publish
+        // saw only the tag before, which is not the string the release list shows them.
         let human = outcome.describe(&store, Policy::default());
         assert!(human.contains("release packages-linux-64"), "{human}");
+        assert!(human.contains("universe (linux-64) 0.1.0"), "{human}");
         assert!(human.contains("pruned foo-1.0.0-0.conda"), "{human}");
 
         let released = Outcome::Released(vec![ReleaseReport {
@@ -902,6 +1157,8 @@ mod tests {
 
         let json = outcome.json(&store, Policy::default());
         assert_eq!(json["releases"][0]["tag"], "packages-linux-64");
+        assert_eq!(json["releases"][0]["name"], "universe (linux-64) 0.1.0");
+        assert_eq!(json["releases"][0]["updated"], false);
         assert_eq!(json["store"], "test-store");
     }
 
