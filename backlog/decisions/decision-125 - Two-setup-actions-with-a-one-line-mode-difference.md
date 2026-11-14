@@ -26,6 +26,15 @@ A constraint discovered while reviewing the facade: `universe` resolves `univers
 a command that exits 127 on first use. Whatever the mode, the bin directory must contain
 every component.
 
+> **Correction (2026-11-13).** The mechanism above is narrower than it was. `universe` no
+> longer resolves from `PATH` alone: it looks beside its own executable first, then on `PATH`,
+> because a pixi prefix installed by absolute path hit exactly the exit 127 this paragraph
+> predicts (GitHub issue #125). The *conclusion* stands unchanged and is now enforced by the
+> search order — a bin directory must hold every component, because "beside the facade" is the
+> first place looked — but a setup step that put the facade somewhere else on `PATH` would now
+> work, so the constraint is about the set being installed together rather than about `PATH`
+> being the lookup mechanism. `UNI-40` #5 owns the order.
+
 ## Decision
 
 **Two composite actions in this repository, one output contract.**

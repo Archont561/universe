@@ -41,6 +41,14 @@ pixi run universe -- --version    # the facade this workspace just built
 components on `PATH`, and runs the facade, so a verb that only works after installation
 fails here first. Everything after `--` is passed to the binary unchanged.
 
+The facade finds its components in one documented order: `UNIVERSE_COMPONENT_DIR` when it is
+set, then the directory the running `universe` binary is in, then `PATH`. The second place is
+why an installed prefix works even when its `bin` directory is not on `PATH`, and why an
+unrelated `universe-kit` earlier on `PATH` cannot be run instead of the one installed beside
+it. When none of the three holds a runnable component, the facade exits 127 with the
+directories it searched and the three ways to fix it — a diagnostic rather than the bare
+`No such file or directory` it used to print.
+
 For focused Rust tests, use the Pixi environment, for example:
 
 ```bash
