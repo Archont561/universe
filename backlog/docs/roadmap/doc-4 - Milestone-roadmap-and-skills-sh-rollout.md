@@ -40,7 +40,7 @@ not a new Backlog record type or date commitment.
 | **M5** | Airlock snapshot/bootstrap foundation | `UNI-32`, `UNI-33`, `UNI-38`, `UNI-51`, `UNI-52`, `UNI-53`, `UNI-55` | Verified transactional restore, a lock-verified mirror, generated entrypoints, and separate bootstrap/component packages. |
 | **M6** | Native Cargo, Python-wheel, and npm adapters | `UNI-42`–`UNI-44`, `UNI-69` | Protocol fixtures and native clients pass without external egress. |
 | **M7** | Portal from pinned catalog snapshots | `UNI-5`, `UNI-6`, `UNI-25`, `UNI-26`, `UNI-46`, `UNI-73` | Deterministic portal from the verified snapshot; browser tests pass; portal remains distinct from registries. `UNI-73` is the proposed Fumadocs UI direction (`decision-140`); the SvelteKit tasks are re-scoped if it is accepted. |
-| **M8** | Unified command facade and umbrella install | `UNI-40` | Thin `universe` dispatches to independently installable Kit and Airlock packages. |
+| **M8** | Unified command facade and umbrella install | `UNI-40`, `UNI-81` | Thin `universe` dispatches to independently installable Kit and Airlock packages. |
 | **M9** | Airlock native views and integrated v1 evidence | `UNI-45`, `UNI-47`, `UNI-70` | Four protocols work through scoped Airlock views; independent evidence review passes. |
 | **M10** | Integrated Universe v1 release | `UNI-16` | All required packages, native indexes, portal, and static Conda channel publish together. |
 | **M11** | Post-v1 adoption, extensions, and native developer transport | `UNI-17`, `UNI-18`, `UNI-27`, `UNI-35`, `UNI-37`, `UNI-48` | Post-v1 adoption/optional work is separated; sandbox removal waits for proven native transport. |
