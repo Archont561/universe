@@ -184,11 +184,15 @@ fn write(
     destinations: &[(String, Vec<String>)],
 ) -> CommandOutput {
     if invocation.print_stdout {
+        // `---` is YAML's own document separator, so a reader can split the stream into the
+        // files the renderer produced without searching for the generator's stamp. A single
+        // document gets none: there is nothing to separate it from.
         let body: String = rendered
             .files
             .iter()
             .map(|file| file.content.as_str())
-            .collect();
+            .collect::<Vec<_>>()
+            .join("---\n");
         return success(
             "ci render",
             &body,
@@ -211,16 +215,42 @@ fn write(
         );
     }
 
-    if let Err(error) = universe_workflow::write(&invocation.output_dir(), rendered) {
-        return failure(
-            USAGE,
-            vec![Diagnostic::new(
-                Severity::Error,
-                "ci.render.write_failed",
-                error.to_string(),
-            )],
-        );
-    }
+    let report = match universe_workflow::write(&invocation.output_dir(), rendered) {
+        Ok(report) => report,
+        Err(error) => {
+            // A foreign file at a rendered name is the caller's to resolve, and the difference
+            // matters: `write_failed` sends them to the filesystem, this sends them to the
+            // other lane sharing the name.
+            let code = if matches!(error, universe_workflow::RenderError::Foreign { .. }) {
+                "ci.render.foreign"
+            } else {
+                "ci.render.write_failed"
+            };
+            return failure(
+                USAGE,
+                vec![Diagnostic::new(Severity::Error, code, error.to_string())],
+            );
+        }
+    };
+    // Said out loud rather than skipped silently: a file this renderer left alone is exactly
+    // the case that looked like the renderer had forgotten about it.
+    let untouched: Vec<Diagnostic> = report
+        .untouched
+        .iter()
+        .map(|path| {
+            Diagnostic::new(
+                Severity::Warning,
+                "ci.render.untouched",
+                format!(
+                    "{} exists and was left alone: it carries no '{}' stamp, so another tool \
+                     writes it",
+                    path.display(),
+                    universe_workflow::STAMP
+                ),
+            )
+            .with_path(path.display().to_string())
+        })
+        .collect();
     let written = rendered
         .files
         .iter()
@@ -233,7 +263,7 @@ fn write(
         rendered,
         destinations,
         invocation.json,
-        vec![],
+        untouched,
     )
 }
 
@@ -264,6 +294,7 @@ fn success(
     json: bool,
     diagnostics: Vec<Diagnostic>,
 ) -> CommandOutput {
+    let on_stderr = warnings(&diagnostics);
     if json {
         let envelope: Envelope<serde_json::Value> = Envelope::new(
             STDOUT_SCHEMA_VERSION,
@@ -288,11 +319,34 @@ fn success(
                     .to_json()
                     .expect("the ci envelope always serializes")
             ),
-            String::new(),
+            on_stderr,
             0,
         );
     }
-    CommandOutput::new(body.to_owned(), String::new(), 0)
+    CommandOutput::new(body.to_owned(), on_stderr, 0)
+}
+
+/// The warnings of a successful command, one line each, for stderr.
+///
+/// A command that succeeded still has something to say when it declined to act on part of what
+/// it found, and the human-readable path has no other channel: stdout carries the rendered file
+/// list, and a warning in there would corrupt a redirect.
+fn warnings(diagnostics: &[Diagnostic]) -> String {
+    diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity() == Severity::Warning)
+        .map(|diagnostic| {
+            let path = diagnostic
+                .path()
+                .map(|path| format!(" [{path}]"))
+                .unwrap_or_default();
+            format!(
+                "warning: {}{path}: {}\n",
+                diagnostic.code(),
+                diagnostic.message()
+            )
+        })
+        .collect()
 }
 
 /// The required-check list, one per line, as the settings page expects it pasted.
