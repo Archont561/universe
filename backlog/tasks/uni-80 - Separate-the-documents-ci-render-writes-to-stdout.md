@@ -1,7 +1,7 @@
 ---
 id: UNI-80
 title: Separate the documents `ci render --stdout` writes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-13'
 updated_date: '2026-11-13'
@@ -38,15 +38,15 @@ a test can assert without recomputing the render.
 
 ## Acceptance Criteria
 <!-- AC.BEGIN -->
-- [ ] #1 Documents written by `--stdout` are separated by `---`, so the stream parses as one YAML document sequence.
-- [ ] #2 Splitting the output on the separator reproduces each rendered file's bytes exactly and in the renderer's order, asserted against the same `RenderOutput` the files' own round-trip uses.
-- [ ] #3 A single-file render is unchanged: no separator is invented where there is nothing to separate.
-- [ ] #4 `--check`, the plain render path, and the `--json` envelope are untouched; the exit-code contract (0 matched, 1 drifted, 2 usage) is asserted as before.
+- [x] #1 Documents written by `--stdout` are separated by `---`, so the stream parses as one YAML document sequence. — the rendered contents are joined with the separator, so the separator lands *between* documents and never at either end.
+- [x] #2 Splitting the output on the separator reproduces each rendered file's bytes exactly and in the renderer's order, asserted against the same `RenderOutput` the files' own round-trip uses. — `stdout_separates_the_documents_it_renders` splits the stream and compares both pieces against the files a plain `render` wrote, so the expectation comes from the written tree rather than from re-running the join.
+- [x] #3 A single-file render is unchanged: no separator is invented where there is nothing to separate. — `a_single_document_is_rendered_without_a_separator`, on the Airlock-only manifest `UNI-78` made possible; a `join` gives this for free, and the test is what keeps a future "always prefix" from creeping in.
+- [x] #4 `--check`, the plain render path, and the `--json` envelope are untouched; the exit-code contract (0 matched, 1 drifted, 2 usage) is asserted as before. — the change is inside the `--stdout` branch of `write`'s caller; the existing CLI tests for those three paths pass unchanged.
 <!-- AC.END -->
 
 ## Definition of Done
 <!-- DOD.BEGIN -->
-- [ ] #1 The round-trip test fails before the separator exists, on the two-file fixture this repository's own manifest produces.
-- [ ] #2 `pixi run gates` passes.
-- [ ] #3 `docs/WORKFLOWS.md` or the `ci` module's own doc comment states the format, so a script author reads it instead of inferring it.
+- [x] #1 The round-trip test fails before the separator exists, on the two-file fixture this repository's own manifest produces. — red first at `left: 2, right: 3` with the two documents concatenated; the expectation was then corrected from "N+1 pieces, leading empty" to "N pieces", which is the shape a between-documents separator actually produces.
+- [x] #2 `pixi run gates` passes.
+- [x] #3 `docs/WORKFLOWS.md` or the `ci` module's own doc comment states the format, so a script author reads it instead of inferring it. — stated in the `docs/WORKFLOWS.md` bullet about the file set, where a reader looking for "what does render write" already is.
 <!-- DOD.END -->

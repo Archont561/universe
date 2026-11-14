@@ -22,6 +22,18 @@ Feature: Rendering the workflow set from a project manifest
     When the workflow set is rendered
     Then the rendered file set is the main workflow file alone
 
+  Scenario: A consumer that declares no packages gets no producer lane
+    Given a consumer that declares only the Airlock restore scope
+    When the workflow set is rendered
+    Then the rendered file set is the Airlock workflow alone
+
+  Scenario: A workflow this renderer did not write is left in place
+    Given a consumer that declares only the Airlock restore scope
+    And a release workflow written by another tool
+    When the workflow set is rendered
+    Then that release workflow is still there afterwards
+    And the render says it was left alone
+
   Scenario: A hand-edited generated file is reported as drift
     Given a project that publishes its Airlock package to a hosted channel and to a static channel
     When the workflow set is rendered

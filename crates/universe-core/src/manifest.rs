@@ -442,6 +442,47 @@ impl StoreKind {
         }
     }
 
+    /// Whether the producer lane knows how to publish to this kind.
+    ///
+    /// False is not a defect in the destination; it is a statement about what has been
+    /// implemented. A manifest may still *declare* such a store — reading from a registry works
+    /// long before writing to it does — but a writable one is refused, because the alternative
+    /// is worse than a missing feature: the renderer emits a publish job with no publish step,
+    /// its verdict job passes, and a required check turns green over a release that shipped
+    /// nothing (GitHub issue 121).
+    ///
+    /// The renderer derives its verb table from this predicate, so a kind added here without a
+    /// verb cannot reach a workflow.
+    #[must_use]
+    pub const fn publishes(self) -> bool {
+        !matches!(
+            self,
+            Self::Npmjs | Self::GithubPackages | Self::Pypi | Self::CratesIo | Self::Command
+        )
+    }
+
+    /// Every kind, in the order they are declared.
+    ///
+    /// Exists so a test can assert a property of *all* of them: the unwritable set above is a
+    /// decision, and a new variant that quietly joins it — or quietly leaves it — should be a
+    /// deliberate edit rather than whichever match arm somebody copied.
+    pub const ALL: [Self; 14] = [
+        Self::Static,
+        Self::Releases,
+        Self::Branch,
+        Self::PrefixDev,
+        Self::Anaconda,
+        Self::Quetz,
+        Self::Artifactory,
+        Self::S3,
+        Self::Filesystem,
+        Self::Npmjs,
+        Self::GithubPackages,
+        Self::Pypi,
+        Self::CratesIo,
+        Self::Command,
+    ];
+
     /// Whether this destination generates an index Universe has to produce.
     #[must_use]
     pub const fn generates_index(self) -> bool {
@@ -1147,6 +1188,36 @@ impl Manifest {
         }
     }
 
+    /// A writable store the producer lane cannot publish to.
+    ///
+    /// An error rather than a warning: the rendered job would be a required check that passes
+    /// while publishing nothing, which is harder to notice than a failure. Saying so here means
+    /// the manifest never reaches the renderer in that state.
+    fn validate_store_publishes(
+        &self,
+        store: &Store,
+        path: &str,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        if !store.writable || store.kind.publishes() {
+            return;
+        }
+        diagnostics.push(
+            Diagnostic::new(
+                Severity::Error,
+                "manifest.store.unpublishable",
+                format!(
+                    "store '{}' is writable and its kind '{}' has no publish implementation in \
+                     this release; its publish job would pass without publishing anything. Make \
+                     it read-only, remove it, or wait until the verb exists",
+                    store.name,
+                    store.kind.as_str()
+                ),
+            )
+            .with_path(format!("{path}.kind")),
+        );
+    }
+
     /// The notes file a release body comes from, and why declaring one elsewhere is refused.
     ///
     /// A release is the only destination with a front page, so a `notes` on any other store
@@ -1262,6 +1333,7 @@ impl Manifest {
             self.validate_pages_store(store, &path, diagnostics);
             self.validate_store_branch(store, &path, diagnostics);
             self.validate_store_notes(store, &path, diagnostics);
+            self.validate_store_publishes(store, &path, diagnostics);
             if let Some(max_builds) = store.max_builds_per_version {
                 // A release store prunes against GitHub's asset cap; a branch store prunes
                 // against its own snapshot, which is `universe publish --keep`. Any other
@@ -2206,6 +2278,39 @@ secrets = ["GITHUB_TOKEN"]
 verifier = "registry"
 notes = "docs/releases/0.1.0.md"
 "#;
+
+    #[test]
+    fn a_writable_store_nothing_can_publish_to_is_refused() {
+        // GitHub issue 121: a writable store whose kind has no publish verb renders a complete
+        // job with no publish step, and the file's verdict then passes over a release that
+        // shipped nothing. The manifest is the first place that can be caught, so it is.
+        let text = NOTED_RELEASE.replace(
+            "kind = \"releases\"",
+            "kind = \"npmjs\"\nurl = \"https://registry.npmjs.org\"",
+        );
+        let diagnostics = problems(&text);
+        assert!(
+            codes(&diagnostics).contains(&"manifest.store.unpublishable"),
+            "an npmjs store with no publish implementation was accepted: {:?}",
+            codes(&diagnostics)
+        );
+    }
+
+    #[test]
+    fn a_read_only_store_of_an_unimplemented_kind_is_only_a_warning() {
+        // Reading a registry is implemented; writing to it is not. A store nothing publishes to
+        // and nothing publishes from is a declaration with no effect, which is a warning.
+        let text = NOTED_RELEASE
+            .replace(
+                "kind = \"releases\"",
+                "kind = \"npmjs\"\nurl = \"https://registry.npmjs.org\"",
+            )
+            .replace("writable = true", "writable = false");
+        assert!(
+            !codes(&problems(&text)).contains(&"manifest.store.unpublishable"),
+            "a read-only store was refused"
+        );
+    }
 
     #[test]
     fn a_release_store_can_name_the_file_its_body_is_read_from() {

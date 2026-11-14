@@ -13,7 +13,7 @@ use rstest_bdd_macros::{given, scenario, then, when};
 use tempfile::TempDir;
 use universe_core::diagnostic::Diagnostic;
 use universe_core::manifest::Manifest;
-use universe_workflow::{PUBLISH_FILE, RenderOutput};
+use universe_workflow::{AIRLOCK_FILE, PUBLISH_FILE, RenderOutput, Written};
 
 /// A project under a temporary directory, plus what the last render produced.
 ///
@@ -27,6 +27,7 @@ struct Project {
     refusal: Option<Vec<Diagnostic>>,
     rendered: Option<RenderOutput>,
     rerendered: Option<RenderOutput>,
+    report: Option<Written>,
 }
 
 impl Project {
@@ -95,6 +96,23 @@ kind = "conda"
 command = ["rattler-build", "build"]
 outputs = ["output/**/*.conda"]
 release = false
+"#;
+
+/// A consumer that consumes and never produces: no packages, no stores, one restore scope.
+const CONSUMER_ONLY: &str = r#"
+schema = 1
+
+[project]
+name = "consumer"
+platforms = ["linux-64"]
+
+[airlock.developer]
+adapters = ["pixi"]
+
+[airlock.developer.restore]
+remote = "https://example.invalid/universe.git"
+branch = "universe/bootstrap"
+commit = "0123456789abcdef0123456789abcdef01234567"
 "#;
 
 const IMPLICIT_RELEASES: &str = r#"
@@ -225,6 +243,29 @@ fn project_with_two_stores(project: &mut Project) {
         project.manifest.is_some(),
         "the two-store manifest is valid"
     );
+}
+
+#[given("a consumer that declares only the Airlock restore scope")]
+fn consumer_only(project: &mut Project) {
+    load(project, CONSUMER_ONLY);
+    let manifest = project.manifest.as_ref().expect("manifest");
+    assert!(
+        manifest.packages.is_empty(),
+        "the scenario needs a manifest with no package lane"
+    );
+}
+
+#[given("a release workflow written by another tool")]
+fn foreign_release_workflow(project: &mut Project) {
+    // The name this renderer uses for its own tag-triggered lane, occupied by a consumer's npm
+    // trusted-publishing workflow — the collision the basename rule creates.
+    let path = project.directories().join(PUBLISH_FILE);
+    std::fs::create_dir_all(path.parent().expect("a parent")).expect("workflows dir");
+    std::fs::write(
+        &path,
+        "name: npm publish\non:\n  push:\n    tags: [\"v*\"]\n",
+    )
+    .expect("the foreign workflow is writable");
 }
 
 #[given("a project that publishes nothing")]
@@ -382,8 +423,10 @@ fn render_the_workflow_set(project: &mut Project) {
         return;
     };
     let rendered = universe_workflow::render(manifest, &project.source).expect("the set renders");
-    universe_workflow::write(&project.directories(), &rendered).expect("the set is written");
+    let report =
+        universe_workflow::write(&project.directories(), &rendered).expect("the set is written");
     project.rendered = Some(rendered);
+    project.report = Some(report);
 }
 
 #[when("the same manifest is rendered again")]
@@ -395,8 +438,24 @@ fn render_again(project: &mut Project) {
 
 #[when("the main workflow file is edited by hand")]
 fn edit_by_hand(project: &mut Project) {
+    // An edit to a generated file is an edit to its body: the `@generated` stamp on the first
+    // line stays, and that stamp is what makes the difference the check reports *drift* rather
+    // than a file belonging to somebody else.
     let path = project.directories().join("universe.yml");
-    std::fs::write(&path, "# edited after generation\n").expect("the file is editable");
+    let generated = std::fs::read_to_string(&path).expect("the file is readable");
+    let mut lines = generated.lines();
+    let stamp = lines.next().expect("the renderer stamps its first line");
+    let rest: String = lines
+        .map(|line| {
+            if line.starts_with("name:") {
+                "name: edited after generation"
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(&path, format!("{stamp}\n{rest}\n")).expect("the file is editable");
 }
 
 #[then("the publish file has a job for the hosted channel")]
@@ -511,6 +570,45 @@ fn publish_file_prints_mapping(project: &Project) {
             .required_checks
             .iter()
             .all(|check| check.starts_with("universe / "))
+    );
+}
+
+#[then("the rendered file set is the Airlock workflow alone")]
+fn only_the_airlock_file(project: &Project) {
+    let names: Vec<&str> = project
+        .rendered()
+        .files
+        .iter()
+        .map(|file| file.path.as_str())
+        .collect();
+    assert_eq!(names, [AIRLOCK_FILE]);
+    assert!(
+        !project.directories().join("universe.yml").exists(),
+        "a consumer with no packages was given a producer lane"
+    );
+}
+
+#[then("that release workflow is still there afterwards")]
+fn foreign_release_survives(project: &Project) {
+    let path = project.directories().join(PUBLISH_FILE);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("still there"),
+        "name: npm publish\non:\n  push:\n    tags: [\"v*\"]\n",
+        "rendering deleted a workflow it did not write"
+    );
+}
+
+#[then("the render says it was left alone")]
+fn render_reports_the_left_alone_file(project: &Project) {
+    let report = project.report.as_ref().expect("the render was written");
+    assert_eq!(
+        report
+            .untouched
+            .iter()
+            .filter_map(|path| path.file_name())
+            .map(|name| name.to_string_lossy().into_owned())
+            .collect::<Vec<_>>(),
+        [PUBLISH_FILE]
     );
 }
 
@@ -932,6 +1030,22 @@ fn two_stores_produce_two_publish_jobs(project: Project) {
     name = "A project that publishes nothing renders only the main file"
 )]
 fn nothing_to_publish_renders_one_file(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "features/render.feature",
+    name = "A consumer that declares no packages gets no producer lane"
+)]
+fn a_consumer_without_packages_gets_no_producer_lane(project: Project) {
+    let _ = project;
+}
+
+#[scenario(
+    path = "features/render.feature",
+    name = "A workflow this renderer did not write is left in place"
+)]
+fn a_foreign_workflow_is_left_in_place(project: Project) {
     let _ = project;
 }
 

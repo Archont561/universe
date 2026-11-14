@@ -174,6 +174,13 @@ There is no autodetection and no "publish everywhere" switch: a package names it
 - **Kind compatibility is a lint error, not a publish-time surprise.** `conda` may name
   `static`/`prefix-dev`/`anaconda`; a crate may name `crates-io` and an npm store, but only if it
   also declares the npm output — a wrapper that was never built cannot be uploaded.
+- **A writable store must have something that can publish to it.** `crates-io`, `npmjs`,
+  `github-packages`, `pypi` and `command` are declared but not implemented as destinations yet,
+  so a writable one is an error: its publish job would build, pass its verdict, and ship
+  nothing. The same store read-only is legal and only warns where it is useless, because
+  reading a registry works long before writing to it does. Whether a kind publishes is
+  `StoreKind::publishes`, and the workflow renderer derives its verb table from it, so the two
+  cannot drift apart.
 - **The reverse is checked too.** A writable store that no package names is a half-applied
   rename, and it warns.
 - **A snapshot store names the ref it publishes to.** `branch` on a `branch` or `static` store is
